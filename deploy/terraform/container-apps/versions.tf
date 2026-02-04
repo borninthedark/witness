@@ -20,6 +20,7 @@ provider "azurerm" {
     }
   }
 
-  # Use OIDC authentication in CI/CD
-  use_oidc = true
+  # Authentication via HCP Terraform global variable set:
+  #   ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID
+  # Applied organization-wide to all workspaces
 }
