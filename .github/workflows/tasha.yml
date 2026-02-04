@@ -51,13 +51,15 @@ jobs:
       - name: Check trigger
         id: check
         run: |
+          WS="witness-container-apps"
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Manual trigger: require DESTROY confirmation
             if [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
               ENV="${{ github.event.inputs.environment }}"
               echo "should_destroy=true" >> "$GITHUB_OUTPUT"
               echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
-              echo "workspace=witness-container-apps-${ENV}" >> "$GITHUB_OUTPUT"
+              echo "workspace=${WS}" >> "$GITHUB_OUTPUT"
               echo "Manual destroy confirmed for ${ENV}"
             else
               echo "should_destroy=false" >> "$GITHUB_OUTPUT"
@@ -65,9 +67,7 @@ jobs:
               exit 1
             fi
           elif [ "${{ github.event_name }}" = "schedule" ]; then
-            # Auto-rollback: check if dev workspace has a failed apply
-            WS="witness-container-apps-dev"
-
+            # Auto-rollback: check if workspace has a failed apply
             RESPONSE=$(curl -s \
               --header "Authorization: Bearer ${TF_API_TOKEN}" \
               "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WS}")

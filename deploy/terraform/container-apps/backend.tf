@@ -4,17 +4,18 @@
 #
 # State is managed by HCP Terraform (Terraform Cloud).
 #
-# Workspaces:
-#   witness-container-apps-dev   - Development environment
-#   witness-container-apps-prod  - Production environment
+# VCS-driven workflow:
+#   - Push to deploy/terraform/** triggers auto-plan in HCP TF
+#   - La Forge runs Data CI + Worf security scans as quality gate
+#   - Manual confirm required in HCP TF before apply
 #
-# Select workspace at runtime:
-#   export TF_WORKSPACE="witness-container-apps-dev"
+# Per-environment variables are set as HCP TF workspace variables
+# (sensitive values like secret_key, container_registry_password).
 #
 # For local development:
 #   1. Run `terraform login` to authenticate
-#   2. export TF_WORKSPACE="witness-container-apps-dev"
-#   3. Or comment out the cloud block to use local state
+#   2. terraform init
+#   3. terraform plan
 # ================================================================
 
 terraform {
@@ -22,7 +23,7 @@ terraform {
     organization = "DefiantEmissary"
 
     workspaces {
-      tags = ["witness", "container-apps"]
+      name = "witness-container-apps"
     }
   }
 }

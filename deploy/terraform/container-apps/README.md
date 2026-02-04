@@ -91,15 +91,12 @@ cd deploy/terraform/container-apps
 # Authenticate with HCP Terraform
 terraform login
 
-# Set workspace
-export TF_CLOUD_ORGANIZATION="DefiantEmissary"
-export TF_WORKSPACE="witness-container-apps-dev"
-
 # Initialize Terraform
 terraform init
 
-# Plan deployment
-terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+# Plan deployment (choose environment)
+terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
+# or: terraform plan -var-file="prod/terraform.tfvars" -out=tfplan
 
 # Apply
 terraform apply tfplan
@@ -107,10 +104,10 @@ terraform apply tfplan
 
 ### Via GitHub Actions
 
-The infrastructure pipeline handles deployment:
+The infrastructure pipeline handles deployment via HCP Terraform (VCS-driven):
 
 1. Push changes to `deploy/terraform/container-apps/**`
-2. Worf runs security scans and tests (GitHub Actions)
+2. La Forge runs Data CI + Worf security scans as quality gate
 3. HCP Terraform auto-plans, manual confirm to apply
 
 ## Configuration
@@ -166,7 +163,7 @@ use_managed_identity_for_registry = true
 
 ## Environment Files
 
-### dev.tfvars
+### dev/terraform.tfvars
 
 ```hcl
 resource_group_name = "witness-dev-rg"
@@ -178,7 +175,7 @@ max_replicas        = 2
 log_retention_days  = 7
 ```
 
-### prod.tfvars
+### prod/terraform.tfvars
 
 ```hcl
 resource_group_name = "witness-prod-rg"

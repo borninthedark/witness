@@ -120,14 +120,12 @@ Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
 ```bash
 cd deploy/terraform/container-apps
 
-# Authenticate and configure HCP Terraform
+# Authenticate with HCP Terraform
 terraform login
-export TF_CLOUD_ORGANIZATION="DefiantEmissary"
-export TF_WORKSPACE="witness-container-apps-dev"
 
 # Initialize and deploy
 terraform init
-terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
 terraform apply tfplan
 ```
 
@@ -177,7 +175,7 @@ container_apps = {
 
 **Development (scale-to-zero):**
 ```hcl
-# environments/dev.tfvars
+# dev/terraform.tfvars
 min_replicas       = 0
 max_replicas       = 2
 log_retention_days = 7
@@ -185,7 +183,7 @@ log_retention_days = 7
 
 **Production:**
 ```hcl
-# environments/prod.tfvars
+# prod/terraform.tfvars
 min_replicas       = 1
 max_replicas       = 5
 log_retention_days = 90
@@ -199,7 +197,7 @@ Terraform configuration for Azure Container Apps lives in `deploy/terraform/cont
 
 **Module:** `Azure/container-apps/azure` v0.4.0
 
-**State Management:** HCP Terraform (organization: `DefiantEmissary`).
+**State Management:** HCP Terraform (organization: `DefiantEmissary`, workspace: `witness-container-apps`).
 
 **Required GitHub Secrets:**
 - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` - OIDC authentication
@@ -225,9 +223,9 @@ Picard - Build (build, scan, sign, push to GHCR)
 **Infrastructure Pipeline (HCP Terraform VCS-driven):**
 ```
 Push to deploy/terraform/**
-    |-> Worf - Security (GitHub Actions: scans, validation, tests)
-    |-> HCP Terraform (auto-plan, manual confirm, apply)
-        |-> [on failure] Tasha - Destroy (auto-rollback dev)
+    |-> La Forge - Gate (calls Data CI + Worf Security as prerequisites)
+    |-> HCP Terraform (VCS-driven: auto-plan, manual confirm, apply)
+        |-> [on failure] Tasha - Destroy (auto-rollback)
 ```
 
 **Workflows:**
@@ -238,6 +236,7 @@ Push to deploy/terraform/**
 | Riker - Release | `riker.yml` | After Picard succeeds |
 | Troi - Docs | `troi.yml` | After Picard / scheduled |
 | Worf - Security | `worf.yml` | Push/PR to terraform paths |
+| La Forge - Gate | `laforge.yml` | Quality gate: Data CI + Worf scans |
 | Crusher - Health | `crusher.yml` | Scheduled / manual |
 | Tasha - Destroy | `tasha.yml` | Scheduled (auto-rollback) / manual |
 

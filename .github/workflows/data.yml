@@ -20,6 +20,7 @@ on:
       - '**.md'
       - 'docs/**'
       - 'deploy/terraform/**'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

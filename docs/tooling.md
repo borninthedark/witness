@@ -150,8 +150,8 @@ The project uses Star Trek TNG-themed GitHub Actions workflows organized into tw
 
 ### Infrastructure Pipeline (HCP Terraform VCS-driven)
 
-Plan and apply handled by HCP Terraform (org: `DefiantEmissary`).
-Worf runs security scans in GitHub Actions. On push to `deploy/terraform/**`:
+Plan and apply handled by HCP Terraform (VCS-driven, workspace: `witness-container-apps`).
+La Forge orchestrates Data CI + Worf security scans as a quality gate. On push to `deploy/terraform/**`:
 
 1. **Worf - Security** (`worf.yml`) - GitHub Actions
    - Checkov security scanning
@@ -160,10 +160,15 @@ Worf runs security scans in GitHub Actions. On push to `deploy/terraform/**`:
    - Terraform validate, format check, and tests
    - Jobs run sequentially: scan -> test -> cost estimate
 
-2. **HCP Terraform** - VCS-driven (auto-triggers on push)
+2. **La Forge - Gate** (`laforge.yml`) - On push to terraform paths / manual
+   - Calls Data CI and Worf Security as reusable workflows
+   - Quality gate: both must pass before HCP TF auto-plan proceeds
+   - Reports workspace status after checks pass
+
+   **HCP Terraform** - VCS-driven (auto-triggers on push)
    - Auto-plans on push to configured working directory
    - Manual confirm required before apply
-   - Workspaces: `witness-container-apps-dev`, `witness-container-apps-prod`
+   - Workspace: `witness-container-apps`
 
 3. **Crusher - Health** (`crusher.yml`) - Scheduled / on-demand
    - Pipeline health monitoring (workflow status)
@@ -171,9 +176,10 @@ Worf runs security scans in GitHub Actions. On push to `deploy/terraform/**`:
    - HCP Terraform workspace status via API
 
 4. **Tasha - Destroy** (`tasha.yml`) - Scheduled (auto-rollback) / manual
-   - Polls HCP TF for failed applies, auto-destroys dev
+   - Polls HCP TF for failed applies, auto-destroys on failure
    - Manual trigger requires typing "DESTROY" to confirm
    - Queues destroy runs via HCP Terraform API
+   - Workspace: `witness-container-apps`
 
 ### Required Secrets
 

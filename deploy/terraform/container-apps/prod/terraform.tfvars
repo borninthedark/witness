@@ -19,7 +19,7 @@ database_url     = "sqlite:////app/data/fitness.db"
 # Scaling (always-on for production)
 min_replicas  = 1
 max_replicas  = 5
-revision_mode = "Multiple"  # Blue-green deployments
+revision_mode = "Multiple" # Blue-green deployments
 
 # Ingress
 ingress_external_enabled = true

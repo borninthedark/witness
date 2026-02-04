@@ -392,12 +392,10 @@ Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
 Terraform configurations provision the Azure infrastructure via GitHub Actions:
 
 ```bash
-# Manual deployment (or push to trigger HCP Terraform)
+# Manual deployment (or push to trigger HCP Terraform VCS-driven plan)
 cd deploy/terraform/container-apps
-export TF_CLOUD_ORGANIZATION="DefiantEmissary"
-export TF_WORKSPACE="witness-container-apps-dev"
 terraform login && terraform init
-terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
 terraform apply tfplan
 ```
 
@@ -477,28 +475,30 @@ Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
 
 **Infrastructure Workflows (Terraform):**
 
-Plan and apply is handled by **HCP Terraform** (VCS-driven flow):
+Plan and apply is handled by **HCP Terraform** (VCS-driven):
 
 ```
 Push to deploy/terraform/**
     |
-    |-- Worf - Security (GitHub Actions: scans, validation, tests)
+    |-- La Forge - Gate (calls Data CI + Worf Security as prerequisites)
     |
     |-- HCP Terraform (VCS-driven: auto-plan, manual confirm, apply)
             |
-            |-- [on failure] Tasha - Destroy (auto-rollback dev)
+            |-- [on failure] Tasha - Destroy (auto-rollback)
 ```
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Worf - Security** | `worf.yml` | Scans, validation, tests (GitHub Actions) |
+| **La Forge - Gate** | `laforge.yml` | Quality gate: runs Data CI + Worf scans |
+| **Worf - Security** | `worf.yml` | Scans, validation, tests (called by La Forge) |
 | **Crusher - Health** | `crusher.yml` | Pipeline and HCP TF workspace health checks |
 | **Tasha - Destroy** | `tasha.yml` | Destroy via HCP TF API (manual or auto-rollback) |
 
 **HCP Terraform** (org: `DefiantEmissary`):
 - VCS-driven: auto-plans on push to `deploy/terraform/**`
-- Workspaces: `witness-container-apps-dev`, `witness-container-apps-prod`
+- Workspace: `witness-container-apps`
 - Manual confirm required before apply
+- Sensitive variables (`secret_key`, `container_registry_password`) stored as workspace variables
 
 See `.github/workflows/` for workflow definitions.
 
@@ -700,12 +700,13 @@ deploy/terraform/
     ├── variables.tf                    # Input variables
     ├── outputs.tf                      # Output values
     ├── versions.tf                     # Provider requirements
-    ├── backend.tf                      # Azure Storage backend
+    ├── backend.tf                      # HCP Terraform backend (single workspace)
     ├── tests/                          # Terraform native tests
     │   └── variables.tftest.hcl
-    └── environments/
-        ├── dev.tfvars                  # Development environment
-        └── prod.tfvars                 # Production environment
+    ├── dev/
+    │   └── terraform.tfvars            # Development environment
+    └── prod/
+        └── terraform.tfvars            # Production environment
 ```
 
 **Provisions:**
@@ -720,16 +721,14 @@ deploy/terraform/
 Infrastructure is deployed via HCP Terraform (VCS-driven):
 
 1. Push changes to `deploy/terraform/**`
-2. Worf runs security scans and tests in GitHub Actions
+2. La Forge runs Data CI + Worf security scans as quality gate
 3. HCP Terraform auto-plans and applies after manual confirm
 
 **Manual deployment:**
 ```bash
 cd deploy/terraform/container-apps
-export TF_CLOUD_ORGANIZATION="DefiantEmissary"
-export TF_WORKSPACE="witness-container-apps-dev"
 terraform login && terraform init
-terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
 terraform apply tfplan
 ```
 

@@ -234,30 +234,28 @@ jobs:
       TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
       TF_ORG: ${{ vars.TF_CLOUD_ORG }}
     steps:
-      - name: Check HCP Terraform Workspaces
+      - name: Check HCP Terraform Workspace
         id: ca
         run: |
-          for ENV in dev prod; do
-            WS="witness-container-apps-${ENV}"
-            RESPONSE=$(curl -s \
+          WS="witness-container-apps"
+          RESPONSE=$(curl -s \
+            --header "Authorization: Bearer ${TF_API_TOKEN}" \
+            "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WS}" 2>/dev/null)
+
+          RESOURCE_COUNT=$(echo "$RESPONSE" | jq -r '.data.attributes["resource-count"] // 0')
+          CURRENT_RUN=$(echo "$RESPONSE" | jq -r '.data.relationships["current-run"].data.id // "none"')
+
+          if [ "$CURRENT_RUN" != "none" ] && [ "$CURRENT_RUN" != "null" ]; then
+            RUN_STATUS=$(curl -s \
               --header "Authorization: Bearer ${TF_API_TOKEN}" \
-              "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WS}" 2>/dev/null)
+              "https://app.terraform.io/api/v2/runs/${CURRENT_RUN}" \
+              | jq -r '.data.attributes.status // "unknown"')
+          else
+            RUN_STATUS="no-runs"
+          fi
 
-            RESOURCE_COUNT=$(echo "$RESPONSE" | jq -r '.data.attributes["resource-count"] // 0')
-            CURRENT_RUN=$(echo "$RESPONSE" | jq -r '.data.relationships["current-run"].data.id // "none"')
-
-            if [ "$CURRENT_RUN" != "none" ] && [ "$CURRENT_RUN" != "null" ]; then
-              RUN_STATUS=$(curl -s \
-                --header "Authorization: Bearer ${TF_API_TOKEN}" \
-                "https://app.terraform.io/api/v2/runs/${CURRENT_RUN}" \
-                | jq -r '.data.attributes.status // "unknown"')
-            else
-              RUN_STATUS="no-runs"
-            fi
-
-            echo "${ENV}_resources=${RESOURCE_COUNT}" >> "$GITHUB_OUTPUT"
-            echo "${ENV}_status=${RUN_STATUS}" >> "$GITHUB_OUTPUT"
-          done
+          echo "resources=${RESOURCE_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "status=${RUN_STATUS}" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
       - name: Infrastructure Summary
@@ -268,8 +266,7 @@ jobs:
             echo ""
             echo "| Workspace | Last Run Status | Resources |"
             echo "|-----------|-----------------|-----------|"
-            echo "| witness-container-apps-dev | ${{ steps.ca.outputs.dev_status || 'unknown' }} | ${{ steps.ca.outputs.dev_resources || '0' }} |"
-            echo "| witness-container-apps-prod | ${{ steps.ca.outputs.prod_status || 'unknown' }} | ${{ steps.ca.outputs.prod_resources || '0' }} |"
+            echo "| witness-container-apps | ${{ steps.ca.outputs.status || 'unknown' }} | ${{ steps.ca.outputs.resources || '0' }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════

@@ -83,5 +83,3 @@ data/
 .pylintrc
 .trivyignore
 .terraform
-# HCP Terraform sync script (contains usage patterns for API tokens)
-scripts/sync-tfvars-to-hcp.sh
