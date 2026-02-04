@@ -17,7 +17,7 @@ on:
       - '**.md'
       - '.github/workflows/troi.yml'
   workflow_run:
-    workflows: ['Data - CI']
+    workflows: ['Picard - Build']
     types: [completed]
     branches: [main]
   workflow_dispatch:

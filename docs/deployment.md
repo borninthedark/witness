@@ -120,14 +120,13 @@ Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
 ```bash
 cd deploy/terraform/container-apps
 
-# Initialize with Azure backend
-terraform init \
-  -backend-config="resource_group_name=tfstate-rg" \
-  -backend-config="storage_account_name=tfstate" \
-  -backend-config="container_name=tfstate" \
-  -backend-config="key=container-apps/dev/terraform.tfstate"
+# Authenticate and configure HCP Terraform
+terraform login
+export TF_CLOUD_ORGANIZATION="DefiantEmissary"
+export TF_WORKSPACE="witness-container-apps-dev"
 
-# Plan and apply
+# Initialize and deploy
+terraform init
 terraform plan -var-file="environments/dev.tfvars" -out=tfplan
 terraform apply tfplan
 ```
@@ -200,12 +199,15 @@ Terraform configuration for Azure Container Apps lives in `deploy/terraform/cont
 
 **Module:** `Azure/container-apps/azure` v0.4.0
 
-**State Management:** Azure Storage backend with dynamic configuration via CI/CD.
+**State Management:** HCP Terraform (organization: `DefiantEmissary`).
 
 **Required GitHub Secrets:**
 - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` - OIDC authentication
-- `TF_STATE_RESOURCE_GROUP`, `TF_STATE_STORAGE_ACCOUNT`, `TF_STATE_CONTAINER` - State backend
+- `TF_API_TOKEN` - HCP Terraform API token
 - `APP_SECRET_KEY` - Application secret
+
+**Required GitHub Variables:**
+- `TF_CLOUD_ORG` - HCP Terraform organization (`DefiantEmissary`)
 
 ## CI/CD Pipeline
 
@@ -213,30 +215,35 @@ GitHub Actions workflows use Star Trek TNG-themed names and run in sequence:
 
 **Application Pipeline:**
 ```
-Data - CI (build, test, scan)
-    |-> Riker - Release (semantic versioning)
+Data - CI (lint, test, validate)
+
+Picard - Build (build, scan, sign, push to GHCR)
+    |-> Riker - Release (retag, semantic versioning)
     |-> Troi - Docs (badges, reports)
 ```
 
-**Infrastructure Pipeline:**
+**Infrastructure Pipeline (HCP Terraform VCS-driven):**
 ```
-Worf - Security (Checkov, tfsec, Trivy, tests)
-    |-> La Forge - Plan & Apply (requires approval)
+Push to deploy/terraform/**
+    |-> Worf - Security (GitHub Actions: scans, validation, tests)
+    |-> HCP Terraform (auto-plan, manual confirm, apply)
+        |-> [on failure] Tasha - Destroy (auto-rollback dev)
 ```
 
 **Workflows:**
 | Workflow | File | Trigger |
 |----------|------|---------|
 | Data - CI | `data.yml` | Push/PR to main |
-| Riker - Release | `riker.yml` | After Data CI succeeds |
-| Troi - Docs | `troi.yml` | After Data CI / scheduled |
+| Picard - Build | `picard.yml` | Scheduled / manual |
+| Riker - Release | `riker.yml` | After Picard succeeds |
+| Troi - Docs | `troi.yml` | After Picard / scheduled |
 | Worf - Security | `worf.yml` | Push/PR to terraform paths |
-| La Forge - Apply | `laforge.yml` | After Worf succeeds (requires approval) |
-| Tasha - Destroy | `tasha.yml` | Manual with confirmation |
+| Crusher - Health | `crusher.yml` | Scheduled / manual |
+| Tasha - Destroy | `tasha.yml` | Scheduled (auto-rollback) / manual |
 
 ## CI notes
 
-GitHub Actions builds and scans the image with Buildah using the same Dockerfile (pushing `docker`-formatted artifacts to GHCR). Images are signed with Cosign using Sigstore keyless OIDC.
+Picard builds and scans the image with Buildah using the Containerfile (pushing OCI-formatted artifacts to GHCR). Images are signed with Cosign using Sigstore keyless OIDC. Riker pulls the `dev` tag from GHCR and retags for release (no rebuild).
 
 ## Security notes
 

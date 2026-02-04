@@ -8,11 +8,6 @@
 name: Crusher - Health
 
 on:
-  # Run after deployment completes
-  workflow_run:
-    workflows: ['La Forge - Apply']
-    types: [completed]
-
   # Scheduled health checks
   schedule:
     - cron: '0 */6 * * *'  # Every 6 hours
@@ -65,9 +60,9 @@ jobs:
           script: |
             const workflows = [
               { name: 'Data - CI', file: 'data.yml' },
+              { name: 'Picard - Build', file: 'picard.yml' },
               { name: 'Riker - Release', file: 'riker.yml' },
-              { name: 'Worf - Security', file: 'worf.yml' },
-              { name: 'La Forge - Apply', file: 'laforge.yml' }
+              { name: 'Worf - Security', file: 'worf.yml' }
             ];
 
             let healthy = 0;
@@ -236,55 +231,45 @@ jobs:
        github.event.inputs.check_type == 'infrastructure' ||
        github.event_name == 'workflow_run')
     env:
-      ARM_USE_OIDC: true
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_ORG: ${{ vars.TF_CLOUD_ORG }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '1.7.0'
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        continue-on-error: true
-
-      - name: Check Container Apps State
+      - name: Check HCP Terraform Workspaces
         id: ca
-        working-directory: deploy/terraform/container-apps
         run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=container-apps/dev/terraform.tfstate" \
-            -input=false 2>/dev/null || echo "init_failed=true" >> "$GITHUB_OUTPUT"
+          for ENV in dev prod; do
+            WS="witness-container-apps-${ENV}"
+            RESPONSE=$(curl -s \
+              --header "Authorization: Bearer ${TF_API_TOKEN}" \
+              "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WS}" 2>/dev/null)
 
-          if [ -z "$(cat $GITHUB_OUTPUT | grep init_failed)" ]; then
-            RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l || echo "0")
-            echo "resource_count=${RESOURCE_COUNT}" >> "$GITHUB_OUTPUT"
-            echo "status=healthy" >> "$GITHUB_OUTPUT"
-          else
-            echo "status=unknown" >> "$GITHUB_OUTPUT"
-            echo "resource_count=0" >> "$GITHUB_OUTPUT"
-          fi
+            RESOURCE_COUNT=$(echo "$RESPONSE" | jq -r '.data.attributes["resource-count"] // 0')
+            CURRENT_RUN=$(echo "$RESPONSE" | jq -r '.data.relationships["current-run"].data.id // "none"')
+
+            if [ "$CURRENT_RUN" != "none" ] && [ "$CURRENT_RUN" != "null" ]; then
+              RUN_STATUS=$(curl -s \
+                --header "Authorization: Bearer ${TF_API_TOKEN}" \
+                "https://app.terraform.io/api/v2/runs/${CURRENT_RUN}" \
+                | jq -r '.data.attributes.status // "unknown"')
+            else
+              RUN_STATUS="no-runs"
+            fi
+
+            echo "${ENV}_resources=${RESOURCE_COUNT}" >> "$GITHUB_OUTPUT"
+            echo "${ENV}_status=${RUN_STATUS}" >> "$GITHUB_OUTPUT"
+          done
         continue-on-error: true
 
       - name: Infrastructure Summary
         if: always()
         run: |
           {
-            echo "## Crusher - Infrastructure Health"
+            echo "## Crusher - Infrastructure Health (HCP Terraform)"
             echo ""
-            echo "| Infrastructure | Status | Resources |"
-            echo "|----------------|--------|-----------|"
-            echo "| Container Apps | ${{ steps.ca.outputs.status || 'unknown' }} | ${{ steps.ca.outputs.resource_count || '0' }} |"
+            echo "| Workspace | Last Run Status | Resources |"
+            echo "|-----------|-----------------|-----------|"
+            echo "| witness-container-apps-dev | ${{ steps.ca.outputs.dev_status || 'unknown' }} | ${{ steps.ca.outputs.dev_resources || '0' }} |"
+            echo "| witness-container-apps-prod | ${{ steps.ca.outputs.prod_status || 'unknown' }} | ${{ steps.ca.outputs.prod_resources || '0' }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════

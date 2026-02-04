@@ -126,49 +126,54 @@ The project uses Star Trek TNG-themed GitHub Actions workflows organized into tw
 
 ### Application Pipeline
 
-Triggered on push/PR to main branch:
-
-1. **Data - CI** (`data.yml`) - Entry point
+1. **Data - CI** (`data.yml`) - On push/PR to main
    - Python linting (Ruff, MyPy) and testing (pytest)
-   - Container image build with Buildah
+   - Containerfile linting (Hadolint), ShellCheck, Semgrep
+   - Pure code quality, no image build
+
+2. **Picard - Build** (`picard.yml`) - Scheduled / manual
+   - Container image build with Buildah (OCI format)
    - Security scanning with Trivy
    - Image signing with Cosign (Sigstore keyless OIDC)
    - Push to GHCR with `dev` and `sha-*` tags
 
-2. **Riker - Release** (`riker.yml`) - After Data CI succeeds
+3. **Riker - Release** (`riker.yml`) - After Picard succeeds
+   - Pulls `dev` image from GHCR, retags via `skopeo copy`
    - Semantic versioning via conventional commits
    - GitHub release creation with changelog
    - Production image tags (`latest`, `prod`, `vX.Y.Z`)
 
-3. **Troi - Docs** (`troi.yml`) - After Data CI / scheduled
+4. **Troi - Docs** (`troi.yml`) - After Picard / scheduled
    - Coverage badge updates
    - Security report generation
    - Documentation validation
 
-### Infrastructure Pipeline
+### Infrastructure Pipeline (HCP Terraform VCS-driven)
 
-Triggered on push/PR to `deploy/terraform/**`:
+Plan and apply handled by HCP Terraform (org: `DefiantEmissary`).
+Worf runs security scans in GitHub Actions. On push to `deploy/terraform/**`:
 
-1. **Worf - Security** (`worf.yml`) - Entry point
+1. **Worf - Security** (`worf.yml`) - GitHub Actions
    - Checkov security scanning
    - tfsec static analysis
    - Trivy config scanning
    - Terraform validate, format check, and tests
    - Jobs run sequentially: scan -> test -> cost estimate
 
-2. **La Forge - Apply** (`laforge.yml`) - After Worf succeeds
-   - Terraform plan with detailed exit codes
-   - Plan artifact passed between jobs
-   - Requires environment approval before apply
+2. **HCP Terraform** - VCS-driven (auto-triggers on push)
+   - Auto-plans on push to configured working directory
+   - Manual confirm required before apply
+   - Workspaces: `witness-container-apps-dev`, `witness-container-apps-prod`
 
 3. **Crusher - Health** (`crusher.yml`) - Scheduled / on-demand
    - Pipeline health monitoring (workflow status)
    - Application health checks (/healthz, /readyz)
-   - Infrastructure state verification
+   - HCP Terraform workspace status via API
 
-4. **Tasha - Destroy** (`tasha.yml`) - Manual only
-   - Requires typing "DESTROY" to confirm
-   - Environment protection rules
+4. **Tasha - Destroy** (`tasha.yml`) - Scheduled (auto-rollback) / manual
+   - Polls HCP TF for failed applies, auto-destroys dev
+   - Manual trigger requires typing "DESTROY" to confirm
+   - Queues destroy runs via HCP Terraform API
 
 ### Required Secrets
 
@@ -177,14 +182,13 @@ Triggered on push/PR to `deploy/terraform/**`:
 | `AZURE_CLIENT_ID` | Azure OIDC authentication |
 | `AZURE_TENANT_ID` | Azure OIDC authentication |
 | `AZURE_SUBSCRIPTION_ID` | Azure OIDC authentication |
-| `TF_STATE_RESOURCE_GROUP` | Terraform state backend |
-| `TF_STATE_STORAGE_ACCOUNT` | Terraform state backend |
-| `TF_STATE_CONTAINER` | Terraform state backend |
+| `TF_API_TOKEN` | HCP Terraform API token |
 | `APP_SECRET_KEY` | Application secret |
 
 ### Required Variables
 
 | Variable | Purpose |
 |----------|---------|
+| `TF_CLOUD_ORG` | HCP Terraform organization (`DefiantEmissary`) |
 | `ENABLE_TERRAFORM` | Set to `false` to disable Terraform jobs (enabled by default) |
 | `ENABLE_STATUS_DASHBOARD` | Enable Grafana snapshot updates |

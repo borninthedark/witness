@@ -392,14 +392,11 @@ Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
 Terraform configurations provision the Azure infrastructure via GitHub Actions:
 
 ```bash
-# Manual deployment (or use La Forge workflow)
+# Manual deployment (or push to trigger HCP Terraform)
 cd deploy/terraform/container-apps
-terraform init \
-  -backend-config="resource_group_name=tfstate-rg" \
-  -backend-config="storage_account_name=tfstate" \
-  -backend-config="container_name=tfstate" \
-  -backend-config="key=container-apps/dev/terraform.tfstate"
-
+export TF_CLOUD_ORGANIZATION="DefiantEmissary"
+export TF_WORKSPACE="witness-container-apps-dev"
+terraform login && terraform init
 terraform plan -var-file="environments/dev.tfvars" -out=tfplan
 terraform apply tfplan
 ```
@@ -446,21 +443,30 @@ The CI/CD pipeline uses Star Trek TNG-themed workflow names:
 
 **Application Workflows:**
 
+Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
+
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Data - CI** | `data.yml` | Build, test, scan, push container images to GHCR |
-| **Riker - Release** | `riker.yml` | Semantic versioning, GitHub releases, production tags |
+| **Data - CI** | `data.yml` | Lint, test, validate (push/PR) |
+| **Picard - Build** | `picard.yml` | Build, scan, sign, push images to GHCR (scheduled) |
+| **Riker - Release** | `riker.yml` | Retag image, semantic versioning, GitHub releases |
 | **Troi - Docs** | `troi.yml` | Coverage badges, security reports, doc validation |
 
 **Data - CI** (`data.yml`):
-- Container image building with Buildah (OCI format)
 - Python linting (Ruff, MyPy) and testing (pytest)
+- Containerfile linting (Hadolint), ShellCheck, Semgrep
+- Runs on push/PR to main
+
+**Picard - Build** (`picard.yml`):
+- Container image building with Buildah (OCI format)
 - Security scanning with Trivy
 - Image signing with Cosign (Sigstore keyless OIDC)
 - Pushes `dev` and `sha-*` tags to GHCR
+- Scheduled weekly or manual dispatch
 
 **Riker - Release** (`riker.yml`):
-- Triggered automatically after successful Data CI or manually
+- Triggered after Picard build or manually
+- Pulls `dev` image from GHCR, retags with `skopeo copy`
 - Semantic versioning via conventional commits:
   - `feat:` -> minor bump (0.X.0)
   - `fix:` -> patch bump (0.0.X)
@@ -471,26 +477,28 @@ The CI/CD pipeline uses Star Trek TNG-themed workflow names:
 
 **Infrastructure Workflows (Terraform):**
 
-Workflows run in sequence: **Worf -> La Forge**
+Plan and apply is handled by **HCP Terraform** (VCS-driven flow):
 
 ```
-Worf - Security (entry point)
-    |-- Security scans (Checkov, tfsec, Trivy)
-    |-- Terraform validate & format
-    |-- Terraform tests
-    v
-La Forge - Plan & Apply (after Worf succeeds)
-    |-- Terraform plan
-    |-- Environment approval gate
-    |-- Terraform apply
+Push to deploy/terraform/**
+    |
+    |-- Worf - Security (GitHub Actions: scans, validation, tests)
+    |
+    |-- HCP Terraform (VCS-driven: auto-plan, manual confirm, apply)
+            |
+            |-- [on failure] Tasha - Destroy (auto-rollback dev)
 ```
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Worf - Security** | `worf.yml` | Entry point: scans, validation, tests |
-| **La Forge - Apply** | `laforge.yml` | Plan and apply (requires approval) |
-| **Crusher - Health** | `crusher.yml` | Pipeline and application health checks |
-| **Tasha - Destroy** | `tasha.yml` | Terraform destroy (manual, protected) |
+| **Worf - Security** | `worf.yml` | Scans, validation, tests (GitHub Actions) |
+| **Crusher - Health** | `crusher.yml` | Pipeline and HCP TF workspace health checks |
+| **Tasha - Destroy** | `tasha.yml` | Destroy via HCP TF API (manual or auto-rollback) |
+
+**HCP Terraform** (org: `DefiantEmissary`):
+- VCS-driven: auto-plans on push to `deploy/terraform/**`
+- Workspaces: `witness-container-apps-dev`, `witness-container-apps-prod`
+- Manual confirm required before apply
 
 See `.github/workflows/` for workflow definitions.
 
@@ -709,16 +717,18 @@ deploy/terraform/
 
 **Deployment (via GitHub Actions):**
 
-Infrastructure is deployed via the Worf -> La Forge workflow chain:
+Infrastructure is deployed via HCP Terraform (VCS-driven):
 
 1. Push changes to `deploy/terraform/**`
-2. Worf runs security scans and tests (Checkov, tfsec, Trivy)
-3. La Forge plans and applies (requires approval)
+2. Worf runs security scans and tests in GitHub Actions
+3. HCP Terraform auto-plans and applies after manual confirm
 
 **Manual deployment:**
 ```bash
 cd deploy/terraform/container-apps
-terraform init -backend-config="..."
+export TF_CLOUD_ORGANIZATION="DefiantEmissary"
+export TF_WORKSPACE="witness-container-apps-dev"
+terraform login && terraform init
 terraform plan -var-file="environments/dev.tfvars" -out=tfplan
 terraform apply tfplan
 ```

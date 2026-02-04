@@ -1,19 +1,25 @@
 # ================================================================
-# Terraform Backend Configuration
+# HCP Terraform Backend Configuration
 # ================================================================
 #
-# Backend is configured dynamically via CLI arguments in CI/CD:
-#   terraform init \
-#     -backend-config="resource_group_name=..." \
-#     -backend-config="storage_account_name=..." \
-#     -backend-config="container_name=..." \
-#     -backend-config="key=${ENVIRONMENT}/terraform.tfstate"
+# State is managed by HCP Terraform (Terraform Cloud).
+# Configuration is provided via environment variables in CI/CD:
 #
-# For local development, you can:
-# 1. Comment out the backend block to use local state
-# 2. Or copy backend.tf.example and fill in your values
+#   TF_CLOUD_ORGANIZATION  - "DefiantEmissary" (set as GitHub variable TF_CLOUD_ORG)
+#   TF_WORKSPACE           - Workspace name (e.g., witness-container-apps-dev)
+#   TF_TOKEN_app_terraform_io - API token (set as GitHub secret TF_API_TOKEN)
+#
+# Workspaces:
+#   witness-container-apps-dev   - Development environment
+#   witness-container-apps-prod  - Production environment
+#
+# For local development:
+#   1. Run `terraform login` to authenticate
+#   2. export TF_CLOUD_ORGANIZATION="DefiantEmissary"
+#   3. export TF_WORKSPACE="witness-container-apps-dev"
+#   4. Or comment out the cloud block to use local state
 # ================================================================
 
 terraform {
-  backend "azurerm" {}
+  cloud {}
 }

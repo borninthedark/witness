@@ -1,17 +1,16 @@
 # ================================================================
 # Tasha - Terraform Destroy
 # ================================================================
-# "Skin of evil" - Destroys infrastructure
-# Auto-triggers on failed La Forge apply (rollback)
+# "Skin of evil" - Destroys infrastructure via HCP Terraform API
+# Auto-rollback: polls for failed applies and destroys dev on failure
 # Manual trigger requires typing "DESTROY" to confirm
 # ================================================================
 
 name: Tasha - Destroy
 
 on:
-  workflow_run:
-    workflows: ['La Forge - Apply']
-    types: [completed]
+  schedule:
+    - cron: '*/15 * * * *'  # Every 15 minutes: check for failed applies
 
   workflow_dispatch:
     inputs:
@@ -27,141 +26,196 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: terraform-destroy
   cancel-in-progress: false
 
 env:
-  TF_VERSION: '1.7.0'
-  ARM_USE_OIDC: true
+  TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+  TF_ORG: ${{ vars.TF_CLOUD_ORG }}
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Gate: Validate trigger and determine parameters
+  # Gate: Validate trigger (manual or auto-rollback)
   # ══════════════════════════════════════════════════════════════════════════
   gate:
     name: Validate
     runs-on: ubuntu-latest
-    if: |
-      vars.ENABLE_TERRAFORM != 'false' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'))
+    if: vars.ENABLE_TERRAFORM != 'false'
     outputs:
-      confirmed: ${{ steps.check.outputs.confirmed }}
+      should_destroy: ${{ steps.check.outputs.should_destroy }}
       environment: ${{ steps.check.outputs.environment }}
+      workspace: ${{ steps.check.outputs.workspace }}
     steps:
-      - name: Check confirmation
+      - name: Check trigger
         id: check
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "confirmed=true" >> "$GITHUB_OUTPUT"
-            echo "environment=dev" >> "$GITHUB_OUTPUT"
-            echo "Auto-rollback triggered after failed La Forge apply"
-          elif [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
-            echo "confirmed=true" >> "$GITHUB_OUTPUT"
-            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
-            echo "Destruction confirmed"
-          else
-            echo "confirmed=false" >> "$GITHUB_OUTPUT"
-            echo "Confirmation failed. You must type 'DESTROY' exactly."
-            exit 1
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger: require DESTROY confirmation
+            if [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
+              ENV="${{ github.event.inputs.environment }}"
+              echo "should_destroy=true" >> "$GITHUB_OUTPUT"
+              echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
+              echo "workspace=witness-container-apps-${ENV}" >> "$GITHUB_OUTPUT"
+              echo "Manual destroy confirmed for ${ENV}"
+            else
+              echo "should_destroy=false" >> "$GITHUB_OUTPUT"
+              echo "Confirmation failed. You must type 'DESTROY' exactly."
+              exit 1
+            fi
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            # Auto-rollback: check if dev workspace has a failed apply
+            WS="witness-container-apps-dev"
+
+            RESPONSE=$(curl -s \
+              --header "Authorization: Bearer ${TF_API_TOKEN}" \
+              "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WS}")
+
+            CURRENT_RUN_ID=$(echo "$RESPONSE" | jq -r '.data.relationships["current-run"].data.id // "none"')
+
+            if [ "$CURRENT_RUN_ID" = "none" ] || [ "$CURRENT_RUN_ID" = "null" ]; then
+              echo "No current run found"
+              echo "should_destroy=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            RUN_STATUS=$(curl -s \
+              --header "Authorization: Bearer ${TF_API_TOKEN}" \
+              "https://app.terraform.io/api/v2/runs/${CURRENT_RUN_ID}" \
+              | jq -r '.data.attributes.status')
+
+            IS_DESTROY=$(curl -s \
+              --header "Authorization: Bearer ${TF_API_TOKEN}" \
+              "https://app.terraform.io/api/v2/runs/${CURRENT_RUN_ID}" \
+              | jq -r '.data.attributes["is-destroy"]')
+
+            echo "Current run ${CURRENT_RUN_ID}: status=${RUN_STATUS}, is_destroy=${IS_DESTROY}"
+
+            if [ "$RUN_STATUS" = "errored" ] && [ "$IS_DESTROY" = "false" ]; then
+              echo "Failed apply detected, triggering auto-rollback"
+              echo "should_destroy=true" >> "$GITHUB_OUTPUT"
+              echo "environment=dev" >> "$GITHUB_OUTPUT"
+              echo "workspace=${WS}" >> "$GITHUB_OUTPUT"
+            else
+              echo "No failed apply, skipping"
+              echo "should_destroy=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Destroy: Tear down infrastructure
+  # Destroy: Queue destroy run in HCP Terraform
   # ══════════════════════════════════════════════════════════════════════════
   destroy:
     name: Terraform Destroy
     needs: gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: needs.gate.outputs.confirmed == 'true'
+    if: needs.gate.outputs.should_destroy == 'true'
     environment:
       name: ${{ needs.gate.outputs.environment }}-destroy
-    defaults:
-      run:
-        working-directory: deploy/terraform/container-apps
-    env:
-      TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
-      TF_VAR_container_registry_username: ${{ github.repository_owner }}
-      TF_VAR_container_registry_password: ${{ secrets.GITHUB_TOKEN }}
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-          terraform_wrapper: false
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Terraform Init
+      - name: Get Workspace ID
+        id: workspace
         run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=container-apps/${{ needs.gate.outputs.environment }}/terraform.tfstate"
+          WORKSPACE_NAME="${{ needs.gate.outputs.workspace }}"
 
-      - name: Show Current State
+          WORKSPACE_ID=$(curl -s \
+            --header "Authorization: Bearer ${TF_API_TOKEN}" \
+            --header "Content-Type: application/vnd.api+json" \
+            "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WORKSPACE_NAME}" \
+            | jq -r '.data.id')
+
+          if [ "$WORKSPACE_ID" = "null" ] || [ -z "$WORKSPACE_ID" ]; then
+            echo "::error::Workspace '${WORKSPACE_NAME}' not found in org '${TF_ORG}'"
+            exit 1
+          fi
+
+          echo "id=${WORKSPACE_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Queue Destroy Run
+        id: run
         run: |
-          echo "## Current Infrastructure State"
-          terraform show -no-color || echo "No state found"
+          PAYLOAD=$(cat <<EOF
+          {
+            "data": {
+              "attributes": {
+                "is-destroy": true,
+                "message": "Destroy triggered by Tasha workflow (@${{ github.actor }}, event: ${{ github.event_name }})"
+              },
+              "type": "runs",
+              "relationships": {
+                "workspace": {
+                  "data": {
+                    "type": "workspaces",
+                    "id": "${{ steps.workspace.outputs.id }}"
+                  }
+                }
+              }
+            }
+          }
+          EOF
+          )
 
-      - name: Plan Destroy
+          RESPONSE=$(curl -s \
+            --header "Authorization: Bearer ${TF_API_TOKEN}" \
+            --header "Content-Type: application/vnd.api+json" \
+            --request POST \
+            --data "${PAYLOAD}" \
+            "https://app.terraform.io/api/v2/runs")
+
+          RUN_ID=$(echo "$RESPONSE" | jq -r '.data.id')
+
+          if [ "$RUN_ID" = "null" ] || [ -z "$RUN_ID" ]; then
+            echo "::error::Failed to queue destroy run"
+            echo "$RESPONSE" | jq .
+            exit 1
+          fi
+
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "Destroy run queued: ${RUN_ID}"
+
+      - name: Monitor Run
         run: |
-          terraform plan \
-            -var-file="environments/${{ needs.gate.outputs.environment }}.tfvars" \
-            -destroy \
-            -out=destroy-plan \
-            -no-color 2>&1 | tee destroy-plan.txt
+          RUN_ID="${{ steps.run.outputs.run_id }}"
+          echo "Monitoring run ${RUN_ID}..."
 
-      - name: Upload Destroy Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: destroy-plan-${{ needs.gate.outputs.environment }}
-          path: |
-            deploy/terraform/container-apps/destroy-plan
-            deploy/terraform/container-apps/destroy-plan.txt
-          retention-days: 1
+          for i in $(seq 1 90); do
+            STATUS=$(curl -s \
+              --header "Authorization: Bearer ${TF_API_TOKEN}" \
+              "https://app.terraform.io/api/v2/runs/${RUN_ID}" \
+              | jq -r '.data.attributes.status')
 
-      - name: Execute Destroy
-        id: destroy
-        run: terraform apply -auto-approve destroy-plan
+            echo "Status: ${STATUS}"
+
+            case "$STATUS" in
+              applied|discarded)
+                echo "Run completed: ${STATUS}"
+                break
+                ;;
+              errored|canceled|force_canceled)
+                echo "::error::Run failed: ${STATUS}"
+                exit 1
+                ;;
+              *)
+                sleep 30
+                ;;
+            esac
+          done
 
       - name: Destroy Summary
         if: always()
         run: |
-          TRIGGER="${{ github.event_name }}"
           {
-            echo "## Tasha - Infrastructure Destroyed"
+            echo "## Tasha - Destroy Run"
             echo ""
             echo "| Property | Value |"
             echo "|----------|-------|"
             echo "| Environment | \`${{ needs.gate.outputs.environment }}\` |"
-            echo "| Trigger | ${TRIGGER} |"
+            echo "| Workspace | \`${{ needs.gate.outputs.workspace }}\` |"
+            echo "| Run ID | \`${{ steps.run.outputs.run_id }}\` |"
+            echo "| Trigger | ${{ github.event_name }} |"
             echo "| Triggered by | @${{ github.actor }} |"
-            echo "| Status | ${{ steps.destroy.outcome == 'success' && 'Destroyed' || 'Failed' }} |"
             echo ""
-            if [ "${{ steps.destroy.outcome }}" = "success" ]; then
-              echo "> **Warning:** All resources in the \`${{ needs.gate.outputs.environment }}\` environment have been destroyed."
-              echo ""
-              echo "To recreate, run the *La Forge* (Plan & Apply) workflow."
-            fi
+            echo "[View in HCP Terraform](https://app.terraform.io/app/${{ vars.TF_CLOUD_ORG }}/workspaces/${{ needs.gate.outputs.workspace }}/runs/${{ steps.run.outputs.run_id }})"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Notify on Failure
-        if: failure()
-        run: |
-          echo "::error::Terraform destroy failed for container-apps in ${{ needs.gate.outputs.environment }}"

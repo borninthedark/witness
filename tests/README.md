@@ -364,7 +364,7 @@ Tests run automatically on:
 - Every pull request
 - Weekly schedule (Sunday 2 AM UTC)
 
-See `.github/workflows/laforge.yml` for configuration.
+See `.github/workflows/data.yml` for configuration.
 
 ### Pre-commit Hooks
 

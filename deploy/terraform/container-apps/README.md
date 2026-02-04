@@ -88,12 +88,15 @@ container_apps = {
 ```bash
 cd deploy/terraform/container-apps
 
+# Authenticate with HCP Terraform
+terraform login
+
+# Set workspace
+export TF_CLOUD_ORGANIZATION="DefiantEmissary"
+export TF_WORKSPACE="witness-container-apps-dev"
+
 # Initialize Terraform
-terraform init \
-  -backend-config="resource_group_name=tfstate-rg" \
-  -backend-config="storage_account_name=tfstate" \
-  -backend-config="container_name=tfstate" \
-  -backend-config="key=container-apps/dev/terraform.tfstate"
+terraform init
 
 # Plan deployment
 terraform plan -var-file="environments/dev.tfvars" -out=tfplan
@@ -107,8 +110,8 @@ terraform apply tfplan
 The infrastructure pipeline handles deployment:
 
 1. Push changes to `deploy/terraform/container-apps/**`
-2. Worf runs security scans and tests
-3. La Forge plans and applies after approval
+2. Worf runs security scans and tests (GitHub Actions)
+3. HCP Terraform auto-plans, manual confirm to apply
 
 ## Configuration
 
