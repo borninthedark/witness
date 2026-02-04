@@ -18,8 +18,9 @@ on:
       infrastructure:
         description: 'Infrastructure type to destroy'
         required: true
+        default: 'container-apps'
         type: choice
-        options: [container-apps, aks]
+        options: [container-apps]
       confirm:
         description: 'Type "DESTROY" to confirm'
         required: true

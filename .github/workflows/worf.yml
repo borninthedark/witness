@@ -23,13 +23,6 @@ on:
       - '.github/workflows/picard.yml'
       - '.github/workflows/laforge.yml'
   workflow_dispatch:
-    inputs:
-      infrastructure:
-        description: 'Infrastructure to scan'
-        required: true
-        default: 'all'
-        type: choice
-        options: [all, container-apps, aks]
   schedule:
     - cron: '0 6 * * 1'  # Weekly on Monday at 6am
 
@@ -47,7 +40,7 @@ env:
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Matrix: Scan both infrastructure types
+  # Scan Container Apps infrastructure
   # ══════════════════════════════════════════════════════════════════════════
   security-scan:
     name: Scan ${{ matrix.infrastructure }}
@@ -56,10 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        infrastructure: [container-apps, aks]
-        exclude:
-          - infrastructure: ${{ github.event.inputs.infrastructure == 'container-apps' && 'aks' || '' }}
-          - infrastructure: ${{ github.event.inputs.infrastructure == 'aks' && 'container-apps' || '' }}
+        infrastructure: [container-apps]
     defaults:
       run:
         working-directory: deploy/terraform/${{ matrix.infrastructure }}
@@ -165,7 +155,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        infrastructure: [container-apps, aks]
+        infrastructure: [container-apps]
 
     steps:
       - uses: actions/checkout@v4
@@ -219,7 +209,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        infrastructure: [container-apps, aks]
+        infrastructure: [container-apps]
 
     steps:
       - uses: actions/checkout@v4
