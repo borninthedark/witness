@@ -475,30 +475,27 @@ Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
 
 **Infrastructure Workflows (Terraform):**
 
-Plan and apply is handled by **HCP Terraform** (VCS-driven):
+Plan and apply is handled by the **La Forge** workflow (CLI-driven):
 
 ```
 Push to deploy/terraform/**
     |
-    |-- La Forge - Gate (calls Data CI + Worf Security as prerequisites)
-    |
-    |-- HCP Terraform (VCS-driven: auto-plan, manual confirm, apply)
+    |-- La Forge - Deploy (Data CI + Worf scans -> plan -> apply)
             |
             |-- [on failure] Tasha - Destroy (auto-rollback)
 ```
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **La Forge - Gate** | `laforge.yml` | Quality gate: runs Data CI + Worf scans |
+| **La Forge - Deploy** | `laforge.yml` | CI + security gate, then CLI plan/apply with `-var-file` |
 | **Worf - Security** | `worf.yml` | Scans, validation, tests (called by La Forge) |
-| **Crusher - Health** | `crusher.yml` | Pipeline and HCP TF workspace health checks |
+| **Crusher - Health** | `crusher.yml` | Pipeline, container, and workspace health checks (manual) |
 | **Tasha - Destroy** | `tasha.yml` | Destroy via HCP TF API (manual or auto-rollback) |
 
 **HCP Terraform** (org: `DefiantEmissary`):
-- VCS-driven: auto-plans on push to `deploy/terraform/**`
+- CLI-driven: La Forge runs `terraform plan/apply -var-file=<env>/terraform.tfvars`
 - Workspace: `witness-container-apps`
-- Manual confirm required before apply
-- Sensitive variables (`secret_key`, `container_registry_password`) stored as workspace variables
+- Sensitive vars passed via `-var` from GitHub secrets
 
 See `.github/workflows/` for workflow definitions.
 
@@ -718,11 +715,12 @@ deploy/terraform/
 
 **Deployment (via GitHub Actions):**
 
-Infrastructure is deployed via HCP Terraform (VCS-driven):
+Infrastructure is deployed via the La Forge workflow (CLI-driven):
 
 1. Push changes to `deploy/terraform/**`
-2. La Forge runs Data CI + Worf security scans as quality gate
-3. HCP Terraform auto-plans and applies after manual confirm
+2. La Forge runs Data CI + Worf security scans as prerequisites
+3. La Forge runs `terraform plan -var-file=<env>/terraform.tfvars`
+4. Manual dispatch with `action=apply` to apply changes
 
 **Manual deployment:**
 ```bash

@@ -148,10 +148,10 @@ The project uses Star Trek TNG-themed GitHub Actions workflows organized into tw
    - Security report generation
    - Documentation validation
 
-### Infrastructure Pipeline (HCP Terraform VCS-driven)
+### Infrastructure Pipeline (CLI-driven via La Forge)
 
-Plan and apply handled by HCP Terraform (VCS-driven, workspace: `witness-container-apps`).
-La Forge orchestrates Data CI + Worf security scans as a quality gate. On push to `deploy/terraform/**`:
+Plan and apply run via GitHub Actions CLI workflow (state in HCP Terraform, workspace: `witness-container-apps`).
+La Forge orchestrates Data CI + Worf security scans as prerequisites, then runs `terraform plan/apply -var-file`. On push to `deploy/terraform/**`:
 
 1. **Worf - Security** (`worf.yml`) - GitHub Actions
    - Checkov security scanning
@@ -160,18 +160,16 @@ La Forge orchestrates Data CI + Worf security scans as a quality gate. On push t
    - Terraform validate, format check, and tests
    - Jobs run sequentially: scan -> test -> cost estimate
 
-2. **La Forge - Gate** (`laforge.yml`) - On push to terraform paths / manual
+2. **La Forge - Deploy** (`laforge.yml`) - On push to terraform paths / manual
    - Calls Data CI and Worf Security as reusable workflows
-   - Quality gate: both must pass before HCP TF auto-plan proceeds
-   - Reports workspace status after checks pass
-
-   **HCP Terraform** - VCS-driven (auto-triggers on push)
-   - Auto-plans on push to configured working directory
-   - Manual confirm required before apply
+   - Both must pass before plan runs
+   - `terraform plan -var-file=<env>/terraform.tfvars` with sensitive vars via `-var`
+   - `terraform apply` only on manual dispatch with `action=apply`
    - Workspace: `witness-container-apps`
 
-3. **Crusher - Health** (`crusher.yml`) - Scheduled / on-demand
+3. **Crusher - Health** (`crusher.yml`) - Manual
    - Pipeline health monitoring (workflow status)
+   - Container image health (GHCR tags)
    - Application health checks (/healthz, /readyz)
    - HCP Terraform workspace status via API
 

@@ -102,13 +102,14 @@ terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
 terraform apply tfplan
 ```
 
-### Via GitHub Actions
+### Via GitHub Actions (La Forge)
 
-The infrastructure pipeline handles deployment via HCP Terraform (VCS-driven):
+The infrastructure pipeline handles deployment via CLI-driven plan/apply:
 
-1. Push changes to `deploy/terraform/container-apps/**`
-2. La Forge runs Data CI + Worf security scans as quality gate
-3. HCP Terraform auto-plans, manual confirm to apply
+1. Push changes to `deploy/terraform/**` (or manual dispatch)
+2. La Forge calls Data CI + Worf security scans as prerequisites
+3. `terraform plan -var-file=<env>/terraform.tfvars` runs automatically
+4. `terraform apply` requires manual dispatch with `action=apply`
 
 ## Configuration
 
@@ -210,20 +211,6 @@ Tests validate:
 - Scaling configuration
 - Port ranges
 - Environment defaults
-
-## Comparison: Container Apps vs AKS
-
-| Feature | Container Apps | AKS |
-|---------|---------------|-----|
-| Complexity | Low (serverless) | High (full K8s) |
-| Scale to zero | Yes | No (requires KEDA) |
-| Cost model | Per-request + resources | Per-node |
-| Ingress | Built-in HTTPS | Requires NGINX/Traefik |
-| cert-manager | Built-in | Manual setup |
-| Custom domains | Supported | Supported |
-| VNet integration | Optional | Required |
-| Dapr | Built-in | Manual setup |
-| Use case | Simple apps, APIs | Complex microservices |
 
 ## References
 

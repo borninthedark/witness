@@ -220,11 +220,12 @@ Picard - Build (build, scan, sign, push to GHCR)
     |-> Troi - Docs (badges, reports)
 ```
 
-**Infrastructure Pipeline (HCP Terraform VCS-driven):**
+**Infrastructure Pipeline (CLI-driven via La Forge):**
 ```
-Push to deploy/terraform/**
-    |-> La Forge - Gate (calls Data CI + Worf Security as prerequisites)
-    |-> HCP Terraform (VCS-driven: auto-plan, manual confirm, apply)
+Push to deploy/terraform/** (or manual dispatch)
+    |-> La Forge - Deploy (calls Data CI + Worf Security, then plan/apply)
+        |-> terraform plan -var-file=<env>/terraform.tfvars
+        |-> terraform apply (manual dispatch only, action=apply)
         |-> [on failure] Tasha - Destroy (auto-rollback)
 ```
 
@@ -235,9 +236,9 @@ Push to deploy/terraform/**
 | Picard - Build | `picard.yml` | Scheduled / manual |
 | Riker - Release | `riker.yml` | After Picard succeeds |
 | Troi - Docs | `troi.yml` | After Picard / scheduled |
-| Worf - Security | `worf.yml` | Push/PR to terraform paths |
-| La Forge - Gate | `laforge.yml` | Quality gate: Data CI + Worf scans |
-| Crusher - Health | `crusher.yml` | Scheduled / manual |
+| Worf - Security | `worf.yml` | PR to terraform paths / manual |
+| La Forge - Deploy | `laforge.yml` | Push to terraform paths / manual |
+| Crusher - Health | `crusher.yml` | Manual |
 | Tasha - Destroy | `tasha.yml` | Scheduled (auto-rollback) / manual |
 
 ## CI notes

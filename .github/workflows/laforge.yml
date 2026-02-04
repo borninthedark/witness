@@ -1,17 +1,12 @@
 # ================================================================
-# La Forge - Infrastructure Quality Gate & Variable Sync
+# La Forge - Terraform Plan & Apply
 # ================================================================
-# "I can make it work" - Orchestrates CI and security checks,
-# syncs tfvars to HCP Terraform workspace variables via API,
-# then HCP Terraform VCS-driven auto-plans.
-#
-# Flow:
-#   Push to deploy/terraform/** triggers:
-#     1. La Forge: Data CI + Worf scans -> sync tfvars to workspace
-#     2. HCP Terraform (VCS-driven): auto-plan, manual confirm, apply
+# "I can make it work" - CLI-driven Terraform plan and apply
+# Calls Data and Worf as prerequisites, then runs plan/apply
+# with -var-file for the target environment
 # ================================================================
 
-name: La Forge - Gate
+name: La Forge - Deploy
 
 on:
   push:
@@ -23,11 +18,17 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to sync'
+        description: 'Target environment'
         required: true
         default: 'dev'
         type: choice
         options: [dev, prod]
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options: [plan, apply]
 
 permissions:
   contents: read
@@ -35,14 +36,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: terraform-gate-${{ github.ref }}
-  cancel-in-progress: true
+  group: terraform-deploy
+  cancel-in-progress: false
 
 env:
-  TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
-  TF_ORG: ${{ vars.TF_CLOUD_ORG }}
-  TF_API: https://app.terraform.io/api/v2
-  TF_WORKSPACE: witness-container-apps
+  TF_VERSION: '1.7.0'
+  TF_CLOUD_ORGANIZATION: DefiantEmissary
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
@@ -57,13 +56,21 @@ jobs:
     uses: ./.github/workflows/worf.yml
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Sync: Push tfvars to HCP Terraform workspace variables via API
+  # Plan: Generate execution plan for the target environment
   # ══════════════════════════════════════════════════════════════════════════
-  sync:
-    name: Sync Variables (${{ github.event.inputs.environment || 'dev' }})
+  plan:
+    name: Plan (${{ github.event.inputs.environment || 'dev' }})
     needs: [data, worf]
     runs-on: ubuntu-latest
     if: vars.ENABLE_TERRAFORM != 'false'
+    timeout-minutes: 15
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: deploy/terraform/container-apps
+
     steps:
       - uses: actions/checkout@v4
 
@@ -76,218 +83,96 @@ jobs:
             echo "environment=dev" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Get workspace ID
-        id: workspace
-        run: |
-          RESPONSE=$(curl -sf \
-            --header "Authorization: Bearer ${TF_API_TOKEN}" \
-            "${TF_API}/organizations/${TF_ORG}/workspaces/${TF_WORKSPACE}")
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-          WORKSPACE_ID=$(echo "$RESPONSE" | jq -r '.data.id')
+      - name: Terraform Init
+        run: terraform init
 
-          if [ -z "$WORKSPACE_ID" ] || [ "$WORKSPACE_ID" = "null" ]; then
-            echo "::error::Workspace '${TF_WORKSPACE}' not found"
-            exit 1
-          fi
-
-          echo "id=${WORKSPACE_ID}" >> "$GITHUB_OUTPUT"
-          echo "Workspace: ${TF_WORKSPACE} (${WORKSPACE_ID})"
-
-      - name: Sync tfvars to workspace
-        id: sync
+      - name: Terraform Plan
+        id: plan
         run: |
           ENV="${{ steps.env.outputs.environment }}"
-          TFVARS="deploy/terraform/container-apps/${ENV}/terraform.tfvars"
-          WS_ID="${{ steps.workspace.outputs.id }}"
+          terraform plan \
+            -var-file="${ENV}/terraform.tfvars" \
+            -var="secret_key=${{ secrets.APP_SECRET_KEY }}" \
+            -var="container_registry_password=${{ secrets.GHCR_TOKEN }}" \
+            -out=tfplan \
+            -no-color \
+            -detailed-exitcode 2>&1 | tee plan-output.txt || EXIT_CODE=$?
 
-          if [ ! -f "$TFVARS" ]; then
-            echo "::error::${TFVARS} not found"
+          # Exit code 2 = changes present
+          if [ "${EXIT_CODE:-0}" = "2" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          elif [ "${EXIT_CODE:-0}" = "0" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
             exit 1
           fi
 
-          # Fetch existing variables
-          EXISTING=$(curl -sf \
-            --header "Authorization: Bearer ${TF_API_TOKEN}" \
-            "${TF_API}/workspaces/${WS_ID}/vars")
-
-          CREATED=0
-          UPDATED=0
-
-          # Parse tfvars line by line
-          while IFS= read -r line; do
-            # Skip comments and blank lines
-            [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            [[ -z "${line// }" ]] && continue
-
-            # Handle map values (key = { ... })
-            if [[ "$line" =~ ^([a-z_]+)[[:space:]]*=[[:space:]]*\{ ]]; then
-              KEY="${BASH_REMATCH[1]}"
-              VALUE="{"
-              while IFS= read -r mapline; do
-                VALUE+=$'\n'"${mapline}"
-                [[ "$mapline" =~ \} ]] && break
-              done
-              IS_HCL="true"
-            # Handle list values (key = ["..."])
-            elif [[ "$line" =~ ^([a-z_]+)[[:space:]]*=[[:space:]]*\[ ]]; then
-              KEY=$(echo "$line" | sed 's/[[:space:]]*=.*//')
-              VALUE=$(echo "$line" | sed 's/^[^=]*=[[:space:]]*//')
-              IS_HCL="true"
-            # Handle simple key = value
-            elif [[ "$line" =~ ^([a-z_]+)[[:space:]]*= ]]; then
-              KEY=$(echo "$line" | sed 's/[[:space:]]*=.*//')
-              VALUE=$(echo "$line" | sed 's/^[^=]*=[[:space:]]*//' | sed 's/^"//;s/"$//')
-              IS_HCL="false"
-              # Booleans and numbers are HCL
-              if [[ "$VALUE" =~ ^(true|false|[0-9]+\.?[0-9]*)$ ]]; then
-                IS_HCL="true"
-              fi
-            else
-              continue
-            fi
-
-            # Check if variable already exists
-            EXISTING_ID=$(echo "$EXISTING" | jq -r \
-              --arg key "$KEY" \
-              '.data[] | select(.attributes.key == $key) | .id')
-
-            PAYLOAD=$(jq -n \
-              --arg key "$KEY" \
-              --arg value "$VALUE" \
-              --argjson hcl "$IS_HCL" \
-              '{
-                data: {
-                  type: "vars",
-                  attributes: {
-                    key: $key,
-                    value: $value,
-                    category: "terraform",
-                    hcl: $hcl,
-                    sensitive: false
-                  }
-                }
-              }')
-
-            if [ -n "$EXISTING_ID" ]; then
-              curl -sf \
-                --header "Authorization: Bearer ${TF_API_TOKEN}" \
-                --header "Content-Type: application/vnd.api+json" \
-                --request PATCH \
-                --data "$PAYLOAD" \
-                "${TF_API}/workspaces/${WS_ID}/vars/${EXISTING_ID}" > /dev/null
-              echo "  Updated: ${KEY}"
-              UPDATED=$((UPDATED + 1))
-            else
-              curl -sf \
-                --header "Authorization: Bearer ${TF_API_TOKEN}" \
-                --header "Content-Type: application/vnd.api+json" \
-                --request POST \
-                --data "$PAYLOAD" \
-                "${TF_API}/workspaces/${WS_ID}/vars" > /dev/null
-              echo "  Created: ${KEY}"
-              CREATED=$((CREATED + 1))
-            fi
-
-          done < "$TFVARS"
-
-          echo "created=${CREATED}" >> "$GITHUB_OUTPUT"
-          echo "updated=${UPDATED}" >> "$GITHUB_OUTPUT"
-          echo "Done: ${CREATED} created, ${UPDATED} updated"
-
-      - name: Sync sensitive variables from GitHub secrets
-        id: secrets
-        env:
-          APP_SECRET_KEY: ${{ secrets.APP_SECRET_KEY }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: |
-          WS_ID="${{ steps.workspace.outputs.id }}"
-
-          # Fetch existing variables
-          EXISTING=$(curl -sf \
-            --header "Authorization: Bearer ${TF_API_TOKEN}" \
-            "${TF_API}/workspaces/${WS_ID}/vars")
-
-          SYNCED=0
-
-          # Map: GitHub secret -> HCP TF variable name
-          declare -A SENSITIVE_VARS=(
-            ["secret_key"]="${APP_SECRET_KEY}"
-            ["container_registry_password"]="${GHCR_TOKEN}"
-          )
-
-          for KEY in "${!SENSITIVE_VARS[@]}"; do
-            VALUE="${SENSITIVE_VARS[$KEY]}"
-
-            if [ -z "$VALUE" ]; then
-              echo "  Skipped (not set): ${KEY}"
-              continue
-            fi
-
-            EXISTING_ID=$(echo "$EXISTING" | jq -r \
-              --arg key "$KEY" \
-              '.data[] | select(.attributes.key == $key) | .id')
-
-            PAYLOAD=$(jq -n \
-              --arg key "$KEY" \
-              --arg value "$VALUE" \
-              '{
-                data: {
-                  type: "vars",
-                  attributes: {
-                    key: $key,
-                    value: $value,
-                    category: "terraform",
-                    hcl: false,
-                    sensitive: true
-                  }
-                }
-              }')
-
-            if [ -n "$EXISTING_ID" ]; then
-              curl -sf \
-                --header "Authorization: Bearer ${TF_API_TOKEN}" \
-                --header "Content-Type: application/vnd.api+json" \
-                --request PATCH \
-                --data "$PAYLOAD" \
-                "${TF_API}/workspaces/${WS_ID}/vars/${EXISTING_ID}" > /dev/null
-              echo "  Updated (sensitive): ${KEY}"
-            else
-              curl -sf \
-                --header "Authorization: Bearer ${TF_API_TOKEN}" \
-                --header "Content-Type: application/vnd.api+json" \
-                --request POST \
-                --data "$PAYLOAD" \
-                "${TF_API}/workspaces/${WS_ID}/vars" > /dev/null
-              echo "  Created (sensitive): ${KEY}"
-            fi
-            SYNCED=$((SYNCED + 1))
-          done
-
-          echo "synced=${SYNCED}" >> "$GITHUB_OUTPUT"
-          echo "Done: ${SYNCED} sensitive variables synced"
-
-      - name: Sync Summary
+      - name: Plan Summary
         if: always()
         run: |
           {
-            echo "## La Forge - Variable Sync"
+            echo "## La Forge - Plan: \`${{ steps.env.outputs.environment }}\`"
             echo ""
-            echo "| Check | Result |"
-            echo "|-------|--------|"
-            echo "| Data - CI | ${{ needs.data.result }} |"
-            echo "| Worf - Security | ${{ needs.worf.result }} |"
-            echo ""
-            echo "### Workspace Variables"
+            echo '```'
+            tail -20 plan-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Apply: Apply the plan (manual dispatch only, action=apply)
+  # ══════════════════════════════════════════════════════════════════════════
+  apply:
+    name: Apply (${{ needs.plan.outputs.environment }})
+    needs: plan
+    runs-on: ubuntu-latest
+    if: |
+      needs.plan.outputs.has_changes == 'true' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.action == 'apply'
+    timeout-minutes: 30
+    environment:
+      name: ${{ needs.plan.outputs.environment }}
+    defaults:
+      run:
+        working-directory: deploy/terraform/container-apps
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: |
+          ENV="${{ needs.plan.outputs.environment }}"
+          terraform apply \
+            -var-file="${ENV}/terraform.tfvars" \
+            -var="secret_key=${{ secrets.APP_SECRET_KEY }}" \
+            -var="container_registry_password=${{ secrets.GHCR_TOKEN }}" \
+            -auto-approve \
+            -no-color
+
+      - name: Apply Summary
+        if: always()
+        run: |
+          {
+            echo "## La Forge - Apply: \`${{ needs.plan.outputs.environment }}\`"
             echo ""
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Workspace | \`${TF_WORKSPACE}\` |"
-            echo "| Environment | \`${{ steps.env.outputs.environment }}\` |"
-            echo "| Source | \`deploy/terraform/container-apps/${{ steps.env.outputs.environment }}/terraform.tfvars\` |"
-            echo "| Created | ${{ steps.sync.outputs.created || '0' }} |"
-            echo "| Updated | ${{ steps.sync.outputs.updated || '0' }} |"
-            echo "| Sensitive synced | ${{ steps.secrets.outputs.synced || '0' }} |"
+            echo "| Environment | \`${{ needs.plan.outputs.environment }}\` |"
+            echo "| Workspace | \`witness-container-apps\` |"
+            echo "| Triggered by | @${{ github.actor }} |"
             echo ""
-            echo "HCP Terraform handles plan/apply via VCS-driven workflow."
-            echo "[View workspace](https://app.terraform.io/app/${TF_ORG}/workspaces/${TF_WORKSPACE})"
+            echo "[View in HCP Terraform](https://app.terraform.io/app/DefiantEmissary/workspaces/witness-container-apps)"
           } >> "$GITHUB_STEP_SUMMARY"
