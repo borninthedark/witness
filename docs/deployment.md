@@ -220,12 +220,9 @@ Data - CI (build, test, scan)
 
 **Infrastructure Pipeline:**
 ```
-Worf - Security (Checkov, tfsec, Trivy)
-    |-> Picard - Plan (terraform plan, Cosign signing)
-        |-> La Forge - Apply (signature verification, apply)
+Worf - Security (Checkov, tfsec, Trivy, tests)
+    |-> La Forge - Plan & Apply (requires approval)
 ```
-
-**Plan Signing:** Terraform plans are signed with Cosign (Sigstore keyless OIDC) and verified before apply.
 
 **Workflows:**
 | Workflow | File | Trigger |
@@ -234,8 +231,7 @@ Worf - Security (Checkov, tfsec, Trivy)
 | Riker - Release | `riker.yml` | After Data CI succeeds |
 | Troi - Docs | `troi.yml` | After Data CI / scheduled |
 | Worf - Security | `worf.yml` | Push/PR to terraform paths |
-| Picard - Plan | `picard.yml` | After Worf succeeds |
-| La Forge - Apply | `laforge.yml` | After Picard succeeds (requires approval) |
+| La Forge - Apply | `laforge.yml` | After Worf succeeds (requires approval) |
 | Tasha - Destroy | `tasha.yml` | Manual with confirmation |
 
 ## CI notes

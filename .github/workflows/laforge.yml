@@ -1,21 +1,19 @@
 # ================================================================
-# La Forge - Terraform Apply
+# La Forge - Terraform Plan & Apply
 # ================================================================
-# "Make it so" - Applies infrastructure changes
-# Final step in chain: Worf (Security) -> Picard (Plan) -> La Forge (Apply)
+# "Make it so" - Plans and applies infrastructure changes
+# Triggered after Worf security scans pass: Worf -> La Forge
 # Requires manual approval via environment protection rules
 # ================================================================
 
 name: La Forge - Apply
 
 on:
-  # Auto-triggered after Picard plan succeeds (requires environment approval)
   workflow_run:
-    workflows: ['Picard - Plan']
+    workflows: ['Worf - Security']
     types: [completed]
     branches: [main]
 
-  # Manual trigger for specific environment
   workflow_dispatch:
     inputs:
       environment:
@@ -24,19 +22,13 @@ on:
         default: 'dev'
         type: choice
         options: [dev, prod]
-      auto_approve:
-        description: 'Skip plan and apply directly (use with caution)'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
   id-token: write
-  packages: write
 
 concurrency:
-  group: terraform-apply-${{ github.event.inputs.infrastructure || 'container-apps' }}-${{ github.event.inputs.environment || 'dev' }}
+  group: terraform-apply-${{ github.event.inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 env:
@@ -44,8 +36,11 @@ env:
   ARM_USE_OIDC: true
 
 jobs:
-  config:
-    name: Configure
+  # ══════════════════════════════════════════════════════════════════════════
+  # Gate: Only proceed if Worf succeeded (for workflow_run trigger)
+  # ══════════════════════════════════════════════════════════════════════════
+  gate:
+    name: Check Gate
     runs-on: ubuntu-latest
     if: |
       vars.ENABLE_TERRAFORM == 'true' &&
@@ -53,30 +48,23 @@ jobs:
        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     outputs:
       environment: ${{ steps.config.outputs.environment }}
-      infrastructure: ${{ steps.config.outputs.infrastructure }}
-      working_dir: ${{ steps.config.outputs.working_dir }}
-      tfvars_file: ${{ steps.config.outputs.tfvars_file }}
     steps:
-      - name: Set configuration
+      - name: Configure
         id: config
         run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
-          INFRA="container-apps"
-          echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
-          echo "infrastructure=${INFRA}" >> "$GITHUB_OUTPUT"
-          echo "working_dir=deploy/terraform/${INFRA}" >> "$GITHUB_OUTPUT"
-          echo "tfvars_file=environments/${ENV}.tfvars" >> "$GITHUB_OUTPUT"
+          echo "environment=${{ github.event.inputs.environment || 'dev' }}" >> "$GITHUB_OUTPUT"
 
-  apply:
-    name: Terraform Apply
-    needs: config
+  # ══════════════════════════════════════════════════════════════════════════
+  # Plan: Generate Terraform execution plan
+  # ══════════════════════════════════════════════════════════════════════════
+  plan:
+    name: Terraform Plan
+    needs: gate
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    environment:
-      name: ${{ needs.config.outputs.environment }}
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: ${{ needs.config.outputs.working_dir }}
+        working-directory: deploy/terraform/container-apps
     env:
       TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
       TF_VAR_container_registry_username: ${{ github.repository_owner }}
@@ -84,9 +72,13 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    outputs:
+      exitcode: ${{ steps.plan.outputs.exitcode }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -106,68 +98,105 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
             -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=${{ needs.config.outputs.infrastructure }}/${{ needs.config.outputs.environment }}/terraform.tfstate"
+            -backend-config="key=container-apps/${{ needs.gate.outputs.environment }}/terraform.tfstate"
 
-      - name: Download Plan Artifact
-        id: download
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          workflow: picard.yml
-          name: tfplan-${{ needs.config.outputs.infrastructure }}-${{ needs.config.outputs.environment }}
-          path: ${{ needs.config.outputs.working_dir }}
-        continue-on-error: true
-
-      - name: Install Cosign
-        if: steps.download.outcome == 'success'
-        uses: sigstore/cosign-installer@v3
-
-      - name: Verify Plan Signature
-        id: verify
-        if: steps.download.outcome == 'success'
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: |
-          if [ -f tfplan-bundle.sig ] && [ -f tfplan-bundle.crt ]; then
-            echo "Verifying plan signature..."
-            cosign verify-blob \
-              --certificate tfplan-bundle.crt \
-              --signature tfplan-bundle.sig \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/picard.yml@.*" \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              tfplan-bundle.tar.gz
-            echo "signature_verified=true" >> "$GITHUB_OUTPUT"
-            echo "Plan signature verified successfully"
-            # Extract the verified bundle
-            tar -xzf tfplan-bundle.tar.gz
-            # Show plan metadata
-            echo "### Plan Metadata"
-            cat plan-metadata.json | jq .
-          else
-            echo "signature_verified=false" >> "$GITHUB_OUTPUT"
-            echo "No signature found - plan will be regenerated"
-          fi
-        continue-on-error: true
-
-      - name: Display Plan Summary
-        if: steps.download.outcome == 'success'
-        run: |
-          if [ -f tfplan-summary.txt ]; then
-            echo "### Terraform Plan Summary"
-            cat tfplan-summary.txt
-          fi
-
-      - name: Terraform Plan (if no signed artifact)
+      - name: Terraform Plan
         id: plan
         run: |
-          if [ ! -f tfplan ] || [ "${{ steps.verify.outputs.signature_verified }}" != "true" ]; then
-            echo "Generating fresh plan (no verified artifact available)..."
-            terraform plan \
-              -var-file="${{ needs.config.outputs.tfvars_file }}" \
-              -out=tfplan \
-              -input=false
-          else
-            echo "Using verified plan from Picard workflow"
-          fi
+          set +e
+          terraform plan \
+            -var-file="environments/${{ needs.gate.outputs.environment }}.tfvars" \
+            -out=tfplan \
+            -detailed-exitcode \
+            -no-color 2>&1 | tee plan-output.txt
+          EXIT_CODE=$?
+          echo "exitcode=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ needs.gate.outputs.environment }}
+          path: |
+            deploy/terraform/container-apps/tfplan
+            deploy/terraform/container-apps/plan-output.txt
+          retention-days: 1
+
+      - name: Plan Summary
+        if: always()
+        run: |
+          EXIT_CODE="${{ steps.plan.outputs.exitcode }}"
+          {
+            echo "## La Forge - Plan Results"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Environment | \`${{ needs.gate.outputs.environment }}\` |"
+            case "$EXIT_CODE" in
+              0) echo "| Status | No changes |" ;;
+              1) echo "| Status | Error |" ;;
+              2) echo "| Status | Changes detected |" ;;
+              *) echo "| Status | Unknown ($EXIT_CODE) |" ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on Error
+        if: steps.plan.outputs.exitcode == '1'
+        run: exit 1
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Apply: Execute planned changes (requires environment approval)
+  # ══════════════════════════════════════════════════════════════════════════
+  apply:
+    name: Terraform Apply
+    needs: [gate, plan]
+    if: needs.plan.outputs.exitcode == '2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: ${{ needs.gate.outputs.environment }}
+    defaults:
+      run:
+        working-directory: deploy/terraform/container-apps
+    env:
+      TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
+      TF_VAR_container_registry_username: ${{ github.repository_owner }}
+      TF_VAR_container_registry_password: ${{ secrets.GITHUB_TOKEN }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=container-apps/${{ needs.gate.outputs.environment }}/terraform.tfstate"
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ needs.gate.outputs.environment }}
+          path: deploy/terraform/container-apps
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
@@ -178,19 +207,16 @@ jobs:
           echo "url=$(terraform output -raw container_app_url 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
           echo "name=$(terraform output -raw resource_group_name 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
 
-      - name: Summary
+      - name: Apply Summary
         run: |
           {
             echo "## La Forge - Infrastructure Applied"
             echo ""
-            echo "### Configuration"
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Infrastructure | \`${{ needs.config.outputs.infrastructure }}\` |"
-            echo "| Environment | \`${{ needs.config.outputs.environment }}\` |"
-            echo "| Plan Signed | ${{ steps.verify.outputs.signature_verified == 'true' && 'Yes (Sigstore)' || 'No (fresh plan)' }} |"
+            echo "| Environment | \`${{ needs.gate.outputs.environment }}\` |"
             echo "| URL/FQDN | \`${{ steps.outputs.outputs.url }}\` |"
-            echo "| Resource | \`${{ steps.outputs.outputs.name }}\` |"
+            echo "| Resource Group | \`${{ steps.outputs.outputs.name }}\` |"
             echo ""
             echo "**Status:** Successfully applied"
           } >> "$GITHUB_STEP_SUMMARY"

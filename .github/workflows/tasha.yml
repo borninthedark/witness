@@ -145,7 +145,7 @@ jobs:
             if [ "${{ steps.destroy.outcome }}" = "success" ]; then
               echo "> **Warning:** All resources in the \`${{ github.event.inputs.environment }}\` environment have been destroyed."
               echo ""
-              echo "To recreate, run the *Picard* (Plan) and *La Forge* (Apply) workflows."
+              echo "To recreate, run the *La Forge* (Plan & Apply) workflow."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

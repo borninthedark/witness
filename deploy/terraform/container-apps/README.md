@@ -107,9 +107,8 @@ terraform apply tfplan
 The infrastructure pipeline handles deployment:
 
 1. Push changes to `deploy/terraform/container-apps/**`
-2. Worf runs security scans
-3. Picard generates and signs the plan
-4. La Forge applies after approval
+2. Worf runs security scans and tests
+3. La Forge plans and applies after approval
 
 ## Configuration
 

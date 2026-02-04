@@ -153,40 +153,22 @@ Triggered on push/PR to `deploy/terraform/**`:
    - Checkov security scanning
    - tfsec static analysis
    - Trivy config scanning
-   - Terraform validate and format check
+   - Terraform validate, format check, and tests
+   - Jobs run sequentially: scan -> test -> cost estimate
 
-2. **Picard - Plan** (`picard.yml`) - After Worf succeeds
-   - Terraform plan for Container Apps infrastructure
-   - Plan artifacts signed with Cosign
-   - PR comments with plan output
-   - Generates: `tfplan`, `tfplan.json`, `tfplan-summary.txt`
+2. **La Forge - Apply** (`laforge.yml`) - After Worf succeeds
+   - Terraform plan with detailed exit codes
+   - Plan artifact passed between jobs
+   - Requires environment approval before apply
 
-3. **La Forge - Apply** (`laforge.yml`) - After Picard succeeds
-   - Verifies Cosign signature on plan artifact
-   - Requires environment approval
-   - Downloads and applies signed plan
-
-4. **Q - Tests** (`q.yml`) - On terraform changes
-   - Terraform native test framework (.tftest.hcl files)
-   - Variable validation and security tests
-   - PR comments with test results
-
-5. **Crusher - Health** (`crusher.yml`) - Scheduled / on-demand
+3. **Crusher - Health** (`crusher.yml`) - Scheduled / on-demand
    - Pipeline health monitoring (workflow status)
    - Application health checks (/healthz, /readyz)
    - Infrastructure state verification
 
-6. **Tasha - Destroy** (`tasha.yml`) - Manual only
+4. **Tasha - Destroy** (`tasha.yml`) - Manual only
    - Requires typing "DESTROY" to confirm
    - Environment protection rules
-
-### Plan Signing
-
-Terraform plans are cryptographically signed to prevent tampering:
-
-- **Signing** (Picard): Uses Cosign with Sigstore keyless OIDC
-- **Verification** (La Forge): Validates signature against GitHub OIDC identity
-- **Fallback**: Fresh plan generated if signature verification fails
 
 ### Required Secrets
 

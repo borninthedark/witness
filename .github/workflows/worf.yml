@@ -2,7 +2,7 @@
 # Worf - Terraform Security & Validation
 # ================================================================
 # "Today is a good day to scan" - Security scans and validation
-# Entry point for infrastructure pipeline: Worf -> Picard -> La Forge
+# Entry point for infrastructure pipeline: Worf -> La Forge
 # ================================================================
 
 name: Worf - Security
@@ -13,14 +13,12 @@ on:
     paths:
       - 'deploy/terraform/**'
       - '.github/workflows/worf.yml'
-      - '.github/workflows/picard.yml'
       - '.github/workflows/laforge.yml'
   pull_request:
     branches: [main]
     paths:
       - 'deploy/terraform/**'
       - '.github/workflows/worf.yml'
-      - '.github/workflows/picard.yml'
       - '.github/workflows/laforge.yml'
   workflow_dispatch:
   schedule:
@@ -150,6 +148,7 @@ jobs:
   # ══════════════════════════════════════════════════════════════════════════
   terraform-test:
     name: Terraform Tests
+    needs: security-scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -203,6 +202,7 @@ jobs:
   # ══════════════════════════════════════════════════════════════════════════
   cost-estimate:
     name: Cost Estimate
+    needs: terraform-test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event_name == 'pull_request'

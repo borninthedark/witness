@@ -67,8 +67,7 @@ jobs:
               { name: 'Data - CI', file: 'data.yml' },
               { name: 'Riker - Release', file: 'riker.yml' },
               { name: 'Worf - Security', file: 'worf.yml' },
-              { name: 'Picard - Plan', file: 'picard.yml' },
-              { name: 'Q - Tests', file: 'q.yml' }
+              { name: 'La Forge - Apply', file: 'laforge.yml' }
             ];
 
             let healthy = 0;

@@ -392,7 +392,7 @@ Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
 Terraform configurations provision the Azure infrastructure via GitHub Actions:
 
 ```bash
-# Manual deployment (or use Picard/La Forge workflows)
+# Manual deployment (or use La Forge workflow)
 cd deploy/terraform/container-apps
 terraform init \
   -backend-config="resource_group_name=tfstate-rg" \
@@ -471,41 +471,26 @@ The CI/CD pipeline uses Star Trek TNG-themed workflow names:
 
 **Infrastructure Workflows (Terraform):**
 
-Workflows run in sequence: **Worf -> Picard -> La Forge**
+Workflows run in sequence: **Worf -> La Forge**
 
 ```
 Worf - Security (entry point)
-    |-- Checkov, tfsec, Trivy scans
+    |-- Security scans (Checkov, tfsec, Trivy)
     |-- Terraform validate & format
+    |-- Terraform tests
     v
-Picard - Plan (after Worf succeeds)
-    |-- Terraform plan for all infrastructures
-    |-- Cosign-signed plan artifacts
-    |-- PR comments with plan output
-    v
-La Forge - Apply (after Picard succeeds)
-    |-- Verifies plan signature
-    |-- Downloads signed plan artifact
-    |-- Applies with environment approval
+La Forge - Plan & Apply (after Worf succeeds)
+    |-- Terraform plan
+    |-- Environment approval gate
+    |-- Terraform apply
 ```
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Worf - Security** | `worf.yml` | Entry point: Checkov, tfsec, Trivy scans |
-| **Picard - Plan** | `picard.yml` | Terraform plan, signing, PR comments |
-| **La Forge - Apply** | `laforge.yml` | Verify signature, apply (requires approval) |
-| **Q - Tests** | `q.yml` | Terraform native test framework |
+| **Worf - Security** | `worf.yml` | Entry point: scans, validation, tests |
+| **La Forge - Apply** | `laforge.yml` | Plan and apply (requires approval) |
 | **Crusher - Health** | `crusher.yml` | Pipeline and application health checks |
 | **Tasha - Destroy** | `tasha.yml` | Terraform destroy (manual, protected) |
-
-**Plan Signing & Verification:**
-
-Terraform plans are cryptographically signed using Cosign with Sigstore keyless OIDC:
-
-- **Picard** generates: `tfplan`, `tfplan.json`, `tfplan-summary.txt`, signature (`.sig`), certificate (`.crt`)
-- **La Forge** verifies the signature matches the GitHub Actions OIDC identity before applying
-- Plans without valid signatures trigger a fresh plan generation
-- Artifact retention: 1 day
 
 See `.github/workflows/` for workflow definitions.
 
@@ -724,12 +709,11 @@ deploy/terraform/
 
 **Deployment (via GitHub Actions):**
 
-Infrastructure is deployed via the Worf -> Picard -> La Forge workflow chain:
+Infrastructure is deployed via the Worf -> La Forge workflow chain:
 
 1. Push changes to `deploy/terraform/**`
-2. Worf runs security scans (Checkov, tfsec, Trivy)
-3. Picard generates and signs terraform plans
-4. La Forge verifies signature and applies (requires approval)
+2. Worf runs security scans and tests (Checkov, tfsec, Trivy)
+3. La Forge plans and applies (requires approval)
 
 **Manual deployment:**
 ```bash
@@ -740,8 +724,6 @@ terraform apply tfplan
 ```
 
 **Security Best Practices:**
-- Terraform plans signed with Cosign (Sigstore keyless OIDC)
-- Signature verification before apply
 - Managed identities for service authentication
 - Secrets injected from GitHub Actions, never committed
 - State stored in Azure Storage with encryption
@@ -771,7 +753,6 @@ See [docs/deployment.md](docs/deployment.md) for detailed deployment guide.
 ### Best Practices
 
 - Never logs credentials or secrets
-- Terraform plans signed with Cosign before apply
 - No secrets in Git history
 - Regular Trivy, Checkov, and tfsec scans
 - CSRF protection on all state-changing operations
