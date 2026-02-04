@@ -39,7 +39,7 @@ WEB_WORKERS=$(nproc) gunicorn -c gunicorn.conf.py fitness.main:app
 
 1. Copy `.env.example` to `.env` and set secrets (ADMIN credentials, SMTP, TURNSTILE, etc.).
 2. Apply database migrations once: `python scripts/db_upgrade.py` (or `alembic upgrade head`).
-3. Launch the stack (Caddy will listen on `http://localhost:8000` for rootless compatibility):
+3. Launch the stack (Caddy will listen on `http://example.com:8000` for rootless compatibility):
 
 ```bash
 docker compose up -d --build

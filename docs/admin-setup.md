@@ -129,7 +129,7 @@ python -m uvicorn fitness.main:app --reload
 **Cause**: Not logged in
 
 **Solution**:
-1. Visit http://localhost:8000/status
+1. Visit http://example.com:8000/status
 2. You'll be redirected to `/admin/login?next=/status`
 3. Enter your credentials from `.env`
 4. After login, you'll be redirected back to `/status`

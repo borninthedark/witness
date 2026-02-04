@@ -8,15 +8,8 @@
 name: Worf - Security
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'deploy/terraform/**'
-      - '.github/workflows/worf.yml'
   workflow_call:
   workflow_dispatch:
-  schedule:
-    - cron: '0 6 * * 1'  # Weekly on Monday at 6am
 
 permissions:
   contents: read

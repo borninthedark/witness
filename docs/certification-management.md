@@ -28,7 +28,7 @@ This document explains how to manage certifications using the admin panel and ho
 
 ### Logging In
 
-1. Navigate to **http://localhost:8000/admin/login**
+1. Navigate to **http://example.com:8000/admin/login**
 2. Enter your admin email and password
 3. Click **"Sign in"**
 4. You'll be redirected to the certifications management page
@@ -51,7 +51,7 @@ All admin routes require authentication:
 
 #### 1. Access the Admin Panel
 
-Visit **http://localhost:8000/admin/certs** (you'll be redirected to login if not authenticated)
+Visit **http://example.com:8000/admin/certs** (you'll be redirected to login if not authenticated)
 
 #### 2. Fill Out the Form
 
@@ -334,7 +334,7 @@ a3f5c9b2e1d4f8a7c6b3e9d2f1a8c5b4d7e3f9a2b8c1d6e4f2a9b7c3d5e8f1a6  ckad.pdf
 
 ### Admin Dashboard
 
-Visit **http://localhost:8000/admin/certs** to see all certifications in a table:
+Visit **http://example.com:8000/admin/certs** to see all certifications in a table:
 
 | Issuer | Title | Slug | Actions |
 |--------|-------|------|---------|
@@ -342,7 +342,7 @@ Visit **http://localhost:8000/admin/certs** to see all certifications in a table
 
 ### Public Certifications Page
 
-Visit **http://localhost:8000/certs** to see the public-facing certifications gallery:
+Visit **http://example.com:8000/certs** to see the public-facing certifications gallery:
 
 - Cards with issuer badges
 - Clickable PDFs
@@ -500,7 +500,7 @@ CREATE TABLE certifications (
 
 ```bash
 # 1. Log in to admin panel
-open http://localhost:8000/admin/login
+open http://example.com:8000/admin/login
 
 # 2. Fill out form
 Slug: ckad
@@ -514,10 +514,10 @@ Assertion URL: (leave blank)
 # System generates SHA-256: a3f5c9b2e1d4f8a7c6b3e9d2f1a8c5b4...
 
 # 4. Verify the upload
-open http://localhost:8000/v/ckad
+open http://example.com:8000/v/ckad
 
 # 5. Third-party verification
-curl -O http://localhost:8000/static/certs/ckad.pdf
+curl -O http://example.com:8000/static/certs/ckad.pdf
 sha256sum ckad.pdf
 # Output: a3f5c9b2e1d4f8a7c6b3e9d2f1a8c5b4... ckad.pdf ✓ MATCH!
 ```

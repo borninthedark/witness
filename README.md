@@ -125,7 +125,7 @@ cp .env.example .env  # configure ADMIN_PASSWORD and DATABASE_URL
 podman-compose up -d  # starts Caddy + app locally
 ```
 
-**Open:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+**Open:** `http://example.com:8000`
 
 Local development uses SQLite by default. The `.env.example` file sets a local `DATABASE_URL` so Alembic migrations and the running container share the same database file.
 
@@ -554,7 +554,7 @@ http_request_duration_seconds_count{method="GET",path="/certs"} 1547
 
 **AKS Production:** Automatically scraped by Azure Monitor Managed Prometheus and visualized in Grafana dashboards.
 
-**Local Development:** Access manually at `http://localhost:8000/metrics` with credentials.
+**Local Development:** Access manually at `http://example.com:8000/metrics` with credentials.
 
 ### Health Checks
 

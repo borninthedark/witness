@@ -8,18 +8,6 @@
 name: Data - CI
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'deploy/terraform/**'
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'deploy/terraform/**'
   workflow_call:
   workflow_dispatch:
 
