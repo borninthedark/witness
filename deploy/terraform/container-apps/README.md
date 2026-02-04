@@ -1,35 +1,233 @@
 # Azure Container Apps Terraform Deployment
 
-This directory is prepared for Azure Container Apps deployment using Terraform.
+This directory contains Terraform configuration for deploying the application to Azure Container Apps using the official `Azure/container-apps/azure` module.
 
-## Purpose
+## Overview
 
-Azure Container Apps provides a serverless container platform for running microservices and containerized applications without managing infrastructure.
+Azure Container Apps provides a serverless container platform that abstracts away infrastructure management while providing:
 
-## Status
+- Automatic scaling (including scale to zero)
+- Built-in HTTPS ingress with automatic TLS
+- Traffic splitting for blue/green deployments
+- Integration with Dapr for microservices
+- Log Analytics integration
 
-This directory structure is ready for future Container Apps deployment configurations.
+## Architecture
 
-## Planned Features
+```
+                                    ┌─────────────────────────────────────┐
+                                    │    Azure Container Apps Environment │
+                                    │                                     │
+Internet ──▶ HTTPS Ingress ──────▶ │  ┌─────────────────────────────┐    │
+             (Auto TLS)             │  │     Container App: app      │    │
+                                    │  │  ┌─────────────────────┐    │    │
+                                    │  │  │   witness container │    │    │
+                                    │  │  │   - FastAPI app     │    │    │
+                                    │  │  │   - Port 8000       │    │    │
+                                    │  │  │   - Health probes   │    │    │
+                                    │  │  └─────────────────────┘    │    │
+                                    │  │                             │    │
+                                    │  │  Secrets: secret-key        │    │
+                                    │  │  Identity: System-assigned  │    │
+                                    │  └─────────────────────────────┘    │
+                                    │                                     │
+                                    │  Log Analytics Workspace            │
+                                    └─────────────────────────────────────┘
+```
 
-- Container Apps Environment
-- Container Apps with auto-scaling
-- Ingress configuration
-- Integration with Log Analytics
-- Managed identities
-- Secrets management
+## Compose-Style Configuration
 
-## Next Steps
+The module uses a compose-style approach where multiple container apps can be defined in a single `container_apps` map. This provides a familiar developer experience similar to Docker Compose:
 
-When ready to implement:
+```hcl
+container_apps = {
+  app = {
+    name          = var.app_name
+    revision_mode = "Single"
 
-1. Create `main.tf` with Container Apps resources
-2. Define variables in `variables.tf`
-3. Configure outputs in `outputs.tf`
-4. Add version constraints in `versions.tf`
-5. Configure backend state in `backend.tf`
+    template = {
+      min_replicas = 1
+      max_replicas = 3
+
+      containers = [
+        {
+          name   = "witness"
+          image  = var.container_image
+          cpu    = "0.5"
+          memory = "1Gi"
+          env    = [...]
+          liveness_probe  = {...}
+          readiness_probe = {...}
+        }
+      ]
+    }
+
+    ingress = {
+      external_enabled = true
+      target_port      = 8000
+      traffic_weight   = { latest_revision = "true", percentage = 100 }
+    }
+  }
+
+  # Additional apps can be added here
+  # worker = { ... }
+  # redis = { ... }
+}
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Azure CLI authenticated (`az login`)
+- Terraform >= 1.7.0
+- GitHub PAT for GHCR access (or use managed identity)
+
+### Deployment
+
+```bash
+cd deploy/terraform/container-apps
+
+# Initialize Terraform
+terraform init \
+  -backend-config="resource_group_name=tfstate-rg" \
+  -backend-config="storage_account_name=tfstate" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=container-apps/dev/terraform.tfstate"
+
+# Plan deployment
+terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+
+# Apply
+terraform apply tfplan
+```
+
+### Via GitHub Actions
+
+The infrastructure pipeline handles deployment:
+
+1. Push changes to `deploy/terraform/container-apps/**`
+2. Worf runs security scans
+3. Picard generates and signs the plan
+4. La Forge applies after approval
+
+## Configuration
+
+### Required Variables
+
+| Variable | Description |
+|----------|-------------|
+| `resource_group_name` | Azure resource group name |
+| `app_name` | Container App name |
+| `container_image` | Container image (e.g., `ghcr.io/org/app:latest`) |
+| `secret_key` | Application secret key (sensitive) |
+
+### Optional Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `location` | `eastus` | Azure region |
+| `environment` | `dev` | Environment name |
+| `container_port` | `8000` | Container port |
+| `container_cpu` | `0.5` | CPU allocation |
+| `container_memory` | `1Gi` | Memory allocation |
+| `min_replicas` | `1` | Minimum replicas |
+| `max_replicas` | `3` | Maximum replicas |
+| `revision_mode` | `Single` | `Single` or `Multiple` |
+| `log_retention_days` | `30` | Log Analytics retention |
+
+### VNet Integration
+
+Enable VNet integration for private networking:
+
+```hcl
+enable_vnet_integration         = true
+internal_load_balancer_enabled  = true
+vnet_address_space              = ["10.0.0.0/16"]
+container_apps_subnet_prefixes  = ["10.0.0.0/23"]
+```
+
+### Container Registry Authentication
+
+**Using GHCR with credentials:**
+```hcl
+container_registry_server   = "ghcr.io"
+container_registry_username = "github-username"
+container_registry_password = "ghcr-pat-token"
+```
+
+**Using managed identity (ACR):**
+```hcl
+container_registry_server         = "myregistry.azurecr.io"
+use_managed_identity_for_registry = true
+```
+
+## Environment Files
+
+### dev.tfvars
+
+```hcl
+resource_group_name = "witness-dev-rg"
+app_name            = "witness-dev"
+environment         = "dev"
+container_image     = "ghcr.io/borninthedark/witness:dev"
+min_replicas        = 0  # Scale to zero in dev
+max_replicas        = 2
+log_retention_days  = 7
+```
+
+### prod.tfvars
+
+```hcl
+resource_group_name = "witness-prod-rg"
+app_name            = "witness"
+environment         = "production"
+container_image     = "ghcr.io/borninthedark/witness:latest"
+min_replicas        = 1
+max_replicas        = 5
+log_retention_days  = 90
+```
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `container_app_fqdn` | Application FQDN |
+| `container_app_url` | Full HTTPS URL |
+| `resource_group_name` | Resource group name |
+| `log_analytics_workspace_id` | Log Analytics workspace ID |
+
+## Testing
+
+Run Terraform native tests:
+
+```bash
+terraform test
+```
+
+Tests validate:
+- Required variables
+- Container resource limits
+- Scaling configuration
+- Port ranges
+- Environment defaults
+
+## Comparison: Container Apps vs AKS
+
+| Feature | Container Apps | AKS |
+|---------|---------------|-----|
+| Complexity | Low (serverless) | High (full K8s) |
+| Scale to zero | Yes | No (requires KEDA) |
+| Cost model | Per-request + resources | Per-node |
+| Ingress | Built-in HTTPS | Requires NGINX/Traefik |
+| cert-manager | Built-in | Manual setup |
+| Custom domains | Supported | Supported |
+| VNet integration | Optional | Required |
+| Dapr | Built-in | Manual setup |
+| Use case | Simple apps, APIs | Complex microservices |
 
 ## References
 
 - [Azure Container Apps Documentation](https://learn.microsoft.com/en-us/azure/container-apps/)
-- [Terraform Azure Container Apps Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/container_app)
+- [Azure/container-apps/azure Module](https://registry.terraform.io/modules/Azure/container-apps/azure/latest)
+- [Container Apps Pricing](https://azure.microsoft.com/en-us/pricing/details/container-apps/)

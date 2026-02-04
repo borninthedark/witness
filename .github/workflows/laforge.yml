@@ -2,17 +2,20 @@
 # La Forge - Terraform Apply
 # ================================================================
 # "Make it so" - Applies infrastructure changes
-# Triggered after successful plan or manually
+# Final step in chain: Worf (Security) -> Picard (Plan) -> La Forge (Apply)
+# Requires manual approval via environment protection rules
 # ================================================================
 
 name: La Forge - Apply
 
 on:
+  # Auto-triggered after Picard plan succeeds (requires environment approval)
   workflow_run:
     workflows: ['Picard - Plan']
     types: [completed]
     branches: [main]
 
+  # Manual trigger for specific environment
   workflow_dispatch:
     inputs:
       environment:
@@ -21,12 +24,11 @@ on:
         default: 'dev'
         type: choice
         options: [dev, prod]
-      infrastructure:
-        description: 'Infrastructure type'
-        required: true
-        default: 'container-apps'
-        type: choice
-        options: [container-apps, aks]
+      auto_approve:
+        description: 'Skip plan and apply directly (use with caution)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -59,7 +61,7 @@ jobs:
         id: config
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
-          INFRA="${{ github.event.inputs.infrastructure || 'container-apps' }}"
+          INFRA="container-apps"
           echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
           echo "infrastructure=${INFRA}" >> "$GITHUB_OUTPUT"
           echo "working_dir=deploy/terraform/${INFRA}" >> "$GITHUB_OUTPUT"
@@ -107,6 +109,7 @@ jobs:
             -backend-config="key=${{ needs.config.outputs.infrastructure }}/${{ needs.config.outputs.environment }}/terraform.tfstate"
 
       - name: Download Plan Artifact
+        id: download
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: picard.yml
@@ -114,14 +117,56 @@ jobs:
           path: ${{ needs.config.outputs.working_dir }}
         continue-on-error: true
 
-      - name: Terraform Plan (if no artifact)
+      - name: Install Cosign
+        if: steps.download.outcome == 'success'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Verify Plan Signature
+        id: verify
+        if: steps.download.outcome == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          if [ -f tfplan-bundle.sig ] && [ -f tfplan-bundle.crt ]; then
+            echo "Verifying plan signature..."
+            cosign verify-blob \
+              --certificate tfplan-bundle.crt \
+              --signature tfplan-bundle.sig \
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/picard.yml@.*" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              tfplan-bundle.tar.gz
+            echo "signature_verified=true" >> "$GITHUB_OUTPUT"
+            echo "Plan signature verified successfully"
+            # Extract the verified bundle
+            tar -xzf tfplan-bundle.tar.gz
+            # Show plan metadata
+            echo "### Plan Metadata"
+            cat plan-metadata.json | jq .
+          else
+            echo "signature_verified=false" >> "$GITHUB_OUTPUT"
+            echo "No signature found - plan will be regenerated"
+          fi
+        continue-on-error: true
+
+      - name: Display Plan Summary
+        if: steps.download.outcome == 'success'
+        run: |
+          if [ -f tfplan-summary.txt ]; then
+            echo "### Terraform Plan Summary"
+            cat tfplan-summary.txt
+          fi
+
+      - name: Terraform Plan (if no signed artifact)
         id: plan
         run: |
-          if [ ! -f tfplan ]; then
+          if [ ! -f tfplan ] || [ "${{ steps.verify.outputs.signature_verified }}" != "true" ]; then
+            echo "Generating fresh plan (no verified artifact available)..."
             terraform plan \
               -var-file="${{ needs.config.outputs.tfvars_file }}" \
               -out=tfplan \
               -input=false
+          else
+            echo "Using verified plan from Picard workflow"
           fi
 
       - name: Terraform Apply
@@ -130,13 +175,8 @@ jobs:
       - name: Get Outputs
         id: outputs
         run: |
-          if [ "${{ needs.config.outputs.infrastructure }}" = "container-apps" ]; then
-            echo "url=$(terraform output -raw container_app_url 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
-            echo "name=$(terraform output -raw resource_group_name 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
-          else
-            echo "url=$(terraform output -raw aks_cluster_fqdn 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
-            echo "name=$(terraform output -raw aks_cluster_name 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
-          fi
+          echo "url=$(terraform output -raw container_app_url 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
+          echo "name=$(terraform output -raw resource_group_name 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
@@ -148,6 +188,7 @@ jobs:
             echo "|----------|-------|"
             echo "| Infrastructure | \`${{ needs.config.outputs.infrastructure }}\` |"
             echo "| Environment | \`${{ needs.config.outputs.environment }}\` |"
+            echo "| Plan Signed | ${{ steps.verify.outputs.signature_verified == 'true' && 'Yes (Sigstore)' || 'No (fresh plan)' }} |"
             echo "| URL/FQDN | \`${{ steps.outputs.outputs.url }}\` |"
             echo "| Resource | \`${{ steps.outputs.outputs.name }}\` |"
             echo ""

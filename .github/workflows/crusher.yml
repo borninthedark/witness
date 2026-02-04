@@ -1,0 +1,335 @@
+# ================================================================
+# Crusher - Health Checks
+# ================================================================
+# "I'm a doctor, not a..." - Monitors pipeline and application health
+# Retrieves health data from CI pipelines and deployed applications
+# ================================================================
+
+name: Crusher - Health
+
+on:
+  # Run after deployment completes
+  workflow_run:
+    workflows: ['La Forge - Apply']
+    types: [completed]
+
+  # Scheduled health checks
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, prod, all]
+      check_type:
+        description: 'Type of health check'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, application, infrastructure, pipeline]
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+env:
+  APP_URL_DEV: ${{ vars.APP_URL_DEV || 'https://dev.example.com' }}
+  APP_URL_PROD: ${{ vars.APP_URL_PROD || 'https://engage.princetonstrong.online' }}
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Pipeline Health: Check recent workflow runs
+  # ══════════════════════════════════════════════════════════════════════════
+  pipeline-health:
+    name: Pipeline Health
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.check_type == 'all' ||
+      github.event.inputs.check_type == 'pipeline' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_run'
+    outputs:
+      status: ${{ steps.check.outputs.status }}
+      summary: ${{ steps.check.outputs.summary }}
+    steps:
+      - name: Check Pipeline Status
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflows = [
+              { name: 'Data - CI', file: 'data.yml' },
+              { name: 'Riker - Release', file: 'riker.yml' },
+              { name: 'Worf - Security', file: 'worf.yml' },
+              { name: 'Picard - Plan', file: 'picard.yml' },
+              { name: 'Q - Tests', file: 'q.yml' }
+            ];
+
+            let healthy = 0;
+            let unhealthy = 0;
+            let results = [];
+
+            for (const wf of workflows) {
+              try {
+                const runs = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: wf.file,
+                  per_page: 1
+                });
+
+                if (runs.data.workflow_runs.length > 0) {
+                  const run = runs.data.workflow_runs[0];
+                  const status = run.conclusion || run.status;
+                  const isHealthy = status === 'success' || status === 'in_progress';
+
+                  if (isHealthy) healthy++;
+                  else unhealthy++;
+
+                  results.push({
+                    name: wf.name,
+                    status: status,
+                    healthy: isHealthy,
+                    url: run.html_url,
+                    updated: run.updated_at
+                  });
+                }
+              } catch (e) {
+                results.push({
+                  name: wf.name,
+                  status: 'unknown',
+                  healthy: false,
+                  error: e.message
+                });
+                unhealthy++;
+              }
+            }
+
+            const overallStatus = unhealthy === 0 ? 'healthy' : (healthy > unhealthy ? 'degraded' : 'unhealthy');
+
+            core.setOutput('status', overallStatus);
+            core.setOutput('summary', JSON.stringify(results));
+
+            return { status: overallStatus, results };
+
+      - name: Pipeline Summary
+        run: |
+          {
+            echo "## Crusher - Pipeline Health"
+            echo ""
+            echo "| Workflow | Status | Last Run |"
+            echo "|----------|--------|----------|"
+            echo '${{ steps.check.outputs.summary }}' | jq -r '.[] | "| \(.name) | \(if .healthy then "OK" else "FAIL" end) | \(.updated // "N/A") |"'
+            echo ""
+            echo "**Overall Status:** ${{ steps.check.outputs.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Application Health: Check deployed application endpoints
+  # ══════════════════════════════════════════════════════════════════════════
+  application-health:
+    name: Application Health
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.check_type == 'all' ||
+      github.event.inputs.check_type == 'application' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_run'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: dev
+            url: ${{ vars.APP_URL_DEV || 'https://dev.example.com' }}
+          - env: prod
+            url: ${{ vars.APP_URL_PROD || 'https://engage.princetonstrong.online' }}
+        exclude:
+          - env: ${{ github.event.inputs.environment == 'prod' && 'dev' || (github.event.inputs.environment == 'dev' && 'prod' || '') }}
+    outputs:
+      dev_status: ${{ steps.health.outputs.dev_status }}
+      prod_status: ${{ steps.health.outputs.prod_status }}
+    steps:
+      - name: Check Health Endpoint
+        id: health
+        run: |
+          URL="${{ matrix.url }}"
+          ENV="${{ matrix.env }}"
+
+          echo "Checking health for $ENV environment: $URL"
+
+          # Check /healthz endpoint
+          HEALTHZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${URL}/healthz" 2>/dev/null || echo "000")
+
+          # Check /readyz endpoint
+          READYZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${URL}/readyz" 2>/dev/null || echo "000")
+
+          # Check main page
+          MAIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${URL}/" 2>/dev/null || echo "000")
+
+          # Get response times
+          HEALTHZ_TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 10 "${URL}/healthz" 2>/dev/null || echo "0")
+
+          # Determine overall health
+          if [ "$HEALTHZ_STATUS" = "200" ] && [ "$READYZ_STATUS" = "200" ]; then
+            STATUS="healthy"
+          elif [ "$HEALTHZ_STATUS" = "200" ]; then
+            STATUS="degraded"
+          else
+            STATUS="unhealthy"
+          fi
+
+          echo "${ENV}_status=${STATUS}" >> "$GITHUB_OUTPUT"
+          echo "healthz_code=${HEALTHZ_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "readyz_code=${READYZ_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "main_code=${MAIN_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "response_time=${HEALTHZ_TIME}" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Get Application Metrics
+        id: metrics
+        if: steps.health.outputs.healthz_code == '200'
+        run: |
+          URL="${{ matrix.url }}"
+
+          # Try to get status JSON
+          STATUS_JSON=$(curl -s --max-time 10 "${URL}/status/json" 2>/dev/null || echo '{}')
+
+          if [ "$STATUS_JSON" != "{}" ]; then
+            echo "metrics_available=true" >> "$GITHUB_OUTPUT"
+            echo "metrics=${STATUS_JSON}" >> "$GITHUB_OUTPUT"
+          else
+            echo "metrics_available=false" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Application Summary
+        if: always()
+        run: |
+          {
+            echo "## Crusher - Application Health: ${{ matrix.env }}"
+            echo ""
+            echo "| Endpoint | Status | Code |"
+            echo "|----------|--------|------|"
+            echo "| /healthz | ${{ steps.health.outputs.healthz_code == '200' && 'OK' || 'FAIL' }} | ${{ steps.health.outputs.healthz_code }} |"
+            echo "| /readyz | ${{ steps.health.outputs.readyz_code == '200' && 'OK' || 'FAIL' }} | ${{ steps.health.outputs.readyz_code }} |"
+            echo "| / | ${{ steps.health.outputs.main_code == '200' && 'OK' || 'FAIL' }} | ${{ steps.health.outputs.main_code }} |"
+            echo ""
+            echo "**Response Time:** ${{ steps.health.outputs.response_time }}s"
+            echo ""
+            echo "**Overall Status:** ${{ steps.health.outputs.dev_status || steps.health.outputs.prod_status || 'unknown' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Infrastructure Health: Check Terraform state
+  # ══════════════════════════════════════════════════════════════════════════
+  infrastructure-health:
+    name: Infrastructure Health
+    runs-on: ubuntu-latest
+    if: |
+      vars.ENABLE_TERRAFORM == 'true' &&
+      (github.event.inputs.check_type == 'all' ||
+       github.event.inputs.check_type == 'infrastructure' ||
+       github.event_name == 'workflow_run')
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.7.0'
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        continue-on-error: true
+
+      - name: Check Container Apps State
+        id: ca
+        working-directory: deploy/terraform/container-apps
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=container-apps/dev/terraform.tfstate" \
+            -input=false 2>/dev/null || echo "init_failed=true" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$(cat $GITHUB_OUTPUT | grep init_failed)" ]; then
+            RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l || echo "0")
+            echo "resource_count=${RESOURCE_COUNT}" >> "$GITHUB_OUTPUT"
+            echo "status=healthy" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=unknown" >> "$GITHUB_OUTPUT"
+            echo "resource_count=0" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Infrastructure Summary
+        if: always()
+        run: |
+          {
+            echo "## Crusher - Infrastructure Health"
+            echo ""
+            echo "| Infrastructure | Status | Resources |"
+            echo "|----------------|--------|-----------|"
+            echo "| Container Apps | ${{ steps.ca.outputs.status || 'unknown' }} | ${{ steps.ca.outputs.resource_count || '0' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Health Report: Aggregate all health data
+  # ══════════════════════════════════════════════════════════════════════════
+  health-report:
+    name: Health Report
+    runs-on: ubuntu-latest
+    needs: [pipeline-health, application-health]
+    if: always()
+    steps:
+      - name: Generate Health Report
+        run: |
+          {
+            echo "## Crusher - Health Report"
+            echo ""
+            echo "**Generated:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "### Summary"
+            echo ""
+            echo "| Component | Status |"
+            echo "|-----------|--------|"
+            echo "| Pipeline | ${{ needs.pipeline-health.outputs.status || 'skipped' }} |"
+            echo "| App (dev) | ${{ needs.application-health.outputs.dev_status || 'skipped' }} |"
+            echo "| App (prod) | ${{ needs.application-health.outputs.prod_status || 'skipped' }} |"
+            echo ""
+
+            # Determine overall status
+            PIPELINE="${{ needs.pipeline-health.outputs.status }}"
+            APP_DEV="${{ needs.application-health.outputs.dev_status }}"
+            APP_PROD="${{ needs.application-health.outputs.prod_status }}"
+
+            if [ "$PIPELINE" = "healthy" ] && [ "$APP_PROD" = "healthy" ]; then
+              echo "### Overall: HEALTHY"
+            elif [ "$PIPELINE" = "unhealthy" ] || [ "$APP_PROD" = "unhealthy" ]; then
+              echo "### Overall: UNHEALTHY"
+            else
+              echo "### Overall: DEGRADED"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Alert on Unhealthy
+        if: |
+          needs.pipeline-health.outputs.status == 'unhealthy' ||
+          needs.application-health.outputs.prod_status == 'unhealthy'
+        run: |
+          echo "::error::Health check failed! Pipeline: ${{ needs.pipeline-health.outputs.status }}, App: ${{ needs.application-health.outputs.prod_status }}"

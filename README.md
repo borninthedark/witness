@@ -4,13 +4,12 @@
 [![Riker - Release](https://github.com/borninthedark/witness/actions/workflows/riker.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/riker.yml)
 [![Worf - Security](https://github.com/borninthedark/witness/actions/workflows/worf.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/worf.yml)
 [![Azure](https://img.shields.io/badge/Azure-Container_Apps-0078D4?logo=microsoft-azure&logoColor=white)](https://azure.microsoft.com/en-us/products/container-apps)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.29+-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![Coverage](https://img.shields.io/badge/coverage-62.77%25-yellow)](tests/README.md)
 
 **Status Report:** A production-ready FastAPI application serving as a professional resume and certification verification platform.
 
-## 📑 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Technology Stack](#technology-stack)
@@ -20,13 +19,13 @@
 - [Configuration](#configuration)
 - [Deployment](#deployment)
   - [Container Deployment](#container-deployment)
-  - [Kubernetes Deployment](#kubernetes-deployment)
-  - [Azure Kubernetes Service (AKS)](#azure-kubernetes-service-aks)
+  - [Azure Container Apps](#azure-container-apps)
+  - [GitHub Actions CI/CD](#github-actions-cicd)
 - [Observability Guide](#observability-guide)
 - [Development Workflow](#development-workflow)
 - [Infrastructure as Code](#infrastructure-as-code)
 - [Security Considerations](#security-considerations)
-- [Documentation](#-documentation)
+- [Documentation](#documentation)
 
 ---
 
@@ -40,13 +39,13 @@ Captain's Fitness Log (aka "Witness") is an enterprise-grade web application tha
 - **Contact Portal** - reCAPTCHA v2 and Formspree-protected contact form with LCARS theming
 - **Professional Portfolio** - Showcase of credentials with Credly badge integration
 
-### 📊 Project Stats
+### Project Stats
 
 - **Test Coverage:** 62.77% (35+ tests, targeting 80%+)
 - **Python Version:** 3.12+ (targeting 3.13)
 - **Code Quality:** Black, Ruff, MyPy, Bandit, Pylint
 - **Security:** Trivy scanning, CSRF protection, rate limiting
-- **Deployment:** Docker, Kubernetes, Azure AKS
+- **Deployment:** Docker, Azure Container Apps
 - **CI/CD:** GitHub Actions with automated testing and security scans
 
 ### Quick Facts
@@ -361,7 +360,7 @@ Client → Caddy (TLS, reverse proxy) → FastAPI App → SQLite
          :80/:443                      :8000          :5432
 ```
 
-*Note: Production AKS uses Azure-managed NGINX ingress instead of Caddy. See [AKS Network Architecture](docs/aks-network-architecture.md).*
+*Note: Production uses Azure Container Apps with built-in HTTPS ingress.*
 
 **Container Features:**
 - Multi-stage Python 3.12-slim base
@@ -371,101 +370,75 @@ Client → Caddy (TLS, reverse proxy) → FastAPI App → SQLite
 
 Set `SKIP_DB_MIGRATIONS=1` to bypass Alembic migrations in ephemeral environments.
 
-### Kubernetes Deployment
+### Azure Container Apps
 
-**Simple Deployment:**
-```bash
-kubectl apply -f deploy/k8s/deploy.yaml
-kubectl apply -f deploy/k8s/lets-encrypt-issuer.yaml
+Azure Container Apps provides a serverless container platform with automatic scaling, built-in HTTPS, and scale-to-zero capability.
+
+#### Architecture
+
+```
+Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
+                                              |
+                                        [witness app]
+                                        - FastAPI container
+                                        - System-assigned identity
+                                        - Auto-scaling (0-N replicas)
+                                              |
+                                        Log Analytics Workspace
 ```
 
-**Features:**
-- Persistent volume for SQLite/data
-- Let's Encrypt TLS via cert-manager
-- Namespace isolation (`fitness`)
-- GHCR image pull secrets (configure with your GitHub PAT)
-- Horizontal Pod Autoscaler (CPU/memory based)
-- Azure App Routing ingress controller support
+#### Infrastructure Provisioning (Terraform)
 
-### Azure Kubernetes Service (AKS)
-
-#### Network Architecture
-
-The application runs on AKS with Azure-managed NGINX ingress and automatic TLS via cert-manager:
-
-```mermaid
-graph LR
-    Client[Client<br/>Browser] -->|HTTPS| DNS[Azure DNS<br/>engage.princetonstrong.online]
-    DNS -->|Resolves| ALB[Azure<br/>Load Balancer]
-    ALB -->|Port 443| NGINX[NGINX Ingress<br/>Azure App Routing]
-    NGINX -->|TLS Terminated| Ingress[Ingress<br/>Resource]
-    Ingress -->|Routes| Service[Service<br/>ClusterIP:80]
-    Service -->|Load Balance| Pods[Pods<br/>fitness-app:8000]
-    Pods -->|Mounts| PVC[PVC<br/>10Gi Azure Disk]
-
-    CertMgr[cert-manager] -.->|Manages TLS| NGINX
-    HPA[HPA<br/>1-2 replicas] -.->|Scales| Pods
-
-    style Client fill:#e1f5ff
-    style NGINX fill:#00A4EF,color:#fff
-    style Pods fill:#326CE5,color:#fff
-    style PVC fill:#7FBA00,color:#fff
-```
-
-**See [docs/aks-network-architecture.md](docs/aks-network-architecture.md) for the complete network architecture diagram with traffic flows, security boundaries, and troubleshooting guide.**
-
-#### Infrastructure Provisioning (Bicep)
-
-Bicep templates provision the Azure infrastructure:
+Terraform configurations provision the Azure infrastructure via GitHub Actions:
 
 ```bash
-# Deploy AKS cluster and supporting resources
-az deployment sub create \
-  --location eastus \
-  --template-file deploy/azure/bicep/AKS/main.bicep \
-  --parameters @deploy/azure/bicep/AKS/parameters.production.bicepparam
+# Manual deployment (or use Picard/La Forge workflows)
+cd deploy/terraform/container-apps
+terraform init \
+  -backend-config="resource_group_name=tfstate-rg" \
+  -backend-config="storage_account_name=tfstate" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=container-apps/dev/terraform.tfstate"
 
-# Get credentials
-az aks get-credentials --resource-group utopia-rg --name fitness-aks
+terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+terraform apply tfplan
 ```
 
-**Bicep provisions:**
-- AKS cluster with auto-scaling node pools (1-5 nodes, Standard_D2s_v3)
+**Terraform provisions:**
+- Container Apps Environment using official `Azure/container-apps/azure` v0.4.0 module
+- Auto-scaling (configurable min/max replicas, including scale-to-zero)
 - Log Analytics workspace for monitoring
-- Azure App Routing add-on (managed NGINX ingress + cert-manager)
+- Built-in HTTPS ingress with automatic TLS
 - System-assigned managed identities
-- Azure RBAC enabled
-- Locked-down security configuration
 
-#### Application Deployment
+#### Compose-Style Configuration
 
-After infrastructure is ready, deploy the application:
+The module uses a compose-style approach familiar to Docker/Podman Compose users:
 
-```bash
-# Apply Let's Encrypt cluster issuer (one-time)
-kubectl apply -f deploy/k8s/lets-encrypt-issuer.yaml
-
-# Deploy application
-kubectl apply -f deploy/k8s/deploy.yaml
+```hcl
+container_apps = {
+  app = {
+    name          = "witness"
+    revision_mode = "Single"
+    template = {
+      min_replicas = 1
+      max_replicas = 3
+      containers = [{
+        name   = "witness"
+        image  = "ghcr.io/borninthedark/witness:latest"
+        cpu    = "0.5"
+        memory = "1Gi"
+        env    = [...]
+        liveness_probe  = { path = "/healthz" }
+        readiness_probe = { path = "/readyz" }
+      }]
+    }
+    ingress = { external_enabled = true, target_port = 8000 }
+  }
+}
 ```
 
-**Application deployment creates:**
-- Namespace, secrets, and persistent storage
-- Deployment with health probes and security context
-- Service and Ingress (uses Azure App Routing)
-- HorizontalPodAutoscaler for auto-scaling
-
-#### Infrastructure Alignment
-
-The Bicep-provisioned infrastructure integrates with Kubernetes manifests:
-
-| Component | Bicep Provisions | Kubernetes Uses |
-|-----------|------------------|-----------------|
-| Ingress | Azure App Routing add-on | `ingressClassName: webapprouting.kubernetes.azure.com` |
-| cert-manager | Installed via App Routing | `cert-manager.io/cluster-issuer: letsencrypt-prod` |
-| Storage | Managed Disks (default StorageClass) | `storageClassName: managed-csi` |
-| Monitoring | Log Analytics workspace | Container logs auto-collected |
-| Identity | System-assigned managed identity | Can access Azure resources |
+See `deploy/terraform/container-apps/README.md` for complete configuration.
 
 ### GitHub Actions CI/CD
 
@@ -498,12 +471,41 @@ The CI/CD pipeline uses Star Trek TNG-themed workflow names:
 
 **Infrastructure Workflows (Terraform):**
 
+Workflows run in sequence: **Worf -> Picard -> La Forge**
+
+```
+Worf - Security (entry point)
+    |-- Checkov, tfsec, Trivy scans
+    |-- Terraform validate & format
+    v
+Picard - Plan (after Worf succeeds)
+    |-- Terraform plan for all infrastructures
+    |-- Cosign-signed plan artifacts
+    |-- PR comments with plan output
+    v
+La Forge - Apply (after Picard succeeds)
+    |-- Verifies plan signature
+    |-- Downloads signed plan artifact
+    |-- Applies with environment approval
+```
+
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Picard - Plan** | `picard.yml` | Terraform plan, validation, PR comments |
-| **La Forge - Apply** | `laforge.yml` | Terraform apply (after plan approval) |
-| **Worf - Security** | `worf.yml` | Checkov, tfsec, Trivy security scans |
+| **Worf - Security** | `worf.yml` | Entry point: Checkov, tfsec, Trivy scans |
+| **Picard - Plan** | `picard.yml` | Terraform plan, signing, PR comments |
+| **La Forge - Apply** | `laforge.yml` | Verify signature, apply (requires approval) |
+| **Q - Tests** | `q.yml` | Terraform native test framework |
+| **Crusher - Health** | `crusher.yml` | Pipeline and application health checks |
 | **Tasha - Destroy** | `tasha.yml` | Terraform destroy (manual, protected) |
+
+**Plan Signing & Verification:**
+
+Terraform plans are cryptographically signed using Cosign with Sigstore keyless OIDC:
+
+- **Picard** generates: `tfplan`, `tfplan.json`, `tfplan-summary.txt`, signature (`.sig`), certificate (`.crt`)
+- **La Forge** verifies the signature matches the GitHub Actions OIDC identity before applying
+- Plans without valid signatures trigger a fresh plan generation
+- Artifact retention: 1 day
 
 See `.github/workflows/` for workflow definitions.
 
@@ -511,19 +513,16 @@ See `.github/workflows/` for workflow definitions.
 
 ### Azure Monitor Integration (Production)
 
-**For AKS deployments**, the application integrates with Azure Monitor's managed observability stack:
+Azure Container Apps integrates with Azure Monitor:
 
-- **Azure Monitor Managed Prometheus** - Automatic scraping of application metrics
-- **Azure Managed Grafana** - Pre-built dashboards for cluster, workload, and application monitoring
-- **Container Insights** - Centralized log collection with 30-day retention
+- **Log Analytics Workspace** - Centralized log collection
+- **Container Insights** - Application and container metrics
+- **Prometheus-compatible** - `/metrics` endpoint scraped automatically
 
 **Key Features:**
 - Unified dashboards combining metrics and logs
 - PromQL and KQL query support
 - Automatic alerting on critical metrics
-- No Prometheus infrastructure to maintain
-
-See [AKS Network Architecture - Monitoring & Observability](docs/aks-network-architecture.md#monitoring--observability) for complete details.
 
 ### Logging
 
@@ -687,63 +686,69 @@ ruff check fitness/main.py --fix
 ```
 
 **Why use pre-commit?**
-- ✅ Consistent with CI/CD checks
-- ✅ Catches issues before commit
-- ✅ Faster with caching
-- ✅ Single source of truth
+- Consistent with CI/CD checks
+- Catches issues before commit
+- Faster with caching
+- Single source of truth
 
 ## Infrastructure as Code
 
-**Primary IaC Method:** Azure Bicep
+**Primary IaC Method:** Terraform
 
-The project uses **Bicep** for infrastructure provisioning on Azure. Bicep templates are located in `deploy/azure/bicep/AKS/`.
+The project uses **Terraform** for infrastructure provisioning on Azure, with configurations in `deploy/terraform/`.
 
-### Bicep Modules
+### Terraform Modules
 
 **Structure:**
 ```text
-deploy/azure/bicep/AKS/
-├── main.bicep                          # Main deployment template
-├── modules/
-│   ├── aks-cluster.bicep              # AKS cluster configuration
-│   └── log-analytics.bicep            # Log Analytics workspace
-└── parameters.production.bicepparam    # Production parameters
+deploy/terraform/
+└── container-apps/                     # Azure Container Apps
+    ├── main.tf                         # Container Apps using Azure/container-apps/azure v0.4.0
+    ├── variables.tf                    # Input variables
+    ├── outputs.tf                      # Output values
+    ├── versions.tf                     # Provider requirements
+    ├── backend.tf                      # Azure Storage backend
+    ├── tests/                          # Terraform native tests
+    │   └── variables.tftest.hcl
+    └── environments/
+        ├── dev.tfvars                  # Development environment
+        └── prod.tfvars                 # Production environment
 ```
 
 **Provisions:**
-- AKS cluster with auto-scaling node pools (1-5 nodes, Standard_D2s_v3)
-- Azure App Routing add-on (managed NGINX ingress controller + cert-manager)
+- Container Apps Environment using official `Azure/container-apps/azure` v0.4.0 module
+- Auto-scaling (configurable min/max replicas, including scale-to-zero)
+- Built-in HTTPS ingress with automatic TLS
 - Log Analytics workspace for Azure Monitor integration
 - System-assigned managed identities for secure Azure resource access
-- Locked-down network security and RBAC configuration
 
-**Deployment:**
+**Deployment (via GitHub Actions):**
+
+Infrastructure is deployed via the Worf -> Picard -> La Forge workflow chain:
+
+1. Push changes to `deploy/terraform/**`
+2. Worf runs security scans (Checkov, tfsec, Trivy)
+3. Picard generates and signs terraform plans
+4. La Forge verifies signature and applies (requires approval)
+
+**Manual deployment:**
 ```bash
-# Deploy infrastructure
-az deployment sub create \
-  --location eastus \
-  --template-file deploy/azure/bicep/AKS/main.bicep \
-  --parameters @deploy/azure/bicep/AKS/parameters.production.bicepparam
-
-# Get cluster credentials
-az aks get-credentials --resource-group utopia-rg --name fitness-aks
-
-# Deploy application manifests
-kubectl apply -f deploy/k8s/lets-encrypt-issuer.yaml
-kubectl apply -f deploy/k8s/deploy.yaml
+cd deploy/terraform/container-apps
+terraform init -backend-config="..."
+terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+terraform apply tfplan
 ```
 
 **Security Best Practices:**
-- ✅ All sensitive parameters marked `@secure()`
-- ✅ No `listKeys()` in outputs
-- ✅ Resource symbol references over `resourceId()`
-- ✅ Managed identities for service authentication
-- ✅ Secrets injected from GitHub Actions, never committed
+- Terraform plans signed with Cosign (Sigstore keyless OIDC)
+- Signature verification before apply
+- Managed identities for service authentication
+- Secrets injected from GitHub Actions, never committed
+- State stored in Azure Storage with encryption
 
 **Monitoring Integration:**
-- Azure Monitor Managed Prometheus automatically scrapes `/metrics` endpoint
-- Azure Managed Grafana provides pre-built dashboards for cluster and application monitoring
 - Container logs auto-collected to Log Analytics workspace
+- `/metrics` endpoint available for Prometheus scraping
 
 See [docs/deployment.md](docs/deployment.md) for detailed deployment guide.
 
@@ -765,23 +770,22 @@ See [docs/deployment.md](docs/deployment.md) for detailed deployment guide.
 
 ### Best Practices
 
-- ✅ Never logs credentials or secrets
-- ✅ All Bicep parameters marked `@secure()` where appropriate
-- ✅ No secrets in Git history
-- ✅ Regular Trivy and Bandit scans
-- ✅ CSRF protection on all state-changing operations
-- ✅ Rate limiting on sensitive endpoints
-- ✅ Strict CSP with nonce support (optional)
-- ✅ HSTS headers with preload directive
+- Never logs credentials or secrets
+- Terraform plans signed with Cosign before apply
+- No secrets in Git history
+- Regular Trivy, Checkov, and tfsec scans
+- CSRF protection on all state-changing operations
+- Rate limiting on sensitive endpoints
+- Strict CSP with nonce support (optional)
+- HSTS headers with preload directive
 
-## 📚 Documentation
+## Documentation
 
 ### Architecture
 - **[Project Overview](docs/overview.md)** - Project structure, data sources, application flow.
-- **[AKS Network Architecture](docs/aks-network-architecture.md)** - Network diagram, traffic flows, troubleshooting.
 
 ### Deployment
-- **[Deployment Guide (Docker + Caddy)](docs/deployment.md)** - Container, Compose, AKS, systemd deployment.
+- **[Deployment Guide](docs/deployment.md)** - Container, Compose, Container Apps, systemd deployment.
 
 ### Operations
 - **[Tooling & Workflows](docs/tooling.md)** - Testing, linting, pre-commit workflows.

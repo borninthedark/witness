@@ -2,24 +2,19 @@
 # Picard - Terraform Plan
 # ================================================================
 # "Engage" - Plans infrastructure changes
-# Runs on PRs and pushes to main for terraform changes
+# Triggered after Worf security scans pass, or manually
 # ================================================================
 
 name: Picard - Plan
 
 on:
-  push:
+  # Triggered after Worf security scans complete successfully
+  workflow_run:
+    workflows: ['Worf - Security']
+    types: [completed]
     branches: [main]
-    paths:
-      - 'deploy/terraform/**'
-      - '.github/workflows/picard.yml'
-      - '.github/workflows/laforge.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'deploy/terraform/**'
-      - '.github/workflows/picard.yml'
-      - '.github/workflows/laforge.yml'
+
+  # Manual trigger for specific environment
   workflow_dispatch:
     inputs:
       environment:
@@ -28,12 +23,6 @@ on:
         default: 'dev'
         type: choice
         options: [dev, prod]
-      infrastructure:
-        description: 'Infrastructure type'
-        required: true
-        default: 'container-apps'
-        type: choice
-        options: [container-apps, aks]
 
 permissions:
   contents: read
@@ -42,7 +31,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: terraform-plan-${{ github.event.inputs.infrastructure || 'container-apps' }}-${{ github.event.inputs.environment || 'dev' }}-${{ github.ref }}
+  group: terraform-plan-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -50,80 +39,51 @@ env:
   ARM_USE_OIDC: true
 
 jobs:
-  config:
-    name: Configure
+  # ══════════════════════════════════════════════════════════════════════════
+  # Gate: Only proceed if Worf succeeded (for workflow_run trigger)
+  # ══════════════════════════════════════════════════════════════════════════
+  gate:
+    name: Check Gate
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     outputs:
-      environment: ${{ steps.config.outputs.environment }}
-      infrastructure: ${{ steps.config.outputs.infrastructure }}
-      working_dir: ${{ steps.config.outputs.working_dir }}
-      tfvars_file: ${{ steps.config.outputs.tfvars_file }}
+      proceed: ${{ steps.check.outputs.proceed }}
+      is_pr: ${{ steps.check.outputs.is_pr }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
     steps:
-      - name: Set configuration
-        id: config
+      - name: Check conditions
+        id: check
         run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
-          INFRA="${{ github.event.inputs.infrastructure || 'container-apps' }}"
-          echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
-          echo "infrastructure=${INFRA}" >> "$GITHUB_OUTPUT"
-          echo "working_dir=deploy/terraform/${INFRA}" >> "$GITHUB_OUTPUT"
-          echo "tfvars_file=environments/${ENV}.tfvars" >> "$GITHUB_OUTPUT"
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "is_pr=${{ github.event.workflow_run.event == 'pull_request' }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${{ github.event.workflow_run.pull_requests[0].number || '' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_pr=false" >> "$GITHUB_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+          fi
 
-          {
-            echo "## Picard - Configuration"
-            echo "- **Environment:** ${ENV}"
-            echo "- **Infrastructure:** ${INFRA}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  validate:
-    name: Validate
-    needs: config
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ needs.config.outputs.working_dir }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -check -recursive -diff
-        continue-on-error: true
-
-      - name: Terraform Init
-        run: terraform init -backend=false
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Summary
-        if: always()
-        run: |
-          {
-            echo "## Validation Results"
-            echo "| Check | Status |"
-            echo "|-------|--------|"
-            echo "| Format | ${{ steps.fmt.outcome == 'success' && 'OK' || 'Warning' }} |"
-            echo "| Validate | OK |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
+  # ══════════════════════════════════════════════════════════════════════════
+  # Plan: Container Apps infrastructure
+  # ══════════════════════════════════════════════════════════════════════════
   plan:
-    name: Plan
-    needs: [config, validate]
+    name: Plan ${{ matrix.infrastructure }} / ${{ matrix.environment }}
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true' && vars.ENABLE_TERRAFORM == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: vars.ENABLE_TERRAFORM == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        infrastructure: [container-apps]
+        environment: [dev]
     outputs:
-      exitcode: ${{ steps.plan.outputs.exitcode }}
-      has_changes: ${{ steps.plan.outputs.exitcode == '2' }}
+      exitcode-container-apps: ${{ steps.plan.outputs.exitcode-container-apps }}
     defaults:
       run:
-        working-directory: ${{ needs.config.outputs.working_dir }}
+        working-directory: deploy/terraform/${{ matrix.infrastructure }}
     env:
       TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
       TF_VAR_container_registry_username: ${{ github.repository_owner }}
@@ -134,6 +94,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -153,37 +115,84 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
             -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=${{ needs.config.outputs.infrastructure }}/${{ needs.config.outputs.environment }}/terraform.tfstate"
+            -backend-config="key=${{ matrix.infrastructure }}/${{ matrix.environment }}/terraform.tfstate"
 
       - name: Terraform Plan
         id: plan
         run: |
           set +e
           terraform plan \
-            -var-file="${{ needs.config.outputs.tfvars_file }}" \
+            -var-file="environments/${{ matrix.environment }}.tfvars" \
             -out=tfplan \
             -detailed-exitcode \
             -no-color 2>&1 | tee plan-output.txt
           EXIT_CODE=$?
           echo "exitcode=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+          echo "exitcode-${{ matrix.infrastructure }}=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Generate Plan JSON (for viewing)
+        if: steps.plan.outputs.exitcode != '1'
+        run: |
+          # Generate human-readable JSON plan
+          terraform show -json tfplan > tfplan.json
+          # Generate text summary
+          terraform show -no-color tfplan > tfplan-summary.txt
+          # Create metadata file
+          cat > plan-metadata.json << EOF
+          {
+            "infrastructure": "${{ matrix.infrastructure }}",
+            "environment": "${{ matrix.environment }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit_sha": "${{ github.event.workflow_run.head_sha || github.sha }}",
+            "run_id": "${{ github.run_id }}",
+            "run_number": "${{ github.run_number }}",
+            "actor": "${{ github.actor }}",
+            "exit_code": "${{ steps.plan.outputs.exitcode }}"
+          }
+          EOF
+
+      - name: Install Cosign
+        if: steps.plan.outputs.exitcode == '2'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign Plan Artifact
+        if: steps.plan.outputs.exitcode == '2'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          # Create tarball of plan files for signing
+          tar -czf tfplan-bundle.tar.gz tfplan tfplan.json tfplan-summary.txt plan-metadata.json plan-output.txt
+          # Sign with Sigstore keyless OIDC
+          cosign sign-blob --yes \
+            --oidc-issuer https://token.actions.githubusercontent.com \
+            --output-signature tfplan-bundle.sig \
+            --output-certificate tfplan-bundle.crt \
+            tfplan-bundle.tar.gz
+          echo "Plan signed with Sigstore keyless OIDC"
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ needs.config.outputs.infrastructure }}-${{ needs.config.outputs.environment }}
+          name: tfplan-${{ matrix.infrastructure }}-${{ matrix.environment }}
           path: |
-            ${{ needs.config.outputs.working_dir }}/tfplan
-            ${{ needs.config.outputs.working_dir }}/plan-output.txt
-          retention-days: 7
+            deploy/terraform/${{ matrix.infrastructure }}/tfplan
+            deploy/terraform/${{ matrix.infrastructure }}/tfplan.json
+            deploy/terraform/${{ matrix.infrastructure }}/tfplan-summary.txt
+            deploy/terraform/${{ matrix.infrastructure }}/plan-metadata.json
+            deploy/terraform/${{ matrix.infrastructure }}/plan-output.txt
+            deploy/terraform/${{ matrix.infrastructure }}/tfplan-bundle.tar.gz
+            deploy/terraform/${{ matrix.infrastructure }}/tfplan-bundle.sig
+            deploy/terraform/${{ matrix.infrastructure }}/tfplan-bundle.crt
+          retention-days: 1
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: needs.gate.outputs.is_pr == 'true' && needs.gate.outputs.pr_number != ''
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const planOutput = fs.readFileSync('${{ needs.config.outputs.working_dir }}/plan-output.txt', 'utf8');
+            const planOutput = fs.readFileSync('deploy/terraform/${{ matrix.infrastructure }}/plan-output.txt', 'utf8');
             const truncated = planOutput.length > 60000
               ? planOutput.substring(0, 60000) + '\n\n... (truncated)'
               : planOutput;
@@ -196,7 +205,7 @@ jobs:
             };
             const status = statusMap[exitCode] || { marker: '[?]', text: 'Unknown' };
 
-            const body = `## ${status.marker} Terraform Plan - \`${{ needs.config.outputs.infrastructure }}\` / \`${{ needs.config.outputs.environment }}\`
+            const body = `## ${status.marker} Terraform Plan - \`${{ matrix.infrastructure }}\` / \`${{ matrix.environment }}\`
 
             **Status:** ${status.text}
 
@@ -211,16 +220,17 @@ jobs:
 
             *Picard has spoken. Run La Forge workflow to apply.*`;
 
+            const prNumber = parseInt('${{ needs.gate.outputs.pr_number }}');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: prNumber,
             });
 
             const existing = comments.find(c =>
               c.user.type === 'Bot' &&
               c.body.includes('Terraform Plan') &&
-              c.body.includes('${{ needs.config.outputs.infrastructure }}')
+              c.body.includes('${{ matrix.infrastructure }}')
             );
 
             if (existing) {
@@ -234,7 +244,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 body: body
               });
             }
@@ -248,8 +258,8 @@ jobs:
             echo ""
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Infrastructure | \`${{ needs.config.outputs.infrastructure }}\` |"
-            echo "| Environment | \`${{ needs.config.outputs.environment }}\` |"
+            echo "| Infrastructure | \`${{ matrix.infrastructure }}\` |"
+            echo "| Environment | \`${{ matrix.environment }}\` |"
             case "$EXIT_CODE" in
               0) echo "| Status | No changes |" ;;
               1) echo "| Status | Error |" ;;

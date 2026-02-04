@@ -2,7 +2,7 @@
 # Worf - Terraform Security & Validation
 # ================================================================
 # "Today is a good day to scan" - Security scans and validation
-# Runs Checkov, tfsec, and validates terraform configurations
+# Entry point for infrastructure pipeline: Worf -> Picard -> La Forge
 # ================================================================
 
 name: Worf - Security
@@ -12,10 +12,16 @@ on:
     branches: [main]
     paths:
       - 'deploy/terraform/**'
+      - '.github/workflows/worf.yml'
+      - '.github/workflows/picard.yml'
+      - '.github/workflows/laforge.yml'
   pull_request:
     branches: [main]
     paths:
       - 'deploy/terraform/**'
+      - '.github/workflows/worf.yml'
+      - '.github/workflows/picard.yml'
+      - '.github/workflows/laforge.yml'
   workflow_dispatch:
     inputs:
       infrastructure:

@@ -45,8 +45,8 @@ deploy/jsonnet/params.sh
 /reports/
 /.reports/
 
-# Documentation
-/docs/
+# Generated documentation (keep source docs)
+# /docs/
 
 # Deployment scripts
 setup-env.sh
