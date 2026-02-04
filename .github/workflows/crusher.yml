@@ -8,11 +8,6 @@
 name: Crusher - Health
 
 on:
-  # Scheduled health checks
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
-
-  # Manual trigger
   workflow_dispatch:
     inputs:
       environment:
@@ -26,12 +21,13 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, application, infrastructure, pipeline]
+        options: [all, application, infrastructure, pipeline, container]
 
 permissions:
   contents: read
   actions: read
   checks: read
+  packages: read
 
 env:
   APP_URL_DEV: ${{ vars.APP_URL_DEV || 'https://dev.example.com' }}
@@ -46,9 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event.inputs.check_type == 'all' ||
-      github.event.inputs.check_type == 'pipeline' ||
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_run'
+      github.event.inputs.check_type == 'pipeline'
     outputs:
       status: ${{ steps.check.outputs.status }}
       summary: ${{ steps.check.outputs.summary }}
@@ -62,7 +56,8 @@ jobs:
               { name: 'Data - CI', file: 'data.yml' },
               { name: 'Picard - Build', file: 'picard.yml' },
               { name: 'Riker - Release', file: 'riker.yml' },
-              { name: 'Worf - Security', file: 'worf.yml' }
+              { name: 'Worf - Security', file: 'worf.yml' },
+              { name: 'La Forge - Gate', file: 'laforge.yml' }
             ];
 
             let healthy = 0;
@@ -125,6 +120,125 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════
+  # Container Health: Check GHCR image status (Picard / Riker builds)
+  # ══════════════════════════════════════════════════════════════════════════
+  container-health:
+    name: Container Health
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.check_type == 'all' ||
+      github.event.inputs.check_type == 'container'
+    outputs:
+      status: ${{ steps.check.outputs.status }}
+    steps:
+      - name: Check GHCR images
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tags = ['latest', 'prod', 'dev'];
+            const pkg = 'witness';
+            let results = [];
+            let healthy = 0;
+            let unhealthy = 0;
+
+            for (const tag of tags) {
+              try {
+                const versions = await github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+                  package_type: 'container',
+                  package_name: pkg,
+                  org: context.repo.owner,
+                  per_page: 100
+                });
+
+                const match = versions.data.find(v =>
+                  v.metadata?.container?.tags?.includes(tag)
+                );
+
+                if (match) {
+                  healthy++;
+                  results.push({
+                    tag,
+                    status: 'found',
+                    healthy: true,
+                    updated: match.updated_at,
+                    digest: match.name?.substring(0, 19) || 'unknown'
+                  });
+                } else {
+                  unhealthy++;
+                  results.push({
+                    tag,
+                    status: 'missing',
+                    healthy: false,
+                    updated: null,
+                    digest: null
+                  });
+                }
+              } catch (e) {
+                // Try user-owned package if org fails
+                try {
+                  const versions = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+                    package_type: 'container',
+                    package_name: pkg,
+                    username: context.repo.owner,
+                    per_page: 100
+                  });
+
+                  const match = versions.data.find(v =>
+                    v.metadata?.container?.tags?.includes(tag)
+                  );
+
+                  if (match) {
+                    healthy++;
+                    results.push({
+                      tag,
+                      status: 'found',
+                      healthy: true,
+                      updated: match.updated_at,
+                      digest: match.name?.substring(0, 19) || 'unknown'
+                    });
+                  } else {
+                    unhealthy++;
+                    results.push({
+                      tag,
+                      status: 'missing',
+                      healthy: false,
+                      updated: null,
+                      digest: null
+                    });
+                  }
+                } catch (e2) {
+                  unhealthy++;
+                  results.push({
+                    tag,
+                    status: 'error',
+                    healthy: false,
+                    error: e2.message
+                  });
+                }
+              }
+            }
+
+            const overallStatus = unhealthy === 0 ? 'healthy' : (healthy > unhealthy ? 'degraded' : 'unhealthy');
+
+            core.setOutput('status', overallStatus);
+            core.setOutput('summary', JSON.stringify(results));
+
+      - name: Container Summary
+        run: |
+          {
+            echo "## Crusher - Container Health (GHCR)"
+            echo ""
+            echo "| Tag | Status | Last Updated | Digest |"
+            echo "|-----|--------|-------------|--------|"
+            echo '${{ steps.check.outputs.summary }}' | jq -r '.[] | "| \(.tag) | \(if .healthy then "OK" else "MISSING" end) | \(.updated // "N/A") | \(.digest // "N/A") |"'
+            echo ""
+            echo "**Registry:** \`ghcr.io/${{ github.repository_owner }}/witness\`"
+            echo ""
+            echo "**Overall Status:** ${{ steps.check.outputs.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
   # Application Health: Check deployed application endpoints
   # ══════════════════════════════════════════════════════════════════════════
   application-health:
@@ -132,9 +246,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event.inputs.check_type == 'all' ||
-      github.event.inputs.check_type == 'application' ||
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_run'
+      github.event.inputs.check_type == 'application'
     strategy:
       fail-fast: false
       matrix:
@@ -228,8 +340,7 @@ jobs:
     if: |
       vars.ENABLE_TERRAFORM != 'false' &&
       (github.event.inputs.check_type == 'all' ||
-       github.event.inputs.check_type == 'infrastructure' ||
-       github.event_name == 'workflow_run')
+       github.event.inputs.check_type == 'infrastructure')
     env:
       TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
       TF_ORG: ${{ vars.TF_CLOUD_ORG }}
@@ -275,7 +386,7 @@ jobs:
   health-report:
     name: Health Report
     runs-on: ubuntu-latest
-    needs: [pipeline-health, application-health, infrastructure-health]
+    needs: [pipeline-health, container-health, application-health, infrastructure-health]
     if: always()
     steps:
       - name: Generate Health Report
@@ -290,18 +401,19 @@ jobs:
             echo "| Component | Status |"
             echo "|-----------|--------|"
             echo "| Pipeline | ${{ needs.pipeline-health.outputs.status || 'skipped' }} |"
+            echo "| Container (GHCR) | ${{ needs.container-health.outputs.status || 'skipped' }} |"
             echo "| App (dev) | ${{ needs.application-health.outputs.dev_status || 'skipped' }} |"
             echo "| App (prod) | ${{ needs.application-health.outputs.prod_status || 'skipped' }} |"
             echo ""
 
             # Determine overall status
             PIPELINE="${{ needs.pipeline-health.outputs.status }}"
-            APP_DEV="${{ needs.application-health.outputs.dev_status }}"
+            CONTAINER="${{ needs.container-health.outputs.status }}"
             APP_PROD="${{ needs.application-health.outputs.prod_status }}"
 
-            if [ "$PIPELINE" = "healthy" ] && [ "$APP_PROD" = "healthy" ]; then
+            if [ "$PIPELINE" = "healthy" ] && [ "$CONTAINER" = "healthy" ] && [ "$APP_PROD" = "healthy" ]; then
               echo "### Overall: HEALTHY"
-            elif [ "$PIPELINE" = "unhealthy" ] || [ "$APP_PROD" = "unhealthy" ]; then
+            elif [ "$PIPELINE" = "unhealthy" ] || [ "$CONTAINER" = "unhealthy" ] || [ "$APP_PROD" = "unhealthy" ]; then
               echo "### Overall: UNHEALTHY"
             else
               echo "### Overall: DEGRADED"
@@ -311,6 +423,7 @@ jobs:
       - name: Alert on Unhealthy
         if: |
           needs.pipeline-health.outputs.status == 'unhealthy' ||
+          needs.container-health.outputs.status == 'unhealthy' ||
           needs.application-health.outputs.prod_status == 'unhealthy'
         run: |
-          echo "::error::Health check failed! Pipeline: ${{ needs.pipeline-health.outputs.status }}, App: ${{ needs.application-health.outputs.prod_status }}"
+          echo "::error::Health check failed! Pipeline: ${{ needs.pipeline-health.outputs.status }}, Container: ${{ needs.container-health.outputs.status }}, App: ${{ needs.application-health.outputs.prod_status }}"
