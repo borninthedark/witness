@@ -186,5 +186,5 @@ Triggered on push/PR to `deploy/terraform/**`:
 
 | Variable | Purpose |
 |----------|---------|
-| `ENABLE_TERRAFORM` | Enable Terraform plan/apply jobs |
+| `ENABLE_TERRAFORM` | Set to `false` to disable Terraform jobs (enabled by default) |
 | `ENABLE_STATUS_DASHBOARD` | Enable Grafana snapshot updates |

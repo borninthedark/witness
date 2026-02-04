@@ -2,12 +2,17 @@
 # Tasha - Terraform Destroy
 # ================================================================
 # "Skin of evil" - Destroys infrastructure
-# Manual trigger only with environment protection
+# Auto-triggers on failed La Forge apply (rollback)
+# Manual trigger requires typing "DESTROY" to confirm
 # ================================================================
 
 name: Tasha - Destroy
 
 on:
+  workflow_run:
+    workflows: ['La Forge - Apply']
+    types: [completed]
+
   workflow_dispatch:
     inputs:
       environment:
@@ -15,12 +20,6 @@ on:
         required: true
         type: choice
         options: [dev, prod]
-      infrastructure:
-        description: 'Infrastructure type to destroy'
-        required: true
-        default: 'container-apps'
-        type: choice
-        options: [container-apps]
       confirm:
         description: 'Type "DESTROY" to confirm'
         required: true
@@ -31,7 +30,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-destroy-${{ github.event.inputs.infrastructure }}-${{ github.event.inputs.environment }}
+  group: terraform-destroy
   cancel-in-progress: false
 
 env:
@@ -39,17 +38,30 @@ env:
   ARM_USE_OIDC: true
 
 jobs:
-  validate-confirmation:
-    name: Validate Confirmation
+  # ══════════════════════════════════════════════════════════════════════════
+  # Gate: Validate trigger and determine parameters
+  # ══════════════════════════════════════════════════════════════════════════
+  gate:
+    name: Validate
     runs-on: ubuntu-latest
+    if: |
+      vars.ENABLE_TERRAFORM != 'false' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'))
     outputs:
       confirmed: ${{ steps.check.outputs.confirmed }}
+      environment: ${{ steps.check.outputs.environment }}
     steps:
       - name: Check confirmation
         id: check
         run: |
-          if [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
             echo "confirmed=true" >> "$GITHUB_OUTPUT"
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+            echo "Auto-rollback triggered after failed La Forge apply"
+          elif [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
+            echo "confirmed=true" >> "$GITHUB_OUTPUT"
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
             echo "Destruction confirmed"
           else
             echo "confirmed=false" >> "$GITHUB_OUTPUT"
@@ -57,19 +69,20 @@ jobs:
             exit 1
           fi
 
+  # ══════════════════════════════════════════════════════════════════════════
+  # Destroy: Tear down infrastructure
+  # ══════════════════════════════════════════════════════════════════════════
   destroy:
     name: Terraform Destroy
-    needs: validate-confirmation
+    needs: gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: |
-      vars.ENABLE_TERRAFORM == 'true' &&
-      needs.validate-confirmation.outputs.confirmed == 'true'
+    if: needs.gate.outputs.confirmed == 'true'
     environment:
-      name: ${{ github.event.inputs.environment }}-destroy
+      name: ${{ needs.gate.outputs.environment }}-destroy
     defaults:
       run:
-        working-directory: deploy/terraform/${{ github.event.inputs.infrastructure }}
+        working-directory: deploy/terraform/container-apps
     env:
       TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
       TF_VAR_container_registry_username: ${{ github.repository_owner }}
@@ -99,7 +112,7 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
             -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=${{ github.event.inputs.infrastructure }}/${{ github.event.inputs.environment }}/terraform.tfstate"
+            -backend-config="key=container-apps/${{ needs.gate.outputs.environment }}/terraform.tfstate"
 
       - name: Show Current State
         run: |
@@ -107,10 +120,9 @@ jobs:
           terraform show -no-color || echo "No state found"
 
       - name: Plan Destroy
-        id: plan-destroy
         run: |
           terraform plan \
-            -var-file="environments/${{ github.event.inputs.environment }}.tfvars" \
+            -var-file="environments/${{ needs.gate.outputs.environment }}.tfvars" \
             -destroy \
             -out=destroy-plan \
             -no-color 2>&1 | tee destroy-plan.txt
@@ -118,10 +130,10 @@ jobs:
       - name: Upload Destroy Plan
         uses: actions/upload-artifact@v4
         with:
-          name: destroy-plan-${{ github.event.inputs.infrastructure }}-${{ github.event.inputs.environment }}
+          name: destroy-plan-${{ needs.gate.outputs.environment }}
           path: |
-            deploy/terraform/${{ github.event.inputs.infrastructure }}/destroy-plan
-            deploy/terraform/${{ github.event.inputs.infrastructure }}/destroy-plan.txt
+            deploy/terraform/container-apps/destroy-plan
+            deploy/terraform/container-apps/destroy-plan.txt
           retention-days: 1
 
       - name: Execute Destroy
@@ -131,19 +143,19 @@ jobs:
       - name: Destroy Summary
         if: always()
         run: |
+          TRIGGER="${{ github.event_name }}"
           {
             echo "## Tasha - Infrastructure Destroyed"
             echo ""
-            echo "### Details"
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Infrastructure | \`${{ github.event.inputs.infrastructure }}\` |"
-            echo "| Environment | \`${{ github.event.inputs.environment }}\` |"
+            echo "| Environment | \`${{ needs.gate.outputs.environment }}\` |"
+            echo "| Trigger | ${TRIGGER} |"
             echo "| Triggered by | @${{ github.actor }} |"
             echo "| Status | ${{ steps.destroy.outcome == 'success' && 'Destroyed' || 'Failed' }} |"
             echo ""
             if [ "${{ steps.destroy.outcome }}" = "success" ]; then
-              echo "> **Warning:** All resources in the \`${{ github.event.inputs.environment }}\` environment have been destroyed."
+              echo "> **Warning:** All resources in the \`${{ needs.gate.outputs.environment }}\` environment have been destroyed."
               echo ""
               echo "To recreate, run the *La Forge* (Plan & Apply) workflow."
             fi
@@ -152,4 +164,4 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "::error::Terraform destroy failed for ${{ github.event.inputs.infrastructure }} in ${{ github.event.inputs.environment }}"
+          echo "::error::Terraform destroy failed for container-apps in ${{ needs.gate.outputs.environment }}"
