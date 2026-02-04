@@ -8,11 +8,6 @@
 name: Worf - Security
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'deploy/terraform/**'
-      - '.github/workflows/worf.yml'
   pull_request:
     branches: [main]
     paths:

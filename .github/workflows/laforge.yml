@@ -112,7 +112,6 @@ jobs:
 
           CREATED=0
           UPDATED=0
-          SKIPPED=0
 
           # Parse tfvars line by line
           while IFS= read -r line; do
@@ -144,13 +143,6 @@ jobs:
                 IS_HCL="true"
               fi
             else
-              continue
-            fi
-
-            # Skip sensitive variables (managed manually in HCP TF)
-            if [[ "$KEY" == "secret_key" || "$KEY" == "container_registry_password" ]]; then
-              echo "  Skipped (sensitive): ${KEY}"
-              SKIPPED=$((SKIPPED + 1))
               continue
             fi
 
@@ -200,8 +192,79 @@ jobs:
 
           echo "created=${CREATED}" >> "$GITHUB_OUTPUT"
           echo "updated=${UPDATED}" >> "$GITHUB_OUTPUT"
-          echo "skipped=${SKIPPED}" >> "$GITHUB_OUTPUT"
-          echo "Done: ${CREATED} created, ${UPDATED} updated, ${SKIPPED} skipped (sensitive)"
+          echo "Done: ${CREATED} created, ${UPDATED} updated"
+
+      - name: Sync sensitive variables from GitHub secrets
+        id: secrets
+        env:
+          APP_SECRET_KEY: ${{ secrets.APP_SECRET_KEY }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          WS_ID="${{ steps.workspace.outputs.id }}"
+
+          # Fetch existing variables
+          EXISTING=$(curl -sf \
+            --header "Authorization: Bearer ${TF_API_TOKEN}" \
+            "${TF_API}/workspaces/${WS_ID}/vars")
+
+          SYNCED=0
+
+          # Map: GitHub secret -> HCP TF variable name
+          declare -A SENSITIVE_VARS=(
+            ["secret_key"]="${APP_SECRET_KEY}"
+            ["container_registry_password"]="${GHCR_TOKEN}"
+          )
+
+          for KEY in "${!SENSITIVE_VARS[@]}"; do
+            VALUE="${SENSITIVE_VARS[$KEY]}"
+
+            if [ -z "$VALUE" ]; then
+              echo "  Skipped (not set): ${KEY}"
+              continue
+            fi
+
+            EXISTING_ID=$(echo "$EXISTING" | jq -r \
+              --arg key "$KEY" \
+              '.data[] | select(.attributes.key == $key) | .id')
+
+            PAYLOAD=$(jq -n \
+              --arg key "$KEY" \
+              --arg value "$VALUE" \
+              '{
+                data: {
+                  type: "vars",
+                  attributes: {
+                    key: $key,
+                    value: $value,
+                    category: "terraform",
+                    hcl: false,
+                    sensitive: true
+                  }
+                }
+              }')
+
+            if [ -n "$EXISTING_ID" ]; then
+              curl -sf \
+                --header "Authorization: Bearer ${TF_API_TOKEN}" \
+                --header "Content-Type: application/vnd.api+json" \
+                --request PATCH \
+                --data "$PAYLOAD" \
+                "${TF_API}/workspaces/${WS_ID}/vars/${EXISTING_ID}" > /dev/null
+              echo "  Updated (sensitive): ${KEY}"
+            else
+              curl -sf \
+                --header "Authorization: Bearer ${TF_API_TOKEN}" \
+                --header "Content-Type: application/vnd.api+json" \
+                --request POST \
+                --data "$PAYLOAD" \
+                "${TF_API}/workspaces/${WS_ID}/vars" > /dev/null
+              echo "  Created (sensitive): ${KEY}"
+            fi
+            SYNCED=$((SYNCED + 1))
+          done
+
+          echo "synced=${SYNCED}" >> "$GITHUB_OUTPUT"
+          echo "Done: ${SYNCED} sensitive variables synced"
 
       - name: Sync Summary
         if: always()
@@ -223,7 +286,7 @@ jobs:
             echo "| Source | \`deploy/terraform/container-apps/${{ steps.env.outputs.environment }}/terraform.tfvars\` |"
             echo "| Created | ${{ steps.sync.outputs.created || '0' }} |"
             echo "| Updated | ${{ steps.sync.outputs.updated || '0' }} |"
-            echo "| Skipped (sensitive) | ${{ steps.sync.outputs.skipped || '0' }} |"
+            echo "| Sensitive synced | ${{ steps.secrets.outputs.synced || '0' }} |"
             echo ""
             echo "HCP Terraform handles plan/apply via VCS-driven workflow."
             echo "[View workspace](https://app.terraform.io/app/${TF_ORG}/workspaces/${TF_WORKSPACE})"
