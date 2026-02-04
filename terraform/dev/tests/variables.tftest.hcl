@@ -1,6 +1,7 @@
 # ================================================================
 # Container Apps Variable Validation Tests
 # Tests input variable constraints and defaults
+# Run from terraform/dev: terraform test
 # ================================================================
 
 # ──────────────────────────────────────────────────────────────────

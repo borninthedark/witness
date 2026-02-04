@@ -1,9 +1,9 @@
 # ================================================================
-# La Forge - Terraform Plan & Apply
+# La Forge - Terraform CI Gate
 # ================================================================
-# "I can make it work" - CLI-driven Terraform plan and apply
-# Calls Data and Worf as prereqs, then runs plan/apply
-# with -var-file for the target environment
+# "I can make it work" - CI and security gate for HCP Terraform
+# VCS-driven: HCP Terraform handles plan/apply automatically
+# This workflow runs Data CI + Worf security as quality gates
 # ================================================================
 
 name: La Forge - Deploy
@@ -12,7 +12,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'deploy/terraform/**'
+      - 'terraform/**'
       - '.github/workflows/laforge.yml'
 
   workflow_dispatch:
@@ -23,12 +23,6 @@ on:
         default: 'dev'
         type: choice
         options: [dev, prod]
-      action:
-        description: 'Terraform action'
-        required: true
-        default: 'plan'
-        type: choice
-        options: [plan, apply]
 
 permissions:
   contents: read
@@ -40,7 +34,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TF_VERSION: '1.14.2'
   TF_CLOUD_ORGANIZATION: DefiantEmissary
 
 jobs:
@@ -56,122 +49,26 @@ jobs:
     uses: ./.github/workflows/worf.yml
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Plan: Generate execution plan for the target environment
+  # Gate: CI + Security passed, HCP Terraform VCS handles plan/apply
   # ══════════════════════════════════════════════════════════════════════════
-  plan:
-    name: Plan (${{ github.event.inputs.environment || 'dev' }})
+  gate:
+    name: VCS Gate
     needs: [data, worf]
     runs-on: ubuntu-latest
     if: vars.ENABLE_TERRAFORM != 'false'
-    timeout-minutes: 15
-    outputs:
-      environment: ${{ steps.env.outputs.environment }}
-      has_changes: ${{ steps.plan.outputs.has_changes }}
-    defaults:
-      run:
-        working-directory: deploy/terraform/container-apps
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Determine environment
-        id: env
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "environment=dev" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Plan
-        id: plan
-        run: |
-          ENV="${{ steps.env.outputs.environment }}"
-          terraform plan \
-            -var-file="${ENV}/terraform.tfvars" \
-            -var="secret_key=${{ secrets.APP_SECRET_KEY }}" \
-            -var="container_registry_password=${{ secrets.GHCR_TOKEN }}" \
-            -out=tfplan \
-            -no-color \
-            -detailed-exitcode 2>&1 | tee plan-output.txt || EXIT_CODE=$?
-
-          # Exit code 2 = changes present
-          if [ "${EXIT_CODE:-0}" = "2" ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          elif [ "${EXIT_CODE:-0}" = "0" ]; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-          else
-            exit 1
-          fi
-
-      - name: Plan Summary
-        if: always()
+      - name: Gate Summary
         run: |
           {
-            echo "## La Forge - Plan: \`${{ steps.env.outputs.environment }}\`"
+            echo "## La Forge - VCS Gate"
             echo ""
-            echo '```'
-            tail -20 plan-output.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # Apply: Apply the plan (manual dispatch only, action=apply)
-  # ══════════════════════════════════════════════════════════════════════════
-  apply:
-    name: Apply (${{ github.event.inputs.environment || 'dev' }})
-    needs: plan
-    runs-on: ubuntu-latest
-    if: |
-      needs.plan.outputs.has_changes == 'true' &&
-      (github.event_name == 'push' || github.event.inputs.action == 'apply')
-    timeout-minutes: 30
-    environment:
-      name: ${{ needs.plan.outputs.environment }}
-    defaults:
-      run:
-        working-directory: deploy/terraform/container-apps
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Apply
-        run: |
-          ENV="${{ needs.plan.outputs.environment }}"
-          terraform apply \
-            -var-file="${ENV}/terraform.tfvars" \
-            -var="secret_key=${{ secrets.APP_SECRET_KEY }}" \
-            -var="container_registry_password=${{ secrets.GHCR_TOKEN }}" \
-            -auto-approve \
-            -no-color
-
-      - name: Apply Summary
-        if: always()
-        run: |
-          {
-            echo "## La Forge - Apply: \`${{ needs.plan.outputs.environment }}\`"
+            echo "CI and security checks passed."
+            echo "HCP Terraform VCS workflow handles plan/apply."
             echo ""
-            echo "| Property | Value |"
-            echo "|----------|-------|"
-            echo "| Environment | \`${{ needs.plan.outputs.environment }}\` |"
-            echo "| Workspace | \`witness-container-apps\` |"
-            echo "| Triggered by | @${{ github.actor }} |"
+            echo "| Workspace | Working Directory |"
+            echo "|-----------|-------------------|"
+            echo "| \`witness-dev\` | \`terraform/dev\` |"
+            echo "| \`witness-prod\` | \`terraform/prod\` |"
             echo ""
-            echo "[View in HCP Terraform](https://app.terraform.io/app/DefiantEmissary/workspaces/witness-container-apps)"
+            echo "[View workspaces](https://app.terraform.io/app/DefiantEmissary/workspaces)"
           } >> "$GITHUB_STEP_SUMMARY"

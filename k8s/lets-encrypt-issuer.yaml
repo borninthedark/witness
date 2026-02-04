@@ -11,7 +11,7 @@
 #
 # USAGE:
 #   1. Update the email addresses below with your actual contact email
-#   2. Apply this file: kubectl apply -f deploy/k8s/lets-encrypt-issuer.yaml
+#   2. Apply this file: kubectl apply -f k8s/lets-encrypt-issuer.yaml
 #   3. Test with staging issuer first, then switch to production
 #
 # RATE LIMITS:

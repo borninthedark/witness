@@ -92,7 +92,7 @@ repos:
       - id: trivy
         name: trivy file-system scan
         language: system
-        exclude: ^deploy/k8s/deploy\.yaml$
+        exclude: ^k8s/deploy\.yaml$
         entry: scripts/precommit_log.sh
         args:
           [

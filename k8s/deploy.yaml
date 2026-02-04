@@ -25,10 +25,10 @@
 #
 # 3. CERT-MANAGER SETUP:
 #    Apply the Let's Encrypt cluster issuer first:
-#    kubectl apply -f deploy/k8s/lets-encrypt-issuer.yaml
+#    kubectl apply -f k8s/lets-encrypt-issuer.yaml
 #
 # 4. DEPLOYMENT:
-#    kubectl apply -f deploy/k8s/deploy.yaml
+#    kubectl apply -f k8s/deploy.yaml
 #
 # ══════════════════════════════════════════════════════════════════════════════
 ---

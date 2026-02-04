@@ -2,7 +2,7 @@
 # Tasha - Terraform Destroy
 # ================================================================
 # "Skin of evil" - Destroys infrastructure via HCP Terraform API
-# Auto-rollback: polls for failed applies and destroys dev on failure
+# Auto-rollback: polls for failed applies and destroys on failure
 # Manual trigger requires typing "DESTROY" to confirm
 # ================================================================
 
@@ -51,23 +51,23 @@ jobs:
       - name: Check trigger
         id: check
         run: |
-          WS="witness-container-apps"
-
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Manual trigger: require DESTROY confirmation
             if [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
               ENV="${{ github.event.inputs.environment }}"
+              WS="witness-${ENV}"
               echo "should_destroy=true" >> "$GITHUB_OUTPUT"
               echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
               echo "workspace=${WS}" >> "$GITHUB_OUTPUT"
-              echo "Manual destroy confirmed for ${ENV}"
+              echo "Manual destroy confirmed for ${ENV} (workspace: ${WS})"
             else
               echo "should_destroy=false" >> "$GITHUB_OUTPUT"
               echo "Confirmation failed. You must type 'DESTROY' exactly."
               exit 1
             fi
           elif [ "${{ github.event_name }}" = "schedule" ]; then
-            # Auto-rollback: check if workspace has a failed apply
+            # Auto-rollback: check dev workspace for failed applies
+            WS="witness-dev"
             RESPONSE=$(curl -s \
               --header "Authorization: Bearer ${TF_API_TOKEN}" \
               "https://app.terraform.io/api/v2/organizations/${TF_ORG}/workspaces/${WS}")

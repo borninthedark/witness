@@ -33,6 +33,8 @@ sp-credentials.json
 pyerr.txt
 credentials.json
 terraform.tfvars
+!terraform/dev/terraform.tfvars
+!terraform/prod/terraform.tfvars
 .vault_password
 kubeconfig
 *.kubeconfig

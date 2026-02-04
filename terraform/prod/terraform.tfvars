@@ -1,6 +1,11 @@
 # ================================================================
 # Production Environment - Container Apps
 # ================================================================
+# HCP Terraform workspace: witness-prod
+# Sensitive vars set in HCP Terraform workspace variables:
+#   - secret_key
+#   - container_registry_password
+# ================================================================
 
 # Core
 environment         = "production"

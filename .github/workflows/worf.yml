@@ -2,7 +2,7 @@
 # Worf - Terraform Security & Validation
 # ================================================================
 # "Today is a good day to scan" - Security scans and validation
-# Entry point for infrastructure validation (HCP Terraform handles plan/apply)
+# Scans both dev and prod workspace roots + shared module
 # ================================================================
 
 name: Worf - Security
@@ -21,23 +21,23 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TF_VERSION: '1.7.0'
+  TF_VERSION: '1.14.2'
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Scan Container Apps infrastructure
+  # Scan each environment workspace
   # ══════════════════════════════════════════════════════════════════════════
   security-scan:
-    name: Scan ${{ matrix.infrastructure }}
+    name: Scan ${{ matrix.environment }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        infrastructure: [container-apps]
+        environment: [dev, prod]
     defaults:
       run:
-        working-directory: deploy/terraform/${{ matrix.infrastructure }}
+        working-directory: terraform/${{ matrix.environment }}
 
     steps:
       - uses: actions/checkout@v4
@@ -62,10 +62,10 @@ jobs:
         id: checkov
         uses: bridgecrewio/checkov-action@v12
         with:
-          directory: deploy/terraform/${{ matrix.infrastructure }}
+          directory: terraform/${{ matrix.environment }}
           framework: terraform
           output_format: cli,sarif
-          output_file_path: console,checkov-${{ matrix.infrastructure }}.sarif
+          output_file_path: console,checkov-${{ matrix.environment }}.sarif
           soft_fail: true
           skip_check: CKV_AZURE_4,CKV_AZURE_7,CKV2_AZURE_1,CKV2_AZURE_18,CKV2_AZURE_33
         continue-on-error: true
@@ -74,35 +74,35 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: checkov-${{ matrix.infrastructure }}.sarif
-          category: checkov-${{ matrix.infrastructure }}
+          sarif_file: checkov-${{ matrix.environment }}.sarif
+          category: checkov-${{ matrix.environment }}
         continue-on-error: true
 
       - name: tfsec Security Scan
         id: tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
-          working_directory: deploy/terraform/${{ matrix.infrastructure }}
+          working_directory: terraform/${{ matrix.environment }}
           soft_fail: true
           format: sarif
-          sarif_file: tfsec-${{ matrix.infrastructure }}.sarif
+          sarif_file: tfsec-${{ matrix.environment }}.sarif
         continue-on-error: true
 
       - name: Upload tfsec SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: tfsec-${{ matrix.infrastructure }}.sarif
-          category: tfsec-${{ matrix.infrastructure }}
+          sarif_file: tfsec-${{ matrix.environment }}.sarif
+          category: tfsec-${{ matrix.environment }}
         continue-on-error: true
 
       - name: Trivy Config Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
-          scan-ref: deploy/terraform/${{ matrix.infrastructure }}
+          scan-ref: terraform/${{ matrix.environment }}
           format: 'sarif'
-          output: 'trivy-${{ matrix.infrastructure }}.sarif'
+          output: 'trivy-${{ matrix.environment }}.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
         continue-on-error: true
 
@@ -110,15 +110,15 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-${{ matrix.infrastructure }}.sarif
-          category: trivy-config-${{ matrix.infrastructure }}
+          sarif_file: trivy-${{ matrix.environment }}.sarif
+          category: trivy-config-${{ matrix.environment }}
         continue-on-error: true
 
       - name: Security Summary
         if: always()
         run: |
           {
-            echo "## Worf - Security Scan: \`${{ matrix.infrastructure }}\`"
+            echo "## Worf - Security Scan: \`${{ matrix.environment }}\`"
             echo ""
             echo "| Check | Status |"
             echo "|-------|--------|"
@@ -131,17 +131,13 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Terraform Unit Tests (if test files exist)
+  # Terraform Unit Tests (run from dev workspace)
   # ══════════════════════════════════════════════════════════════════════════
   terraform-test:
     name: Terraform Tests
     needs: security-scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        infrastructure: [container-apps]
 
     steps:
       - uses: actions/checkout@v4
@@ -153,8 +149,8 @@ jobs:
       - name: Check for test files
         id: check-tests
         run: |
-          if ls deploy/terraform/${{ matrix.infrastructure }}/*.tftest.hcl 2>/dev/null || \
-             ls deploy/terraform/${{ matrix.infrastructure }}/tests/*.tftest.hcl 2>/dev/null; then
+          if ls terraform/dev/*.tftest.hcl 2>/dev/null || \
+             ls terraform/dev/tests/*.tftest.hcl 2>/dev/null; then
             echo "has_tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_tests=false" >> "$GITHUB_OUTPUT"
@@ -162,12 +158,12 @@ jobs:
 
       - name: Terraform Init
         if: steps.check-tests.outputs.has_tests == 'true'
-        working-directory: deploy/terraform/${{ matrix.infrastructure }}
+        working-directory: terraform/dev
         run: terraform init -backend=false
 
       - name: Run Terraform Tests
         if: steps.check-tests.outputs.has_tests == 'true'
-        working-directory: deploy/terraform/${{ matrix.infrastructure }}
+        working-directory: terraform/dev
         run: terraform test -no-color
         continue-on-error: true
 
@@ -175,10 +171,10 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Worf - Terraform Tests: \`${{ matrix.infrastructure }}\`"
+            echo "## Worf - Terraform Tests"
             echo ""
             if [ "${{ steps.check-tests.outputs.has_tests }}" = "true" ]; then
-              echo "Tests executed"
+              echo "Tests executed from \`terraform/dev\`"
             else
               echo "No test files found (*.tftest.hcl)"
             fi
@@ -196,7 +192,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        infrastructure: [container-apps]
+        environment: [dev, prod]
 
     steps:
       - uses: actions/checkout@v4
@@ -211,9 +207,9 @@ jobs:
         if: env.INFRACOST_API_KEY != ''
         run: |
           infracost breakdown \
-            --path=deploy/terraform/${{ matrix.infrastructure }} \
+            --path=terraform/${{ matrix.environment }} \
             --format=json \
-            --out-file=/tmp/infracost-${{ matrix.infrastructure }}.json
+            --out-file=/tmp/infracost-${{ matrix.environment }}.json
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         continue-on-error: true
@@ -222,7 +218,7 @@ jobs:
         if: env.INFRACOST_API_KEY != ''
         uses: infracost/actions/comment@v1
         with:
-          path: /tmp/infracost-${{ matrix.infrastructure }}.json
+          path: /tmp/infracost-${{ matrix.environment }}.json
           behavior: update
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}

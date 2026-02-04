@@ -1,6 +1,11 @@
 # ================================================================
 # Development Environment - Container Apps
 # ================================================================
+# HCP Terraform workspace: witness-dev
+# Sensitive vars set in HCP Terraform workspace variables:
+#   - secret_key
+#   - container_registry_password
+# ================================================================
 
 # Core
 environment         = "dev"
