@@ -1,0 +1,52 @@
+{% if entries %}
+<div class="entries-grid">
+    {% for entry in entries %}
+    <article class="log-card">
+        <div class="card-header">
+            <div class="card-meta">
+                {% if entry.stardate %}
+                <span class="stardate">STARDATE {{ entry.stardate }}</span>
+                {% endif %}
+                <span class="earth-date">{{ entry.published_at.strftime('%Y.%m.%d') if entry.published_at else entry.created_at.strftime('%Y.%m.%d') }}</span>
+            </div>
+            <a href="/log/?category={{ entry.category.value if entry.category.value else entry.category }}"
+               class="category-badge category-{{ entry.category.value if entry.category.value else entry.category }}">
+                {{ entry.category.value.upper() if entry.category.value else entry.category.upper() }}
+            </a>
+        </div>
+
+        <h2 class="card-title">
+            <a href="/log/entry/{{ entry.slug }}">{{ entry.title }}</a>
+        </h2>
+
+        <p class="card-summary">{{ entry.summary }}</p>
+
+        {% if entry.tags %}
+        <div class="card-tags">
+            {% for tag in entry.tags[:5] %}
+            <a href="/log/?tag={{ tag }}" class="tag">{{ tag }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="card-footer">
+            <span class="reading-time">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                {{ entry.reading_time_minutes }} min read
+            </span>
+            <a href="/log/entry/{{ entry.slug }}" class="read-more">
+                ACCESS LOG →
+            </a>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-entries">
+    <p>No log entries found in this category.</p>
+    <p>Check back later for new chronicles of technical exploration.</p>
+</div>
+{% endif %}

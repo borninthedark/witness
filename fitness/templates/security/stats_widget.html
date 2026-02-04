@@ -1,0 +1,192 @@
+<div class="stats-grid">
+    <div class="stat-card total">
+        <div class="stat-value">{{ stats.total_advisories }}</div>
+        <div class="stat-label">Total Advisories</div>
+    </div>
+
+    <div class="stat-card critical"
+         hx-get="/security/advisories?severity=CRITICAL&days=30"
+         hx-target="#advisories-list"
+         hx-swap="innerHTML"
+         hx-indicator="#loading-indicator"
+         hx-trigger="click"
+         role="button"
+         tabindex="0"
+         style="cursor: pointer;">
+        <div class="stat-value">{{ stats.critical_count }}</div>
+        <div class="stat-label">Critical</div>
+    </div>
+
+    <div class="stat-card high"
+         hx-get="/security/advisories?severity=HIGH&days=30"
+         hx-target="#advisories-list"
+         hx-swap="innerHTML"
+         hx-indicator="#loading-indicator"
+         hx-trigger="click"
+         role="button"
+         tabindex="0"
+         style="cursor: pointer;">
+        <div class="stat-value">{{ stats.high_count }}</div>
+        <div class="stat-label">High</div>
+    </div>
+
+    <div class="stat-card medium"
+         hx-get="/security/advisories?severity=MEDIUM&days=30"
+         hx-target="#advisories-list"
+         hx-swap="innerHTML"
+         hx-indicator="#loading-indicator"
+         hx-trigger="click"
+         role="button"
+         tabindex="0"
+         style="cursor: pointer;">
+        <div class="stat-value">{{ stats.medium_count }}</div>
+        <div class="stat-label">Medium</div>
+    </div>
+
+    <div class="stat-card low"
+         hx-get="/security/advisories?severity=LOW&days=30"
+         hx-target="#advisories-list"
+         hx-swap="innerHTML"
+         hx-indicator="#loading-indicator"
+         hx-trigger="click"
+         role="button"
+         tabindex="0"
+         style="cursor: pointer;">
+        <div class="stat-value">{{ stats.low_count }}</div>
+        <div class="stat-label">Low</div>
+    </div>
+</div>
+
+<!-- Doughnut Chart Visualization -->
+<div class="severity-chart">
+    <h3 class="chart-title">Severity Distribution</h3>
+    <div class="chart-container">
+        <canvas id="severity-doughnut-chart"></canvas>
+    </div>
+</div>
+
+<script src="{{ asset_url('js/chart.min.js') }}"></script>
+<script>
+(function() {
+    // Wait for Chart.js to load
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js not loaded');
+        return;
+    }
+
+    const ctx = document.getElementById('severity-doughnut-chart');
+    if (!ctx) {
+        console.error('Canvas element not found');
+        return;
+    }
+
+    // Destroy existing chart instance if it exists
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
+    }
+
+    // Data from server
+    const data = {
+        labels: ['Critical', 'High', 'Medium', 'Low'],
+        datasets: [{
+            label: 'Severity Count',
+            data: [
+                {{ stats.critical_count }},
+                {{ stats.high_count }},
+                {{ stats.medium_count }},
+                {{ stats.low_count }}
+            ],
+            backgroundColor: [
+                'rgba(231, 76, 60, 0.8)',   // Critical - red
+                'rgba(230, 126, 34, 0.8)',  // High - orange
+                'rgba(243, 156, 18, 0.8)',  // Medium - yellow
+                'rgba(149, 165, 166, 0.8)'  // Low - gray
+            ],
+            borderColor: [
+                'rgba(231, 76, 60, 1)',
+                'rgba(230, 126, 34, 1)',
+                'rgba(243, 156, 18, 1)',
+                'rgba(149, 165, 166, 1)'
+            ],
+            borderWidth: 2,
+            hoverOffset: 4
+        }]
+    };
+
+    const config = {
+        type: 'doughnut',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#b6becc',
+                        font: {
+                            family: "'Roboto', sans-serif",
+                            size: 12,
+                            weight: '600'
+                        },
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(26, 31, 44, 0.95)',
+                    titleColor: '#f5f7fb',
+                    bodyColor: '#b6becc',
+                    borderColor: '#d14b5a',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = {{ stats.total_advisories }};
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+                    const severity = severities[index];
+
+                    // Trigger HTMX request to filter advisories
+                    htmx.ajax('GET', `/security/advisories?severity=${severity}&days=30`, {
+                        target: '#advisories-list',
+                        swap: 'innerHTML'
+                    });
+                }
+            }
+        }
+    };
+
+    // Create chart
+    try {
+        const chart = new Chart(ctx, config);
+        console.log('Chart created successfully', chart);
+    } catch (error) {
+        console.error('Error creating chart:', error);
+    }
+})();
+</script>
+
+{% if stats.latest_critical %}
+<div class="latest-critical-alert">
+    <strong>⚠️ Latest Critical:</strong>
+    <a href="#"
+       hx-get="/security/advisory/{{ stats.latest_critical.cve_id }}"
+       hx-target="#modal-body"
+       onclick="showModal(); return false;">
+        {{ stats.latest_critical.cve_id }}
+    </a>
+    - {{ stats.latest_critical.description[:100] }}...
+</div>
+{% endif %}

@@ -1,0 +1,85 @@
+<div class="advisory-detail">
+    <div class="detail-header">
+        <h2>{{ advisory.cve_id }}</h2>
+        {% if advisory.title %}
+        <h3>{{ advisory.title }}</h3>
+        {% endif %}
+        <div class="detail-badges">
+            <span class="severity-badge severity-{{ advisory.severity.lower() }}">
+                {{ advisory.severity }}
+            </span>
+            <span class="source-badge source-{{ advisory.source.lower() }}">
+                {{ advisory.source }}
+            </span>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h4>Description</h4>
+        <p>{{ advisory.description }}</p>
+    </div>
+
+    {% if advisory.cvss_score %}
+    <div class="detail-section">
+        <h4>CVSS Information</h4>
+        <div class="cvss-info">
+            <div class="cvss-score">
+                <strong>Score:</strong> {{ advisory.cvss_score }}
+            </div>
+            {% if advisory.cvss_vector %}
+            <div class="cvss-vector">
+                <strong>Vector:</strong> <code>{{ advisory.cvss_vector }}</code>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="detail-section">
+        <h4>Timeline</h4>
+        <div class="timeline">
+            <div class="timeline-item">
+                <strong>Published:</strong> {{ advisory.published_date.strftime('%Y-%m-%d %H:%M UTC') }}
+            </div>
+            {% if advisory.modified_date %}
+            <div class="timeline-item">
+                <strong>Last Modified:</strong> {{ advisory.modified_date.strftime('%Y-%m-%d %H:%M UTC') }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if advisory.affected_products %}
+    <div class="detail-section">
+        <h4>Affected Products ({{ advisory.affected_products|length }})</h4>
+        <div class="affected-products">
+            {% for product in advisory.affected_products[:10] %}
+            <span class="product-tag">{{ product }}</span>
+            {% endfor %}
+            {% if advisory.affected_products|length > 10 %}
+            <span class="product-more">+{{ advisory.affected_products|length - 10 }} more</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if advisory.references %}
+    <div class="detail-section">
+        <h4>References</h4>
+        <ul class="references-list">
+            {% for ref in advisory.references[:10] %}
+            <li><a href="{{ ref }}" target="_blank" rel="noopener noreferrer">{{ ref }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="detail-actions">
+        <a href="https://nvd.nist.gov/vuln/detail/{{ advisory.cve_id }}"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="btn lcars-primary-btn">
+            View on NIST NVD →
+        </a>
+    </div>
+</div>

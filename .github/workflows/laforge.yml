@@ -1,0 +1,155 @@
+# ================================================================
+# La Forge - Terraform Apply
+# ================================================================
+# "Make it so" - Applies infrastructure changes
+# Triggered after successful plan or manually
+# ================================================================
+
+name: La Forge - Apply
+
+on:
+  workflow_run:
+    workflows: ['Picard - Plan']
+    types: [completed]
+    branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, prod]
+      infrastructure:
+        description: 'Infrastructure type'
+        required: true
+        default: 'container-apps'
+        type: choice
+        options: [container-apps, aks]
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+concurrency:
+  group: terraform-apply-${{ github.event.inputs.infrastructure || 'container-apps' }}-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: '1.7.0'
+  ARM_USE_OIDC: true
+
+jobs:
+  config:
+    name: Configure
+    runs-on: ubuntu-latest
+    if: |
+      vars.ENABLE_TERRAFORM == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    outputs:
+      environment: ${{ steps.config.outputs.environment }}
+      infrastructure: ${{ steps.config.outputs.infrastructure }}
+      working_dir: ${{ steps.config.outputs.working_dir }}
+      tfvars_file: ${{ steps.config.outputs.tfvars_file }}
+    steps:
+      - name: Set configuration
+        id: config
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          INFRA="${{ github.event.inputs.infrastructure || 'container-apps' }}"
+          echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
+          echo "infrastructure=${INFRA}" >> "$GITHUB_OUTPUT"
+          echo "working_dir=deploy/terraform/${INFRA}" >> "$GITHUB_OUTPUT"
+          echo "tfvars_file=environments/${ENV}.tfvars" >> "$GITHUB_OUTPUT"
+
+  apply:
+    name: Terraform Apply
+    needs: config
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: ${{ needs.config.outputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ needs.config.outputs.working_dir }}
+    env:
+      TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
+      TF_VAR_container_registry_username: ${{ github.repository_owner }}
+      TF_VAR_container_registry_password: ${{ secrets.GITHUB_TOKEN }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ needs.config.outputs.infrastructure }}/${{ needs.config.outputs.environment }}/terraform.tfstate"
+
+      - name: Download Plan Artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: picard.yml
+          name: tfplan-${{ needs.config.outputs.infrastructure }}-${{ needs.config.outputs.environment }}
+          path: ${{ needs.config.outputs.working_dir }}
+        continue-on-error: true
+
+      - name: Terraform Plan (if no artifact)
+        id: plan
+        run: |
+          if [ ! -f tfplan ]; then
+            terraform plan \
+              -var-file="${{ needs.config.outputs.tfvars_file }}" \
+              -out=tfplan \
+              -input=false
+          fi
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get Outputs
+        id: outputs
+        run: |
+          if [ "${{ needs.config.outputs.infrastructure }}" = "container-apps" ]; then
+            echo "url=$(terraform output -raw container_app_url 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
+            echo "name=$(terraform output -raw resource_group_name 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$(terraform output -raw aks_cluster_fqdn 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
+            echo "name=$(terraform output -raw aks_cluster_name 2>/dev/null || echo 'N/A')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "## La Forge - Infrastructure Applied"
+            echo ""
+            echo "### Configuration"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Infrastructure | \`${{ needs.config.outputs.infrastructure }}\` |"
+            echo "| Environment | \`${{ needs.config.outputs.environment }}\` |"
+            echo "| URL/FQDN | \`${{ steps.outputs.outputs.url }}\` |"
+            echo "| Resource | \`${{ steps.outputs.outputs.name }}\` |"
+            echo ""
+            echo "**Status:** Successfully applied"
+          } >> "$GITHUB_STEP_SUMMARY"

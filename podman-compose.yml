@@ -1,0 +1,75 @@
+version: "3.9"
+
+services:
+  app:
+    container_name: fitness-app
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: ghcr.io/${OWNER:-borninthedark}/witness:${TAG:-latest}
+    security_opt:
+      - no-new-privileges:true
+
+    command:
+      - uvicorn
+      - fitness.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --log-level
+      - "${LOG_LEVEL:-info}"
+
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/fitness.db}
+      SECRET_KEY: ${SECRET_KEY:-replace-with-openssl-rand-hex-32}
+      WEB_WORKERS: ${WEB_WORKERS:-4}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PYTHONUNBUFFERED: "1"
+    expose: ["8000"]
+    networks: [fitness-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  caddy:
+    container_name: fitness-caddy
+    image: caddy:2-alpine
+    security_opt:
+      - no-new-privileges:true
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until nc -z app 8000; do echo "waiting for app..."; sleep 2; done;
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    depends_on: ["app"]
+    ports:
+      - "${HTTP_PORT:-8000}:80"
+      - "${HTTPS_PORT:-8443}:443"
+    volumes:
+      # SELinux-labeled bind mounts (Fedora)
+      - ./Caddyfile:/etc/caddy/Caddyfile:Z,ro
+      - ./fitness/static:/srv:Z,ro
+
+      # named volumes (no SELinux suffix needed)
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [fitness-net]
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  fitness-net:
+    driver: bridge
+    name: fitness-network
+

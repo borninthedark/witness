@@ -1,0 +1,304 @@
+# ================================================================
+# Troi - Documentation & Reports Pipeline
+# ================================================================
+# "I sense..." - Generates docs, reports, and status badge updates
+# Handles README generation, coverage badges, and status snapshots
+# ================================================================
+
+name: Troi - Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fitness/**'
+      - 'tests/**'
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/troi.yml'
+  workflow_run:
+    workflows: ['Data - CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # Hourly for status snapshots
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 1: Update Coverage Badge
+  # ══════════════════════════════════════════════════════════════════════════
+  coverage-badge:
+    name: Coverage Badge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-cov
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: sqlite:////tmp/test.db
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest --cov=fitness --cov-report=json --cov-report=term -q || true
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          if [ -f coverage.json ]; then
+            COVERAGE=$(python -c "import json; print(f\"{json.load(open('coverage.json'))['totals']['percent_covered']:.2f}\")")
+          else
+            COVERAGE="0.00"
+          fi
+          echo "percent=$COVERAGE" >> "$GITHUB_OUTPUT"
+
+          # Determine badge color
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            COLOR="brightgreen"
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            COLOR="yellow"
+          elif (( $(echo "$COVERAGE >= 40" | bc -l) )); then
+            COLOR="orange"
+          else
+            COLOR="red"
+          fi
+          echo "color=$COLOR" >> "$GITHUB_OUTPUT"
+
+      - name: Update README badge
+        run: |
+          COVERAGE="${{ steps.coverage.outputs.percent }}"
+          COLOR="${{ steps.coverage.outputs.color }}"
+
+          # Update coverage badge in README
+          sed -i "s|\[!\[Coverage\].*\]|\[![Coverage](https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR})]|g" README.md
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet README.md || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit badge update
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: update coverage badge to ${{ steps.coverage.outputs.percent }}% [skip ci]"
+          git push
+
+      - name: Summary
+        run: |
+          {
+            echo "## Troi - Coverage Badge Updated"
+            echo ""
+            echo "- **Coverage**: ${{ steps.coverage.outputs.percent }}%"
+            echo "- **Badge Color**: ${{ steps.coverage.outputs.color }}"
+            echo "- **Updated**: ${{ steps.changes.outputs.changed == 'true' && 'Yes' || 'No changes' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 2: Update Grafana Status Snapshot
+  # ══════════════════════════════════════════════════════════════════════════
+  status-snapshot:
+    name: Status Snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      vars.ENABLE_STATUS_DASHBOARD == 'true' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Update Grafana Snapshot
+        env:
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
+          DASHBOARD_UID: ${{ vars.DASHBOARD_UID || 'public-status' }}
+        run: |
+          if [ -f scripts/update_grafana_snapshot.py ]; then
+            python scripts/update_grafana_snapshot.py
+          else
+            echo "Snapshot script not found, skipping"
+          fi
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet fitness/config/grafana_snapshot_url.txt 2>/dev/null || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit snapshot URL
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fitness/config/grafana_snapshot_url.txt
+          git commit -m "docs: update Grafana status snapshot [skip ci]"
+          git push
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Troi - Grafana Snapshot Update"
+            echo ""
+            if [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+              echo "Snapshot URL updated"
+              cat fitness/config/grafana_snapshot_url.txt 2>/dev/null || echo "File not found"
+            else
+              echo "No changes"
+            fi
+            echo ""
+            echo "**Dashboard UID:** \`${{ vars.DASHBOARD_UID || 'public-status' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 3: Generate Security Report
+  # ══════════════════════════════════════════════════════════════════════════
+  security-report:
+    name: Security Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install bandit safety pip-audit
+
+      - name: Run Bandit
+        id: bandit
+        run: |
+          bandit -r fitness/ -f json -o bandit-report.json || true
+          ISSUES=$(python -c "import json; r=json.load(open('bandit-report.json')); print(len(r.get('results', [])))")
+          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Run pip-audit
+        id: pip-audit
+        run: |
+          pip-audit --format json --output pip-audit-report.json || true
+          VULNS=$(python -c "import json; r=json.load(open('pip-audit-report.json')); print(len(r))" 2>/dev/null || echo "0")
+          echo "vulns=$VULNS" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Generate report
+        run: |
+          mkdir -p .security-reports
+
+          cat > .security-reports/summary.md << EOF
+          # Security Report
+
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit:** ${{ github.sha }}
+
+          ## Summary
+
+          | Scanner | Issues |
+          |---------|--------|
+          | Bandit (code) | ${{ steps.bandit.outputs.issues || '0' }} |
+          | pip-audit (deps) | ${{ steps.pip-audit.outputs.vulns || '0' }} |
+
+          ## Details
+
+          See individual report files for details.
+          EOF
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            .security-reports/
+            bandit-report.json
+            pip-audit-report.json
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          {
+            echo "## Troi - Security Report Generated"
+            echo ""
+            echo "| Scanner | Issues |"
+            echo "|---------|--------|"
+            echo "| Bandit | ${{ steps.bandit.outputs.issues || '0' }} |"
+            echo "| pip-audit | ${{ steps.pip-audit.outputs.vulns || '0' }} |"
+            echo ""
+            echo "Reports uploaded as artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 4: Validate Documentation
+  # ══════════════════════════════════════════════════════════════════════════
+  validate-docs:
+    name: Validate Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: '**/*.md'
+          config: '.markdownlint.json'
+        continue-on-error: true
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --verbose --no-progress '**/*.md'
+          fail: false
+        continue-on-error: true
+
+      - name: Summary
+        run: |
+          {
+            echo "## Troi - Documentation Validation"
+            echo ""
+            echo "- Markdown linting: Complete"
+            echo "- Link checking: Complete"
+          } >> "$GITHUB_STEP_SUMMARY"

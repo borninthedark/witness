@@ -1,0 +1,154 @@
+# ================================================================
+# Tasha - Terraform Destroy
+# ================================================================
+# "Skin of evil" - Destroys infrastructure
+# Manual trigger only with environment protection
+# ================================================================
+
+name: Tasha - Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment to destroy'
+        required: true
+        type: choice
+        options: [dev, prod]
+      infrastructure:
+        description: 'Infrastructure type to destroy'
+        required: true
+        type: choice
+        options: [container-apps, aks]
+      confirm:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-destroy-${{ github.event.inputs.infrastructure }}-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: '1.7.0'
+  ARM_USE_OIDC: true
+
+jobs:
+  validate-confirmation:
+    name: Validate Confirmation
+    runs-on: ubuntu-latest
+    outputs:
+      confirmed: ${{ steps.check.outputs.confirmed }}
+    steps:
+      - name: Check confirmation
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" = "DESTROY" ]; then
+            echo "confirmed=true" >> "$GITHUB_OUTPUT"
+            echo "Destruction confirmed"
+          else
+            echo "confirmed=false" >> "$GITHUB_OUTPUT"
+            echo "Confirmation failed. You must type 'DESTROY' exactly."
+            exit 1
+          fi
+
+  destroy:
+    name: Terraform Destroy
+    needs: validate-confirmation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: |
+      vars.ENABLE_TERRAFORM == 'true' &&
+      needs.validate-confirmation.outputs.confirmed == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment }}-destroy
+    defaults:
+      run:
+        working-directory: deploy/terraform/${{ github.event.inputs.infrastructure }}
+    env:
+      TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
+      TF_VAR_container_registry_username: ${{ github.repository_owner }}
+      TF_VAR_container_registry_password: ${{ secrets.GITHUB_TOKEN }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ github.event.inputs.infrastructure }}/${{ github.event.inputs.environment }}/terraform.tfstate"
+
+      - name: Show Current State
+        run: |
+          echo "## Current Infrastructure State"
+          terraform show -no-color || echo "No state found"
+
+      - name: Plan Destroy
+        id: plan-destroy
+        run: |
+          terraform plan \
+            -var-file="environments/${{ github.event.inputs.environment }}.tfvars" \
+            -destroy \
+            -out=destroy-plan \
+            -no-color 2>&1 | tee destroy-plan.txt
+
+      - name: Upload Destroy Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: destroy-plan-${{ github.event.inputs.infrastructure }}-${{ github.event.inputs.environment }}
+          path: |
+            deploy/terraform/${{ github.event.inputs.infrastructure }}/destroy-plan
+            deploy/terraform/${{ github.event.inputs.infrastructure }}/destroy-plan.txt
+          retention-days: 1
+
+      - name: Execute Destroy
+        id: destroy
+        run: terraform apply -auto-approve destroy-plan
+
+      - name: Destroy Summary
+        if: always()
+        run: |
+          {
+            echo "## Tasha - Infrastructure Destroyed"
+            echo ""
+            echo "### Details"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Infrastructure | \`${{ github.event.inputs.infrastructure }}\` |"
+            echo "| Environment | \`${{ github.event.inputs.environment }}\` |"
+            echo "| Triggered by | @${{ github.actor }} |"
+            echo "| Status | ${{ steps.destroy.outcome == 'success' && 'Destroyed' || 'Failed' }} |"
+            echo ""
+            if [ "${{ steps.destroy.outcome }}" = "success" ]; then
+              echo "> **Warning:** All resources in the \`${{ github.event.inputs.environment }}\` environment have been destroyed."
+              echo ""
+              echo "To recreate, run the *Picard* (Plan) and *La Forge* (Apply) workflows."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "::error::Terraform destroy failed for ${{ github.event.inputs.infrastructure }} in ${{ github.event.inputs.environment }}"

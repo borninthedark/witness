@@ -1,0 +1,14 @@
+default: true
+MD013:
+  line_length: 999
+  heading_line_length: 999
+  code_block_line_length: 999
+  tables: false
+  ignore_code_blocks: true
+  ignore_tables: true
+MD025: false
+MD029: false
+MD031: false
+MD032: false
+MD033: false
+MD034: false

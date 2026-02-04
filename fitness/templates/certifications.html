@@ -1,0 +1,83 @@
+<!-- ========================================== -->
+<!-- certifications.html -->
+<!-- ========================================== -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card lcars-panel">
+  <div class="section-header">
+    <h2>Active Certifications</h2>
+    <p class="text-muted">The credentials below are currently active and verifiable.</p>
+  </div>
+  {% if active_certs %}
+  {% set active_by_vendor = active_certs|groupby('issuer') %}
+  <table class="table cert-table">
+    <thead>
+      <tr>
+        <th>Issuer</th>
+        <th>Title</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for issuer, certs in active_by_vendor %}
+      {% for c in certs %}
+      <tr>
+        <td><span class="badge">{{ c.issuer }}</span></td>
+        <td>{{ c.title }}</td>
+        <td><span class="status-badge active">Active</span></td>
+        <td class="actions">
+          <a href="/v/{{ c.slug }}" class="action-link">Verify</a>
+          {% if c.pdf_url %}
+          <span class="separator">|</span>
+          <a href="/certs/{{ c.slug }}/pdf" class="action-link">PDF</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">No active certifications are currently published.</p>
+  {% endif %}
+</div>
+
+{% if inactive_certs %}
+<div class="card lcars-panel mt-4">
+  <div class="section-header">
+    <h2>Inactive Certifications</h2>
+    <p class="text-muted">Definitions retained for historical reference but not presently active.</p>
+  </div>
+  {% set inactive_by_vendor = inactive_certs|groupby('issuer') %}
+  <table class="table cert-table">
+    <thead>
+      <tr>
+        <th>Issuer</th>
+        <th>Title</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for issuer, certs in inactive_by_vendor %}
+      {% for c in certs %}
+      <tr>
+        <td><span class="badge">{{ c.issuer }}</span></td>
+        <td>{{ c.title }}</td>
+        <td><span class="status-badge inactive">Inactive</span></td>
+        <td class="actions">
+          <a href="/v/{{ c.slug }}" class="action-link">Details</a>
+          {% if c.pdf_url %}
+          <span class="separator">|</span>
+          <a href="/certs/{{ c.slug }}/pdf" class="action-link">PDF</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

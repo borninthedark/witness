@@ -1,0 +1,76 @@
+<div class="advisories-container">
+    <div class="advisories-header">
+        <h2>Top {{ limit }} {{ severity }} Severity Advisories</h2>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <span class="count-badge">{{ total }} found</span>
+            <button
+                hx-get="/security/advisories"
+                hx-target="#advisories-list"
+                hx-swap="innerHTML"
+                class="btn btn-secondary"
+                style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                View All
+            </button>
+        </div>
+    </div>
+
+    {% if advisories %}
+    <div class="advisories-grid">
+        {% for advisory in advisories %}
+        <div class="advisory-card severity-{{ advisory.severity.lower() }}"
+             hx-get="/security/advisory/{{ advisory.cve_id }}"
+             hx-target="#modal-body"
+             onclick="showModal()">
+
+            <div class="advisory-header">
+                <div class="cve-id">
+                    <strong>{{ advisory.cve_id }}</strong>
+                    {% if advisory.title %}
+                    <div class="advisory-title">{{ advisory.title }}</div>
+                    {% endif %}
+                </div>
+                <div class="badges">
+                    <span class="severity-badge severity-{{ advisory.severity.lower() }}">
+                        {{ advisory.severity }}
+                    </span>
+                    <span class="source-badge source-{{ advisory.source.lower() }}">
+                        {{ advisory.source }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="advisory-description">
+                {{ advisory.description[:200] }}{% if advisory.description|length > 200 %}...{% endif %}
+            </div>
+
+            <div class="advisory-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Published:</span>
+                    <span class="meta-value">{{ advisory.published_date.strftime('%Y-%m-%d') }}</span>
+                </div>
+                {% if advisory.cvss_score %}
+                <div class="meta-item">
+                    <span class="meta-label">CVSS:</span>
+                    <span class="meta-value">{{ advisory.cvss_score }}</span>
+                </div>
+                {% endif %}
+                {% if advisory.affected_products %}
+                <div class="meta-item">
+                    <span class="meta-label">Affects:</span>
+                    <span class="meta-value">{{ advisory.affected_products|length }} products</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="advisory-footer">
+                <span class="click-hint">Click for details →</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-results">
+        <p>No {{ severity }} severity advisories found in the last 30 days.</p>
+    </div>
+    {% endif %}
+</div>

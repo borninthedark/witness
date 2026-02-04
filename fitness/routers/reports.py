@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+
+from fitness.services.report_status import (
+    SUMMARY_DIR,
+    collect_precommit_statuses,
+    load_security_summary,
+)
+from fitness.services.security_feed import fetch_gentoo_advisories
+from fitness.utils.assets import asset_url
+
+templates = Jinja2Templates(directory="fitness/templates")
+templates.env.globals["asset_url"] = asset_url
+
+router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+@router.get("/", response_class=HTMLResponse)
+async def reports_index(
+    request: Request, section: str = Query("operations", alias="section")
+) -> HTMLResponse:
+    active_section = section.lower()
+    if active_section not in {"operations", "security"}:
+        active_section = "operations"
+
+    try:
+        hook_statuses = collect_precommit_statuses()
+    except Exception as e:
+        print(f"Warning: Failed to collect precommit statuses: {e}")
+        hook_statuses = []
+
+    try:
+        security_summary = load_security_summary()
+    except Exception as e:
+        print(f"Warning: Failed to load security summary: {e}")
+        security_summary = {"entries": []}
+
+    try:
+        advisories = await fetch_gentoo_advisories(limit=12)
+    except Exception as e:
+        print(f"Warning: Failed to fetch Gentoo advisories: {e}")
+        advisories = []
+
+    return templates.TemplateResponse(
+        "reports/index.html",
+        {
+            "request": request,
+            "hook_statuses": hook_statuses,
+            "security_summary": security_summary,
+            "advisories": advisories,
+            "active_section": active_section,
+        },
+    )
+
+
+@router.get("/operations", include_in_schema=False)
+async def reports_operations() -> RedirectResponse:
+    return RedirectResponse(url="/reports/?section=operations", status_code=307)
+
+
+@router.get("/security", include_in_schema=False)
+async def reports_security() -> RedirectResponse:
+    return RedirectResponse(url="/reports/?section=security", status_code=307)
+
+
+@router.get("/files/{path:path}", response_class=FileResponse)
+async def reports_file(path: str):
+    summary_root = SUMMARY_DIR.resolve()
+    target = (SUMMARY_DIR / path).resolve()
+    try:
+        target.relative_to(summary_root)
+    except ValueError:
+        return RedirectResponse(url="/reports/?section=operations", status_code=307)
+    if not target.exists():
+        return RedirectResponse(url="/reports/?section=operations", status_code=307)
+    return FileResponse(target, media_type="text/markdown", filename=target.name)

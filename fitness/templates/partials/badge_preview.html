@@ -1,0 +1,55 @@
+<!-- ========================================== -->
+<!-- badge_preview.html -->
+<!-- ========================================== -->
+{% if error %}
+<div class="card alert-error">
+  <strong>⚠ Validation failed:</strong> {{ error }}
+</div>
+{% elif preview %}
+<div class="card badge-preview-card">
+  <div class="badge-header">
+    <h3>{{ preview.badge_name or "Badge" }}</h3>
+    <span class="badge badge-success">Validated</span>
+  </div>
+
+  <div class="detail-list">
+    <div class="detail-item">
+      <span class="label">Issuer:</span>
+      <span class="value">{{ preview.issuer_name or "Unknown" }}</span>
+    </div>
+
+    {% if preview.issued_on %}
+    <div class="detail-item">
+      <span class="label">Issued:</span>
+      <span class="value">{{ preview.issued_on }}</span>
+    </div>
+    {% endif %}
+
+    {% if preview.issuer_url %}
+    <div class="detail-item">
+      <span class="label">Issuer URL:</span>
+      <a href="{{ preview.issuer_url }}" target="_blank" rel="noopener" class="value link">{{ preview.issuer_url }}</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if preview.badge_description %}
+  <p class="mt-2">{{ preview.badge_description }}</p>
+  {% endif %}
+
+  {% if preview.evidence %}
+  <div class="evidence-section mt-2">
+    <strong>Evidence:</strong>
+    <ul class="evidence-list">
+      {% for item in preview.evidence %}
+      <li><a href="{{ item }}" target="_blank" rel="noopener">{{ item }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card muted">
+  <p class="text-muted">Provide an assertion URL to preview badge metadata.</p>
+</div>
+{% endif %}

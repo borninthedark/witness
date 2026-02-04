@@ -1,0 +1,196 @@
+<!-- ========================================== -->
+<!-- 404.html - Not Found -->
+<!-- ========================================== -->
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .error-container {
+    max-width: 900px;
+    margin: 4rem auto;
+    padding: 0 2rem;
+    text-align: center;
+  }
+
+  .error-code {
+    font-size: clamp(6rem, 15vw, 12rem);
+    font-weight: 700;
+    line-height: 1;
+    margin: 0;
+    background: linear-gradient(135deg, var(--lcars-peach), var(--lcars-amber));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.05em;
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  .error-message {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 600;
+    color: var(--lcars-lilac);
+    margin: 1rem 0 2rem;
+    letter-spacing: 0.05em;
+  }
+
+  .error-description {
+    font-size: 1.125rem;
+    color: #b6becc;
+    margin: 0 auto 3rem;
+    max-width: 600px;
+    line-height: 1.8;
+  }
+
+  .error-panel {
+    background: rgba(6, 12, 22, 0.6);
+    border: 2px solid var(--lcars-border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 2rem 0;
+    border-left: 6px solid var(--lcars-peach);
+  }
+
+  .error-suggestions {
+    text-align: left;
+    margin: 2rem auto;
+    max-width: 600px;
+  }
+
+  .error-suggestions h3 {
+    color: var(--lcars-amber);
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    letter-spacing: 0.1em;
+  }
+
+  .error-suggestions ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .error-suggestions li {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(192, 198, 211, 0.1);
+  }
+
+  .error-suggestions li:last-child {
+    border-bottom: none;
+  }
+
+  .error-suggestions a {
+    color: var(--lcars-cyan);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .error-suggestions a:hover {
+    color: var(--lcars-amber);
+  }
+
+  .error-suggestions a::before {
+    content: "▸";
+    color: var(--lcars-peach);
+    font-size: 1.2rem;
+  }
+
+  .back-button {
+    display: inline-block;
+    padding: 1rem 2.5rem;
+    background: linear-gradient(135deg, var(--lcars-peach), #a83d4a);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 1.125rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: all 0.3s;
+    box-shadow: 0 4px 16px rgba(209, 75, 90, 0.3);
+  }
+
+  .back-button:hover {
+    background: linear-gradient(135deg, #ff6b7a, var(--lcars-peach));
+    box-shadow: 0 6px 24px rgba(209, 75, 90, 0.5);
+    transform: translateY(-2px);
+  }
+
+  .lcars-divider {
+    height: 4px;
+    background: linear-gradient(90deg,
+        transparent,
+        var(--lcars-peach) 20%,
+        var(--lcars-amber) 50%,
+        var(--lcars-peach) 80%,
+        transparent);
+    margin: 3rem 0;
+    border-radius: 2px;
+    animation: border-dance 4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      text-shadow: 0 0 20px rgba(209, 75, 90, 0.3);
+    }
+
+    50% {
+      text-shadow: 0 0 40px rgba(209, 75, 90, 0.6);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .error-container {
+      margin: 2rem auto;
+    }
+
+    .error-code {
+      margin-top: 1rem;
+    }
+
+    .error-panel {
+      padding: 1.5rem;
+    }
+
+    .back-button {
+      padding: 0.875rem 2rem;
+      font-size: 1rem;
+    }
+  }
+</style>
+
+<div class="error-container">
+  <h1 class="error-code">404</h1>
+  <h2 class="error-message">RESOURCE NOT FOUND</h2>
+
+  <div class="error-panel">
+    <p class="error-description">
+      The requested resource could not be located in the ship's database.
+      It may have been moved, deleted, or the specified coordinates are incorrect.
+    </p>
+  </div>
+
+  <div class="lcars-divider"></div>
+
+  <div class="error-suggestions">
+    <h3>SUGGESTED NAVIGATION:</h3>
+    <ul>
+      <li><a href="/">Return to Bridge (Home)</a></li>
+      <li><a href="/certs">View Certifications</a></li>
+      <li><a href="/resume">Access Personnel File (Résumé)</a></li>
+      <li><a href="/status">System Status Dashboard</a></li>
+      <li><a href="/contact">Make First Contact</a></li>
+    </ul>
+  </div>
+
+  <div class="lcars-divider"></div>
+
+  <a href="javascript:history.back()" class="back-button">Return to Previous Location</a>
+</div>
+
+{% endblock %}

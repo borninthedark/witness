@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ asset_url('blog.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/monokai.min.css">
+
+<div class="captains-log">
+    <!-- Header -->
+    <header class="log-header">
+        <div class="starfield"></div>
+        <div class="log-title-container">
+            <h1 class="log-title">
+                <span class="lcars-bar"></span>
+                CAPTAIN'S PERSONAL LOG
+                <span class="lcars-bar"></span>
+            </h1>
+            <p class="log-subtitle">Technical Explorations • Tutorials • System Chronicles</p>
+        </div>
+    </header>
+
+    <div class="log-container">
+        <!-- Sidebar -->
+        <aside class="log-sidebar">
+            <!-- Search -->
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">SEARCH DATABASE</h3>
+                <form hx-get="/log/search"
+                      hx-target="#search-results"
+                      hx-swap="innerHTML"
+                      hx-indicator="#search-loading">
+                    <input type="text"
+                           name="q"
+                           placeholder="Search logs..."
+                           class="search-input"
+                           required>
+                    <button type="submit" class="search-btn">SEARCH</button>
+                </form>
+                <div id="search-loading" class="htmx-indicator">
+                    <span class="loading-dots">Searching...</span>
+                </div>
+                <div id="search-results"></div>
+            </div>
+
+            <!-- Categories -->
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">MISSION TYPES</h3>
+                <nav class="category-nav">
+                    <a href="/log/"
+                       class="category-link {% if not current_category %}active{% endif %}">
+                        ALL LOGS
+                    </a>
+                    {% for cat in categories %}
+                    <a href="/log/?category={{ cat }}"
+                       class="category-link {% if current_category == cat %}active{% endif %}">
+                        {{ cat.upper().replace('_', ' ') }}
+                    </a>
+                    {% endfor %}
+                </nav>
+            </div>
+
+            <!-- Tags Cloud -->
+            {% if all_tags %}
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">QUICK ACCESS TAGS</h3>
+                <div class="tags-cloud">
+                    {% for tag in all_tags[:15] %}
+                    <a href="/log/?tag={{ tag }}" class="tag-badge">
+                        {{ tag }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Stats -->
+            <div class="sidebar-section stats-panel">
+                <h3 class="sidebar-title">SHIP'S STATUS</h3>
+                <div class="stat-item">
+                    <span class="stat-label">TOTAL LOGS:</span>
+                    <span class="stat-value">{{ stats.published }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">TOTAL VIEWS:</span>
+                    <span class="stat-value">{{ stats.total_views }}</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="log-main">
+            {% if current_tag %}
+            <div class="filter-notice">
+                <span>Filtering by tag: <strong>{{ current_tag }}</strong></span>
+                <a href="/log/" class="clear-filter">Clear</a>
+            </div>
+            {% endif %}
+
+            <div id="entries-container">
+                {% include "blog/log_entry_card.html" %}
+            </div>
+
+            <!-- Pagination -->
+            {% if has_more or page > 1 %}
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="/log/?page={{ page - 1 }}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_tag %}&tag={{ current_tag }}{% endif %}"
+                   class="page-btn">
+                    ← PREVIOUS
+                </a>
+                {% endif %}
+
+                <span class="page-info">LOG PAGE {{ page }}</span>
+
+                {% if has_more %}
+                <a href="/log/?page={{ page + 1 }}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_tag %}&tag={{ current_tag }}{% endif %}"
+                   class="page-btn">
+                    NEXT →
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+    // Initialize syntax highlighting
+    hljs.highlightAll();
+
+    // Starfield animation
+    function createStarfield() {
+        const starfield = document.querySelector('.starfield');
+        if (!starfield) return;
+
+        const stars = 100;
+        for (let i = 0; i < stars; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.animationDelay = Math.random() * 3 + 's';
+            starfield.appendChild(star);
+        }
+    }
+
+    createStarfield();
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+/fitness.db
+/fitness-local.db
+/test_app.db
+.venv/
+.env
+*.env
+.env.*
+.precommit_logs/
+.pre-commit-cache/
+# OS
+.DS_Store
+Thumbs.db
+# Build
+dist/
+build/
+*.egg-info/
+# Editors
+.vscode/
+.idea/
+# Secrets / credentials
+*.pem
+*.key
+*_rsa
+*.pfx
+*.p12
+sp-credentials.json
+pyerr.txt
+credentials.json
+terraform.tfvars
+.vault_password
+kubeconfig
+*.kubeconfig
+k3s.yaml
+auth.json
+service-account*.json
+# Jsonnet parameters with secrets
+deploy/jsonnet/params.sh
+# Reports / generated outputs
+/reports/
+/.reports/
+
+# Documentation
+/docs/
+
+# Deployment scripts
+setup-env.sh
+deploy.sh
+# App media (keep the directory, ignore files)
+static/media/*
+!static/media/.gitkeep
+!static/media/README.md
+# Pytest
+.pytest_cache/
+.coverage*
+coverage.json
+coverage.xml
+htmlcov/
+# Docker
+*.tar
+fitness/static/media/sovereign_msd.mp4
+fitness/static/media/sovereign_msd.webm
+fitness/static/lcars/assets/*
+fitness/static/lcars
+fitness/static/lcars/*
+# Ignore LCARS assets (keep dir, ignore files)
+fitness/static/lcars/assets/*
+!fitness/static/lcars/assets/.gitkeep
+!fitness/static/lcars/assets/README.md
+# Ruff
+.ruff_cache
+# Data
+data/
+# MyPy
+.mypy_cache
+# Tools
+.flake8
+.pylintrc
+.trivyignore
+.terraform

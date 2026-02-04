@@ -1,0 +1,246 @@
+# ================================================================
+# Worf - Terraform Security & Validation
+# ================================================================
+# "Today is a good day to scan" - Security scans and validation
+# Runs Checkov, tfsec, and validates terraform configurations
+# ================================================================
+
+name: Worf - Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/terraform/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/terraform/**'
+  workflow_dispatch:
+    inputs:
+      infrastructure:
+        description: 'Infrastructure to scan'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, container-apps, aks]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6am
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+concurrency:
+  group: terraform-security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: '1.7.0'
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Matrix: Scan both infrastructure types
+  # ══════════════════════════════════════════════════════════════════════════
+  security-scan:
+    name: Scan ${{ matrix.infrastructure }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        infrastructure: [container-apps, aks]
+        exclude:
+          - infrastructure: ${{ github.event.inputs.infrastructure == 'container-apps' && 'aks' || '' }}
+          - infrastructure: ${{ github.event.inputs.infrastructure == 'aks' && 'container-apps' || '' }}
+    defaults:
+      run:
+        working-directory: deploy/terraform/${{ matrix.infrastructure }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+        continue-on-error: true
+
+      - name: Checkov Security Scan
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: deploy/terraform/${{ matrix.infrastructure }}
+          framework: terraform
+          output_format: cli,sarif
+          output_file_path: console,checkov-${{ matrix.infrastructure }}.sarif
+          soft_fail: true
+          skip_check: CKV_AZURE_4,CKV_AZURE_7,CKV2_AZURE_1,CKV2_AZURE_18,CKV2_AZURE_33
+        continue-on-error: true
+
+      - name: Upload Checkov SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-${{ matrix.infrastructure }}.sarif
+          category: checkov-${{ matrix.infrastructure }}
+        continue-on-error: true
+
+      - name: tfsec Security Scan
+        id: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: deploy/terraform/${{ matrix.infrastructure }}
+          soft_fail: true
+          format: sarif
+          sarif_file: tfsec-${{ matrix.infrastructure }}.sarif
+        continue-on-error: true
+
+      - name: Upload tfsec SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tfsec-${{ matrix.infrastructure }}.sarif
+          category: tfsec-${{ matrix.infrastructure }}
+        continue-on-error: true
+
+      - name: Trivy Config Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: deploy/terraform/${{ matrix.infrastructure }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.infrastructure }}.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.infrastructure }}.sarif
+          category: trivy-config-${{ matrix.infrastructure }}
+        continue-on-error: true
+
+      - name: Security Summary
+        if: always()
+        run: |
+          {
+            echo "## Worf - Security Scan: \`${{ matrix.infrastructure }}\`"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Validate | ${{ steps.validate.outcome == 'success' && 'OK' || 'FAIL' }} |"
+            echo "| Format | ${{ steps.fmt.outcome == 'success' && 'OK' || 'WARN' }} |"
+            echo "| Checkov | ${{ steps.checkov.outcome == 'success' && 'OK' || 'WARN' }} |"
+            echo "| tfsec | ${{ steps.tfsec.outcome == 'success' && 'OK' || 'WARN' }} |"
+            echo ""
+            echo "Security findings uploaded to GitHub Security tab."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Terraform Unit Tests (if test files exist)
+  # ══════════════════════════════════════════════════════════════════════════
+  terraform-test:
+    name: Terraform Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        infrastructure: [container-apps, aks]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Check for test files
+        id: check-tests
+        run: |
+          if ls deploy/terraform/${{ matrix.infrastructure }}/*.tftest.hcl 2>/dev/null || \
+             ls deploy/terraform/${{ matrix.infrastructure }}/tests/*.tftest.hcl 2>/dev/null; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terraform Init
+        if: steps.check-tests.outputs.has_tests == 'true'
+        working-directory: deploy/terraform/${{ matrix.infrastructure }}
+        run: terraform init -backend=false
+
+      - name: Run Terraform Tests
+        if: steps.check-tests.outputs.has_tests == 'true'
+        working-directory: deploy/terraform/${{ matrix.infrastructure }}
+        run: terraform test -no-color
+        continue-on-error: true
+
+      - name: Test Summary
+        if: always()
+        run: |
+          {
+            echo "## Worf - Terraform Tests: \`${{ matrix.infrastructure }}\`"
+            echo ""
+            if [ "${{ steps.check-tests.outputs.has_tests }}" = "true" ]; then
+              echo "Tests executed"
+            else
+              echo "No test files found (*.tftest.hcl)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Cost Estimation (optional)
+  # ══════════════════════════════════════════════════════════════════════════
+  cost-estimate:
+    name: Cost Estimate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        infrastructure: [container-apps, aks]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+        continue-on-error: true
+
+      - name: Generate Cost Estimate
+        if: env.INFRACOST_API_KEY != ''
+        run: |
+          infracost breakdown \
+            --path=deploy/terraform/${{ matrix.infrastructure }} \
+            --format=json \
+            --out-file=/tmp/infracost-${{ matrix.infrastructure }}.json
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+        continue-on-error: true
+
+      - name: Post Cost Comment
+        if: env.INFRACOST_API_KEY != ''
+        uses: infracost/actions/comment@v1
+        with:
+          path: /tmp/infracost-${{ matrix.infrastructure }}.json
+          behavior: update
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+        continue-on-error: true

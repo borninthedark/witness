@@ -1,0 +1,18 @@
+.git
+__pycache__/
+*.pyc
+.venv/
+tests/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+.precommit_logs/
+
+# Documentation
+docs/
+
+# Deployment scripts
+setup-env.sh
+deploy.sh
+deploy/

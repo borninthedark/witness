@@ -1,0 +1,89 @@
+<!-- ========================================== -->
+<!-- verification.html -->
+<!-- ========================================== -->
+{% extends "base.html" %}
+{% block content %}
+<section class="hero mb-3">
+  <h2>{{ cert.title }}</h2>
+  <p class="text-muted">Verification details and cryptographic proof</p>
+</section>
+
+<div class="verification-grid">
+  <div class="card">
+    <h3 class="text-accent">Certificate Details</h3>
+    <div class="detail-list">
+      <div class="detail-item">
+        <span class="label">Issuer:</span>
+        <span class="value">{{ cert.issuer }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="label">Title:</span>
+        <span class="value">{{ cert.title }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="label">Status:</span>
+        <span class="value">
+          <span class="status-badge {% if is_inactive %}inactive{% else %}active{% endif %}">
+            {% if is_inactive %}Inactive{% else %}Active{% endif %}
+          </span>
+        </span>
+      </div>
+      <div class="detail-item">
+        <span class="label">SHA-256:</span>
+        <code class="hash">{{ cert.sha256 }}</code>
+      </div>
+    </div>
+
+    {% if cert.pdf_url or cert.verification_url or cert.assertion_url %}
+    <div class="actions-row mt-2">
+      <!-- Direct PDF viewing - opens in browser -->
+      <a href="/certs/{{ cert.slug }}/pdf" class="lcars-primary-btn" target="_blank" rel="noopener noreferrer">
+        View PDF
+      </a>
+
+      {% if cert.verification_url %}
+      <a href="{{ cert.verification_url }}" target="_blank" rel="noopener noreferrer" class="lcars-primary-btn">
+        {{ verification_label or "External Verification" }}
+      </a>
+      {% endif %}
+
+      {% if cert.assertion_url %}
+      <a href="{{ cert.assertion_url }}" target="_blank" rel="noopener noreferrer" class="lcars-primary-btn">
+        Open Badges
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card qr-card">
+    <h3 class="text-accent">QR Code</h3>
+    <div class="qr-container">
+      <img src="/q/{{ cert.slug }}.png" alt="QR for {{ cert.slug }}" class="qr-image" loading="lazy">
+    </div>
+    <p class="text-muted">Scan to verify this certification</p>
+  </div>
+</div>
+
+{% set badge = metadata.badge %}
+{% if badge %}
+<div class="card badge-card">
+  <h3 class="text-accent">Digital Badge</h3>
+  <p class="text-muted">Badge provided via Credly</p>
+  <div class="credly-badge" data-iframe-width="{{ badge.iframe_width or 150 }}"
+    data-iframe-height="{{ badge.iframe_height or 270 }}" data-share-badge-id="{{ badge.id }}"
+    data-share-badge-host="{{ badge.host }}">
+  </div>
+  {% if badge.url %}
+  <a href="{{ badge.url }}" target="_blank" rel="noopener noreferrer" class="lcars-primary-btn mt-2">
+    Open Credly Badge
+  </a>
+  {% endif %}
+</div>
+
+{% if badge.script %}
+<script type="text/javascript" async src="{{ badge.script }}"></script>
+{% endif %}
+{% endif %}
+
+{% endblock %}

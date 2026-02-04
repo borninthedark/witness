@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  /* * On small screens (like phones, 768px or less),
+   * hide the iframe. The download button in .resume-actions
+   * will remain, becoming the primary CTA.
+   */
+  @media (max-width: 768px) {
+    .pdf-frame {
+      display: none;
+    }
+  }
+</style>
+<div class="lcars-pill-row mb-4" aria-hidden="true">
+  <span class="lcars-pill pill-lg bg-lcars-amber"></span>
+  <span class="lcars-pill pill-md bg-lcars-peach"></span>
+  <span class="lcars-pill pill-sm bg-lcars-cyan"></span>
+</div>
+<section class="resume-viewer lcars-panel">
+  <div class="resume-actions">
+    <a class="btn" href="{{ pdf_download_url }}" target="_blank" rel="noopener">
+      <span class="btn-icon">⬇</span>
+      Download PAS-Resume.pdf
+    </a>
+  </div>
+
+  <iframe src="{{ pdf_inline_url }}" class="pdf-frame" title="PAS Resume PDF" loading="lazy" frameborder="0">
+    Your browser can't display the PDF preview.
+    <a href="{{ pdf_download_url }}" target="_blank" rel="noopener">Download PDF</a>
+  </iframe>
+</section>
+{% endblock %}

@@ -1,0 +1,209 @@
+<!-- ========================================== -->
+<!-- reports/index.html -->
+<!-- ========================================== -->
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .reports-container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 2rem;
+  }
+
+  .reports-header {
+    margin-bottom: 2rem;
+  }
+
+  .reports-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--lcars-amber);
+    margin-bottom: 0.5rem;
+  }
+
+  .reports-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid var(--lcars-amber);
+  }
+
+  .reports-tab {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: none;
+    color: #9CA3AF;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .reports-tab.active {
+    color: var(--lcars-amber);
+    border-bottom-color: var(--lcars-amber);
+  }
+
+  .reports-section {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 2rem;
+  }
+
+  .section-title {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--lcars-peach);
+    margin-bottom: 1.5rem;
+  }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .status-item {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid var(--lcars-cyan);
+  }
+
+  .status-item h3 {
+    color: var(--lcars-amber);
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .status-passing {
+    background: #10B981;
+    color: white;
+  }
+
+  .status-failing {
+    background: #EF4444;
+    color: white;
+  }
+
+  .advisories-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .advisory-item {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 6px;
+    border-left: 4px solid #EF4444;
+  }
+
+  .advisory-item h4 {
+    color: var(--lcars-peach);
+    margin-bottom: 0.5rem;
+  }
+
+  .advisory-meta {
+    color: #9CA3AF;
+    font-size: 0.875rem;
+  }
+</style>
+
+<div class="reports-container">
+  <div class="reports-header">
+    <h1 class="reports-title">System Reports</h1>
+  </div>
+
+  <div class="reports-tabs">
+    <a href="/reports/?section=operations"
+      class="reports-tab {% if active_section == 'operations' %}active{% endif %}">
+      Operations
+    </a>
+    <a href="/reports/?section=security"
+      class="reports-tab {% if active_section == 'security' %}active{% endif %}">
+      Security
+    </a>
+  </div>
+
+  {% if active_section == "security" %}
+  <!-- Security Section -->
+  <div class="reports-section security-section">
+    <h2 class="section-title">Security Reports</h2>
+
+    {% if security_summary and security_summary.entries %}
+    <div class="status-grid">
+      {% for entry in security_summary.entries %}
+      <div class="status-item">
+        <h3>{{ entry.tool }}</h3>
+        <span class="status-badge {% if entry.status == 'Passing' %}status-passing{% else %}status-failing{% endif %}">
+          {{ entry.status }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #9CA3AF;">No security scan results available.</p>
+    {% endif %}
+
+    {% if advisories %}
+    <h3 class="section-title" style="margin-top: 2rem;">Recent Security Advisories</h3>
+    <ul class="advisories-list">
+      {% for advisory in advisories %}
+      <li class="advisory-item">
+        <h4>{{ advisory.title }}</h4>
+        <p class="advisory-meta">
+          {{ advisory.date }} | Severity: {{ advisory.severity }}
+        </p>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <!-- Operations Section (Default) -->
+  <div class="reports-section operations-section">
+    <h2 class="section-title">Operations Reports</h2>
+
+    {% if hook_statuses %}
+    <h3 style="color: var(--lcars-cyan); margin-bottom: 1rem;">Pre-commit Hook Status</h3>
+    <div class="status-grid">
+      {% for hook in hook_statuses %}
+      <div class="status-item">
+        <h3>{{ hook.name }}</h3>
+        <span class="status-badge {% if hook.status == 'passing' %}status-passing{% else %}status-failing{% endif %}">
+          {{ hook.status|title }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #9CA3AF;">No pre-commit hook status available.</p>
+    {% endif %}
+
+    <div style="margin-top: 2rem;">
+      <h3 style="color: var(--lcars-cyan); margin-bottom: 1rem;">System Information</h3>
+      <div class="status-item">
+        <h3>Application Status</h3>
+        <p style="color: #E5E7EB; margin-top: 0.5rem;">
+          All systems operational. For detailed metrics, see the
+          <a href="/admin/status" style="color: var(--lcars-amber);">Status Dashboard</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

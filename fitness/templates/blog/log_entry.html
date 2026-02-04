@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ asset_url('blog.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/monokai.min.css">
+
+<div class="captains-log single-entry">
+    <header class="entry-header">
+        <div class="entry-breadcrumb">
+            <a href="/log/">← BACK TO LOG INDEX</a>
+        </div>
+
+        <div class="entry-meta-top">
+            {% if entry.stardate %}
+            <span class="stardate-large">STARDATE {{ entry.stardate }}</span>
+            {% endif %}
+            <span class="earth-date-large">
+                {{ entry.published_at.strftime('%B %d, %Y') if entry.published_at else entry.created_at.strftime('%B %d, %Y') }}
+            </span>
+        </div>
+
+        <h1 class="entry-title">{{ entry.title }}</h1>
+
+        <div class="entry-meta-bar">
+            <span class="category-badge category-{{ entry.category.value if entry.category.value else entry.category }}">
+                {{ entry.category.value.upper() if entry.category.value else entry.category.upper() }}
+            </span>
+            <span class="reading-time">
+                {{ entry.reading_time_minutes }} MINUTE READ
+            </span>
+            <span class="view-count">
+                VIEWED {{ entry.view_count }} TIMES
+            </span>
+        </div>
+
+        {% if entry.tags %}
+        <div class="entry-tags">
+            {% for tag in entry.tags %}
+            <a href="/log/?tag={{ tag }}" class="tag-pill">{{ tag }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </header>
+
+    <article class="entry-content">
+        {{ entry.content_html | safe }}
+    </article>
+
+    <footer class="entry-footer">
+        <div class="entry-info">
+            <p><em>Last updated: {{ entry.updated_at.strftime('%B %d, %Y at %H:%M UTC') }}</em></p>
+        </div>
+
+        {% if related_entries %}
+        <div class="related-entries">
+            <h3>RELATED LOG ENTRIES</h3>
+            <div class="related-grid">
+                {% for related in related_entries %}
+                <div class="related-card">
+                    <a href="/log/entry/{{ related.slug }}">
+                        <h4>{{ related.title }}</h4>
+                        <p>{{ related.summary[:100] }}...</p>
+                        <span class="related-category">{{ related.category.value if related.category.value else related.category }}</span>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="entry-navigation">
+            <a href="/log/" class="nav-button">
+                ← RETURN TO ALL LOGS
+            </a>
+            <a href="#top" class="nav-button">
+                ↑ BACK TO TOP
+            </a>
+        </div>
+    </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+    // Initialize syntax highlighting
+    hljs.highlightAll();
+
+    // Smooth scroll to top
+    document.querySelectorAll('a[href="#top"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+</script>
+{% endblock %}

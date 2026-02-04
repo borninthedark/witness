@@ -1,0 +1,135 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.13
+        args: ['--line-length=88']
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ['--profile', 'black']
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args:
+          [
+            '--max-line-length=88',
+            '--extend-ignore=E203,W503,D100,D101,D102,D103,D104,D105,D106,D107,D200,D201,D202,D203,D204,D205,D208,D209,D210,D211,D212,D213,D214,D215,D400,D401,D402,D403,D404,D405,D406,D407,D408,D409,D410,D411,D412,D413,D414,D415,D416,D417',
+          ]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: ['types-setuptools', 'types-PyYAML']
+        args: ['--ignore-missing-imports', 'fitness/constants.py']
+        pass_filenames: false
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        name: bandit
+        entry: .venv/bin/bandit
+        args: ['-r', 'fitness', 'scripts', 'tests', '-ll', '-c', 'pyproject.toml']
+        pass_filenames: false
+        additional_dependencies: ['bandit[toml]', 'defusedxml']
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        args:
+          [
+            '-d',
+            '{extends: default, rules: {document-start: disable, line-length: {max: 120, level: warning}}}',
+          ]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.41.0
+    hooks:
+      - id: markdownlint
+        args: ['--config', '.markdownlint.yml']
+
+  - repo: local
+    hooks:
+      - id: jsonnet-validate
+        name: jsonnet-validate
+        language: system
+        entry: bash -lc '~/go/bin/jsonnet -J deploy/jsonnet deploy/jsonnet/main.jsonnet >/dev/null'
+        files: ^deploy/jsonnet/.*\.jsonnet$
+        exclude: '^deploy/jsonnet/main\.jsonnet$'
+
+  - repo: local
+    hooks:
+      - id: trivy
+        name: trivy file-system scan
+        language: system
+        exclude: ^deploy/k8s/deploy\.yaml$
+        entry: scripts/precommit_log.sh
+        args:
+          [
+            'trivy',
+            '/usr/local/bin/trivy',
+            'fs',
+            '--exit-code',
+            '1',
+            '--skip-dirs',
+            '.git',
+            '--skip-dirs',
+            '.venv',
+            '--ignorefile',
+            '.trivyignore',
+            '.',
+          ]
+        pass_filenames: false
+      # - id: pytest
+      #   name: pytest
+      #   entry: scripts/precommit_log.sh
+      #   args: ['pytest', '.venv/bin/pytest']
+      #   language: system
+      #   pass_filenames: false
+      - id: security-reports
+        name: Generate security reports
+        language: system
+        entry: scripts/precommit_log.sh
+        args: ['security-reports', '.venv/bin/python', 'scripts/generate-security-reports.py']
+        pass_filenames: false
+
+  - repo: https://github.com/pycqa/pylint
+    rev: v3.2.6
+    hooks:
+      - id: pylint
+        args:
+          - --errors-only
+          - --rcfile=.pylintrc
+
+default_language_version:
+  python: python3.13

@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - Captain's Fitness Log{% endblock %}
+
+{% block head_extra %}
+<!-- Bokeh JS from CDN -->
+<script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.5.0.min.js"></script>
+
+<style>
+.status-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 8px;
+    border-left: 4px solid #ff9900;
+}
+
+.status-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ff9900;
+    margin: 0;
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+}
+
+.status-indicator.operational {
+    background-color: #00cc66;
+    color: #fff;
+}
+
+.status-indicator.degraded {
+    background-color: #ffcc00;
+    color: #000;
+}
+
+.status-indicator.outage {
+    background-color: #cc0000;
+    color: #fff;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.metric-card {
+    background: #1a1a2e;
+    border: 2px solid #2d3561;
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.metric-card:hover {
+    transform: translateY(-4px);
+    border-color: #ff9900;
+}
+
+.metric-card.highlight {
+    border-color: #ff9900;
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d1810 100%);
+}
+
+.metric-card h3 {
+    color: #ff9900;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 1rem 0;
+    font-weight: 600;
+}
+
+.metric-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.5rem;
+    font-family: 'Courier New', monospace;
+}
+
+.metric-label {
+    color: #9999cc;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.excellent {
+    background-color: #00cc66;
+    color: #fff;
+}
+
+.status-badge.good {
+    background-color: #66cc99;
+    color: #000;
+}
+
+.status-badge.fair {
+    background-color: #ffcc00;
+    color: #000;
+}
+
+.status-badge.degraded {
+    background-color: #ff6600;
+    color: #fff;
+}
+
+.status-badge.healthy {
+    background-color: #00cc66;
+    color: #fff;
+}
+
+.status-badge.warning {
+    background-color: #ffcc00;
+    color: #000;
+}
+
+.grafana-embed {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: #1a1a2e;
+    border: 2px solid #2d3561;
+    border-radius: 8px;
+}
+
+.grafana-embed h2 {
+    color: #ff9900;
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.grafana-embed iframe {
+    border-radius: 4px;
+    background: #000;
+}
+
+.bokeh-charts {
+    margin: 1rem 0;
+}
+
+/* Bokeh LCARS theming */
+.bk-root {
+    background: transparent !important;
+}
+
+.bk {
+    font-family: inherit !important;
+}
+
+.lcars-note {
+    color: #9999cc;
+    font-size: 0.85rem;
+    margin-top: 0.75rem;
+    font-style: italic;
+}
+
+.status-footer {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: #0f0f1e;
+    border-radius: 8px;
+    text-align: center;
+    color: #9999cc;
+}
+
+.status-footer p {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.status-footer a {
+    color: #ff9900;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.status-footer a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .status-header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .status-header h1 {
+        margin-bottom: 1rem;
+    }
+
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="status-dashboard">
+  <header class="status-header">
+    <h1>⭘ SYSTEM STATUS</h1>
+    <span class="status-indicator {{ status.status }}">{{ status.status }}</span>
+  </header>
+
+  <div class="metrics-grid">
+    <!-- Response Time -->
+    <div class="metric-card">
+      <h3>Response Time</h3>
+      {% if status.metrics.latency.p95_ms %}
+      <div class="metric-value">{{ status.metrics.latency.p95_ms }}ms</div>
+      <div class="metric-label">95th percentile</div>
+      <div class="status-badge {{ status.metrics.latency.status }}">
+        {{ status.metrics.latency.status }}
+      </div>
+      {% else %}
+      <div class="metric-value">--</div>
+      <div class="metric-label">Collecting data...</div>
+      {% endif %}
+    </div>
+
+    <!-- Error Rate -->
+    <div class="metric-card">
+      <h3>Error Rate</h3>
+      <div class="metric-value">{{ "%.3f"|format(status.metrics.error_rate.percentage) }}%</div>
+      <div class="metric-label">5xx responses</div>
+      <div class="status-badge {{ status.metrics.error_rate.status }}">
+        {{ status.metrics.error_rate.status }}
+      </div>
+    </div>
+
+    <!-- Throughput -->
+    <div class="metric-card">
+      <h3>Throughput</h3>
+      <div class="metric-value">{{ status.metrics.throughput.requests_per_second }}</div>
+      <div class="metric-label">requests/sec (avg)</div>
+    </div>
+
+    <!-- Current Deployment -->
+    <div class="metric-card highlight">
+      <h3>Current Deployment</h3>
+      <div class="metric-value">{{ status.metrics.deployment.version }}</div>
+      <div class="metric-label">
+        Deployed {{ status.metrics.deployment.hours_since_deploy }}h ago
+      </div>
+    </div>
+  </div>
+
+  <!-- Bokeh Observability Charts -->
+  <section class="grafana-embed">
+    <h2>📊 Real-Time Observability</h2>
+    <div class="bokeh-charts">
+      {{ bokeh_div|safe }}
+    </div>
+    <p class="lcars-note">
+      ⭘ Live metrics · Aggregated data · No customer information
+    </p>
+  </section>
+
+  <!-- Grafana Dashboard Embed (if configured) -->
+  {% if grafana_snapshot_url %}
+  <section class="grafana-embed">
+    <h2>📈 Grafana Metrics Dashboard</h2>
+    <iframe
+      src="{{ grafana_snapshot_url }}?theme=dark"
+      width="100%" height="550" frameborder="0" loading="lazy"
+      title="Grafana Metrics Dashboard">
+    </iframe>
+    <p class="lcars-note">
+      ⭘ Metrics aggregate · No customer data · Updated hourly
+    </p>
+  </section>
+  {% endif %}
+
+  <!-- API Information -->
+  <div class="grafana-embed">
+    <h2>🔌 Programmatic Access</h2>
+    <p class="lcars-note">
+      Access these metrics programmatically via our JSON API or embed status badges in your documentation.
+    </p>
+    <div style="margin-top: 1rem; padding: 1rem; background: #0f0f1e; border-radius: 4px; font-family: monospace;">
+      <strong style="color: #ff9900;">JSON API:</strong> <a href="/admin/status/json" style="color: #66ccff;">/admin/status/json</a><br>
+      <strong style="color: #ff9900;">Status Badge:</strong> <a href="/admin/status/badge.svg" style="color: #66ccff;">/admin/status/badge.svg</a><br>
+      <strong style="color: #ff9900;">Uptime Badge:</strong> <a href="/admin/status/uptime-badge.svg" style="color: #66ccff;">/admin/status/uptime-badge.svg</a>
+    </div>
+
+    <!-- Example badges -->
+    <div style="margin-top: 1rem;">
+      <img src="/admin/status/badge.svg" alt="Status Badge" style="margin-right: 0.5rem;">
+      <img src="/admin/status/uptime-badge.svg" alt="Uptime Badge">
+    </div>
+  </div>
+
+  <footer class="status-footer">
+    <p><strong>Last updated:</strong> {{ status.updated_at }}</p>
+    <p>
+      <a href="/admin/status/json">JSON API</a> |
+      <a href="/admin/status/badge.svg">Status Badge</a> |
+      <a href="/">Home</a>
+    </p>
+    <p style="margin-top: 1rem; font-size: 0.8rem;">
+      All metrics are aggregated and sanitized. No personally identifiable information is exposed.
+    </p>
+  </footer>
+</section>
+
+<!-- Bokeh JS components -->
+{{ bokeh_script|safe }}
+{% endblock %}

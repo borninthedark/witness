@@ -1,0 +1,153 @@
+<!-- ========================================== -->
+<!-- base.html                                  -->
+<!-- ========================================== -->
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Status Report</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- (1) Tailwind first so your stylesheet wins -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link rel="stylesheet" href="{{ asset_url('styles.css') }}">
+
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+
+<body class="lcars-page">
+  <header class="site-header">
+    <div class="container header-shell">
+
+      <!-- Left Section: LCARS Pills + Branding -->
+      <div class="header-left">
+        <div class="lcars-pill-row" aria-hidden="true">
+          <span class="lcars-pill pill-lg bg-lcars-amber"></span>
+          <span class="lcars-pill pill-md bg-lcars-peach"></span>
+          <span class="lcars-pill pill-sm bg-lcars-cyan"></span>
+        </div>
+
+        <div class="brand-block">
+          <span class="brand-label">~/spacedock</span>
+        </div>
+      </div>
+
+      <!-- Right Section: Navigation Links -->
+      <div class="header-right">
+        <nav class="nav-links" role="navigation" aria-label="Primary" id="primary-nav">
+          <a href="/">Home</a>
+          <a href="/certs">Certifications</a>
+          <a href="/resume">Resume</a>
+          <!-- <a href="/log">Captain's Log</a> -->
+          <a href="/security/dashboard">Tactical</a>
+          <a href="/contact">First Contact</a>
+        </nav>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <!-- Badge Row -->
+      <div class="footer-badges" aria-label="Platform status and stack badges">
+        <!-- System status -->
+        <a href="/admin/status" title="System Status" class="badge-link">
+          <img src="/admin/status/badge.svg" alt="System Status" class="footer-badge">
+        </a>
+
+        <!-- Kubernetes -->
+        <a href="https://kubernetes.io/" target="_blank" rel="noopener noreferrer" title="Kubernetes Deployment"
+          class="badge-link">
+          <img src="https://img.shields.io/badge/Kubernetes-1.28%2B-326CE5?logo=kubernetes&logoColor=white" alt="K8s"
+            class="footer-badge">
+        </a>
+
+        <!-- AKS -->
+        <a href="https://learn.microsoft.com/azure/aks/" target="_blank" rel="noopener noreferrer"
+          title="Azure K8s Service" class="badge-link">
+          <img
+            src="https://img.shields.io/badge/AKS-Azure%20Kubernetes%20Service-0078D4?logo=microsoft-azure&logoColor=white"
+            alt="Azure K8s Service" class="footer-badge">
+        </a>
+
+        <!-- FastAPI -->
+        <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener noreferrer" title="FastAPI Application"
+          class="badge-link">
+          <img src="https://img.shields.io/badge/FastAPI-async%20Python%20API-009688?logo=fastapi&logoColor=white"
+            alt="FastAPI" class="footer-badge">
+        </a>
+      </div>
+
+
+      <!-- Copyright Row -->
+      <div class="footer-inline">
+        <small>
+          &copy; 2025 Princeton A. Strong | MIT License | LCARS Inspired Website Template by
+          <a href="https://www.thelcars.com" target="_blank" rel="noopener noreferrer">
+            www.TheLCARS.com
+          </a>
+        </small>
+      </div>
+    </div>
+  </footer>
+
+  <style>
+    .footer-badges {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .badge-link {
+      display: inline-flex;
+      align-items: center;
+      opacity: 0.6;
+      transition: opacity 0.3s ease, transform 0.2s ease;
+      filter: grayscale(0.3);
+    }
+
+    .badge-link:hover {
+      opacity: 1;
+      transform: translateY(-2px);
+      filter: grayscale(0);
+    }
+
+    .footer-badge {
+      height: 20px;
+      width: auto;
+      display: block;
+    }
+
+    .footer-inline {
+      text-align: center;
+      padding: 0.5rem 0 1rem;
+    }
+
+    @media (max-width: 640px) {
+      .footer-badges {
+        gap: 0.5rem;
+      }
+
+      .footer-badge {
+        height: 18px;
+      }
+    }
+  </style>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+
+</html>

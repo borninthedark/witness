@@ -1,0 +1,254 @@
+<!-- ========================================== -->
+<!-- admin_certs.html -->
+<!-- ========================================== -->
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-header">
+  <h2>Admin • Certifications</h2>
+  <div class="auth-meta">
+    <span class="user-badge">{{ user.email }}</span>
+    <form method="post" action="/auth/jwt/logout" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-small">Sign out</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <h3 class="text-accent">Add New Certification</h3>
+  <form hx-post="/admin/certs" hx-target="#rows" hx-swap="beforeend" enctype="multipart/form-data" class="admin-form" action="/admin/certs">
+    <input type="hidden" name="csrf_token" id="admin-csrf-token" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="slug-input">Slug</label>
+        <input type="text" name="slug" id="slug-input" required>
+      </div>
+
+      <div class="form-group">
+        <label for="title-input">Title</label>
+        <input type="text" name="title" id="title-input" required>
+      </div>
+
+      <div class="form-group">
+        <label for="issuer-input">Issuer</label>
+        <input type="text" name="issuer" id="issuer-input" required>
+      </div>
+
+      <div class="form-group">
+        <label for="verification-url">Verification URL</label>
+        <input type="url" name="verification_url" id="verification-url">
+      </div>
+
+      <div class="form-group assertion-group">
+        <label for="assertion-url">Open Badges Assertion URL</label>
+        <div class="input-with-button">
+          <input type="url" name="assertion_url" id="assertion-url" {% if not
+            enable_open_badges %}disabled title="Enable Open Badges to use this field" {% endif %}>
+          {% if enable_open_badges %}
+          <button type="button" class="btn btn-small btn-secondary"
+            hx-post="/admin/badges/preview"
+            hx-target="#badge-preview"
+            hx-include="#assertion-url,#admin-csrf-token"
+            hx-indicator="#badge-preview">
+            Validate
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="file-input">PDF File</label>
+        <input type="file" name="file" id="file-input" accept="application/pdf" required>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-full mt-2">Add Certification</button>
+  </form>
+</div>
+
+{% if enable_open_badges %}
+<div id="badge-preview" class="card muted mb-3">
+  <p class="text-muted">Badge details will appear here after validation.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 class="text-accent">Existing Certifications</h3>
+  <table class="table cert-management-table">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Visibility</th>
+        <th>Issuer</th>
+        <th>Title</th>
+        <th>Slug</th>
+        <th>Links</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      {% for c in certs %}
+      <tr id="cert-row-{{ c.id }}" class="cert-row {% if not c.is_visible %}cert-hidden{% endif %} cert-status-{{ c.status }}">
+        <td>
+          <form method="post" action="/admin/certs/{{ c.id }}/status" style="display: inline;"
+                hx-post="/admin/certs/{{ c.id }}/status"
+                hx-include="[name='csrf_token']">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="status" class="status-select status-{{ c.status }}"
+                    hx-post="/admin/certs/{{ c.id }}/status"
+                    hx-trigger="change"
+                    hx-include="closest form"
+                    title="Change certification status">
+              <option value="active" {% if c.status == 'active' %}selected{% endif %}>✓ Active</option>
+              <option value="deprecated" {% if c.status == 'deprecated' %}selected{% endif %}>⚠ Deprecated</option>
+              <option value="expired" {% if c.status == 'expired' %}selected{% endif %}>✗ Expired</option>
+            </select>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/admin/certs/{{ c.id }}/visibility" style="display: inline;"
+                hx-post="/admin/certs/{{ c.id }}/visibility"
+                hx-trigger="click">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-small visibility-toggle {% if c.is_visible %}btn-visible{% else %}btn-hidden{% endif %}"
+                    title="{% if c.is_visible %}Hide from public{% else %}Show publicly{% endif %}">
+              {% if c.is_visible %}
+              👁️ Public
+              {% else %}
+              🔒 Hidden
+              {% endif %}
+            </button>
+          </form>
+        </td>
+        <td><span class="badge">{{ c.issuer }}</span></td>
+        <td>{{ c.title }}</td>
+        <td><code>{{ c.slug }}</code></td>
+        <td class="actions">
+          {% set sep = namespace(needed=False) %}
+          {% if c.pdf_url %}
+          <a href="{{ c.pdf_url }}" target="_blank" class="action-link">PDF</a>
+          {% set sep.needed = True %}
+          {% endif %}
+          {% if c.verification_url %}
+          {% if sep.needed %}<span class="separator">|</span>{% endif %}
+          <a href="{{ c.verification_url }}" target="_blank" class="action-link">Verify</a>
+          {% set sep.needed = True %}
+          {% endif %}
+          {% if c.assertion_url %}
+          {% if sep.needed %}<span class="separator">|</span>{% endif %}
+          <a href="{{ c.assertion_url }}" target="_blank" class="action-link">Open Badges</a>
+          {% endif %}
+        </td>
+        <td class="actions">
+          <form method="delete" action="/admin/certs/{{ c.id }}" style="display: inline;"
+                hx-delete="/admin/certs/{{ c.id }}"
+                hx-target="#cert-row-{{ c.id }}"
+                hx-swap="outerHTML swap:1s"
+                hx-confirm="PERMANENTLY DELETE '{{ c.title }}'? This cannot be undone!">
+            <button type="submit" class="btn btn-small btn-danger" title="Permanently delete">🗑️ Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+/* Certification management table styles */
+.cert-management-table {
+  width: 100%;
+}
+
+.cert-management-table th {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Row visual states */
+.cert-row.cert-hidden {
+  opacity: 0.6;
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+.cert-row.cert-status-deprecated {
+  border-left: 3px solid #ffcc00;
+}
+
+.cert-row.cert-status-expired {
+  border-left: 3px solid #cc0000;
+}
+
+.cert-row.cert-status-active {
+  border-left: 3px solid #00cc66;
+}
+
+/* Status dropdown */
+.status-select {
+  padding: 0.375rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.status-select.status-active {
+  background-color: #e6f9f0;
+  color: #00803d;
+  border-color: #00cc66;
+}
+
+.status-select.status-deprecated {
+  background-color: #fff8e6;
+  color: #806600;
+  border-color: #ffcc00;
+}
+
+.status-select.status-expired {
+  background-color: #ffe6e6;
+  color: #800000;
+  border-color: #cc0000;
+}
+
+.status-select:hover {
+  border-color: var(--lcars-amber);
+}
+
+/* Visibility toggle button */
+.visibility-toggle {
+  min-width: 100px;
+  font-size: 0.875rem;
+}
+
+.btn-visible {
+  background-color: #00cc66;
+  color: #fff;
+}
+
+.btn-visible:hover {
+  background-color: #00b359;
+}
+
+.btn-hidden {
+  background-color: #666;
+  color: #fff;
+}
+
+.btn-hidden:hover {
+  background-color: #555;
+}
+
+/* Delete button */
+.btn-danger {
+  background-color: #cc0000;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background-color: #b30000;
+}
+</style>
+{% endblock %}

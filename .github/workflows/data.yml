@@ -1,0 +1,275 @@
+# ================================================================
+# Data - CI Pipeline (Build, Test, Scan, Push)
+# ================================================================
+# "I am fully functional" - Main CI/CD pipeline
+# Builds, tests, scans, and pushes container images
+# ================================================================
+
+name: Data - CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'deploy/terraform/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'deploy/terraform/**'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sunday at 2am
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_REPO: ${{ github.repository }}
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 1: Lint & Validate
+  # ══════════════════════════════════════════════════════════════════════════
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Containerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Containerfile
+          ignore: DL3008,DL3059
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          additional_files: 'scripts/*'
+        continue-on-error: true
+
+      - name: Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+        continue-on-error: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 2: Python Quality
+  # ══════════════════════════════════════════════════════════════════════════
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff mypy
+
+      - name: Ruff lint & format
+        run: |
+          ruff check . || echo "::warning::Ruff found issues"
+          ruff format --check . || echo "::warning::Formatting issues"
+
+      - name: Type check
+        run: mypy . --ignore-missing-imports || true
+        continue-on-error: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 3: Build
+  # ══════════════════════════════════════════════════════════════════════════
+  build:
+    name: Build
+    needs: [lint, python]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      image-tar: /tmp/image.tar
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        id: buildah
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: localhost/witness
+          tags: ci
+          context: .
+          containerfiles: Containerfile
+          oci: true
+          layers: true
+
+      - name: Export image
+        run: podman image save localhost/witness:ci -o /tmp/image.tar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-image
+          path: /tmp/image.tar
+          retention-days: 1
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 4: Test
+  # ══════════════════════════════════════════════════════════════════════════
+  test:
+    name: Test
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-cov
+
+      - name: Run tests
+        env:
+          DATABASE_URL: sqlite:////tmp/test.db
+          PYTHONPATH: ${{ github.workspace }}
+        run: pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 5: Security Scan
+  # ══════════════════════════════════════════════════════════════════════════
+  scan:
+    name: Scan
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download image
+        uses: actions/download-artifact@v4
+        with:
+          name: container-image
+          path: /tmp
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          input: /tmp/image.tar
+          format: 'sarif'
+          output: 'trivy.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+        continue-on-error: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 6: Push (main branch only)
+  # ══════════════════════════════════════════════════════════════════════════
+  push:
+    name: Push
+    needs: [build, test, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request'
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
+          tags: |
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=long
+            type=ref,event=branch
+
+      - name: Build image
+        id: buildah
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
+          tags: ${{ steps.meta.outputs.tags }}
+          context: .
+          containerfiles: Containerfile
+          oci: true
+          layers: true
+
+      - name: Push to GHCR
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.buildah.outputs.image }}
+          tags: ${{ steps.buildah.outputs.tags }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign image
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.buildah.outputs.tags }}
+        run: |
+          cosign sign --yes $(printf '%s\n' "$TAGS" | sed -e '/^$/d' -e "s/$/@${DIGEST}/")
+
+      - name: Summary
+        run: |
+          {
+            echo "## Data - Image Published"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Tags | \`dev\`, \`sha-${{ github.sha }}\` |"
+            echo "| Digest | \`${{ steps.push.outputs.digest }}\` |"
+            echo "| Signed | Yes (Sigstore keyless) |"
+            echo ""
+            echo "\`\`\`bash"
+            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:dev"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

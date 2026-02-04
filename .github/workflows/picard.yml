@@ -1,0 +1,267 @@
+# ================================================================
+# Picard - Terraform Plan
+# ================================================================
+# "Engage" - Plans infrastructure changes
+# Runs on PRs and pushes to main for terraform changes
+# ================================================================
+
+name: Picard - Plan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/terraform/**'
+      - '.github/workflows/picard.yml'
+      - '.github/workflows/laforge.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/terraform/**'
+      - '.github/workflows/picard.yml'
+      - '.github/workflows/laforge.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, prod]
+      infrastructure:
+        description: 'Infrastructure type'
+        required: true
+        default: 'container-apps'
+        type: choice
+        options: [container-apps, aks]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+  packages: write
+
+concurrency:
+  group: terraform-plan-${{ github.event.inputs.infrastructure || 'container-apps' }}-${{ github.event.inputs.environment || 'dev' }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: '1.7.0'
+  ARM_USE_OIDC: true
+
+jobs:
+  config:
+    name: Configure
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.config.outputs.environment }}
+      infrastructure: ${{ steps.config.outputs.infrastructure }}
+      working_dir: ${{ steps.config.outputs.working_dir }}
+      tfvars_file: ${{ steps.config.outputs.tfvars_file }}
+    steps:
+      - name: Set configuration
+        id: config
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          INFRA="${{ github.event.inputs.infrastructure || 'container-apps' }}"
+          echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
+          echo "infrastructure=${INFRA}" >> "$GITHUB_OUTPUT"
+          echo "working_dir=deploy/terraform/${INFRA}" >> "$GITHUB_OUTPUT"
+          echo "tfvars_file=environments/${ENV}.tfvars" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Picard - Configuration"
+            echo "- **Environment:** ${ENV}"
+            echo "- **Infrastructure:** ${INFRA}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  validate:
+    name: Validate
+    needs: config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ${{ needs.config.outputs.working_dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+        continue-on-error: true
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Validation Results"
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Format | ${{ steps.fmt.outcome == 'success' && 'OK' || 'Warning' }} |"
+            echo "| Validate | OK |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  plan:
+    name: Plan
+    needs: [config, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: vars.ENABLE_TERRAFORM == 'true'
+    outputs:
+      exitcode: ${{ steps.plan.outputs.exitcode }}
+      has_changes: ${{ steps.plan.outputs.exitcode == '2' }}
+    defaults:
+      run:
+        working-directory: ${{ needs.config.outputs.working_dir }}
+    env:
+      TF_VAR_secret_key: ${{ secrets.APP_SECRET_KEY }}
+      TF_VAR_container_registry_username: ${{ github.repository_owner }}
+      TF_VAR_container_registry_password: ${{ secrets.GITHUB_TOKEN }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: true
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ needs.config.outputs.infrastructure }}/${{ needs.config.outputs.environment }}/terraform.tfstate"
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          set +e
+          terraform plan \
+            -var-file="${{ needs.config.outputs.tfvars_file }}" \
+            -out=tfplan \
+            -detailed-exitcode \
+            -no-color 2>&1 | tee plan-output.txt
+          EXIT_CODE=$?
+          echo "exitcode=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ needs.config.outputs.infrastructure }}-${{ needs.config.outputs.environment }}
+          path: |
+            ${{ needs.config.outputs.working_dir }}/tfplan
+            ${{ needs.config.outputs.working_dir }}/plan-output.txt
+          retention-days: 7
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('${{ needs.config.outputs.working_dir }}/plan-output.txt', 'utf8');
+            const truncated = planOutput.length > 60000
+              ? planOutput.substring(0, 60000) + '\n\n... (truncated)'
+              : planOutput;
+
+            const exitCode = '${{ steps.plan.outputs.exitcode }}';
+            const statusMap = {
+              '0': { marker: '[OK]', text: 'No changes' },
+              '1': { marker: '[ERROR]', text: 'Error' },
+              '2': { marker: '[CHANGES]', text: 'Changes detected' }
+            };
+            const status = statusMap[exitCode] || { marker: '[?]', text: 'Unknown' };
+
+            const body = `## ${status.marker} Terraform Plan - \`${{ needs.config.outputs.infrastructure }}\` / \`${{ needs.config.outputs.environment }}\`
+
+            **Status:** ${status.text}
+
+            <details>
+            <summary>Show Plan Output</summary>
+
+            \`\`\`hcl
+            ${truncated}
+            \`\`\`
+
+            </details>
+
+            *Picard has spoken. Run La Forge workflow to apply.*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('Terraform Plan') &&
+              c.body.includes('${{ needs.config.outputs.infrastructure }}')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Summary
+        if: always()
+        run: |
+          EXIT_CODE="${{ steps.plan.outputs.exitcode }}"
+          {
+            echo "## Picard - Plan Results"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Infrastructure | \`${{ needs.config.outputs.infrastructure }}\` |"
+            echo "| Environment | \`${{ needs.config.outputs.environment }}\` |"
+            case "$EXIT_CODE" in
+              0) echo "| Status | No changes |" ;;
+              1) echo "| Status | Error |" ;;
+              2) echo "| Status | Changes detected |" ;;
+              *) echo "| Status | Unknown ($EXIT_CODE) |" ;;
+            esac
+            echo ""
+            if [ "$EXIT_CODE" = "2" ]; then
+              echo "**Next:** Run *La Forge* workflow to apply changes"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on Error
+        if: steps.plan.outputs.exitcode == '1'
+        run: exit 1

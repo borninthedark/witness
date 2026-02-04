@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Security Advisories Dashboard{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ asset_url('css/security.css') }}">
+
+<div class="security-dashboard">
+    <header class="dashboard-header">
+        <h1>Advisory Dashboard</h1>
+        <p class="subtitle">Monitor CVEs from NIST NVD</p>
+    </header>
+
+    <!-- Statistics Widget -->
+    <div id="stats-widget" hx-get="/security/stats?days=30" hx-trigger="load, every 300s" hx-swap="innerHTML">
+        {% include "security/stats_widget.html" %}
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-container">
+        <h2>Filters</h2>
+        <form id="advisory-filters" hx-get="/security/advisories" hx-target="#advisories-list"
+            hx-trigger="change, submit" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+
+            <div class="filter-group">
+                <label for="severity">Severity</label>
+                <select name="severity" id="severity">
+                    <option value="">All Severities</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                </select>
+            </div>
+
+            <!-- Source filter removed - NIST only -->
+
+            <div class="filter-group">
+                <label for="days">Days Back</label>
+                <input type="number" name="days" id="days" value="30" min="1" max="365">
+            </div>
+
+            <button type="submit" class="btn lcars-primary-btn">Apply Filters</button>
+        </form>
+
+        <div class="auto-refresh">
+            <button hx-get="/security/advisories" hx-target="#advisories-list" hx-include="#advisory-filters"
+                hx-trigger="every 300s" class="btn btn-secondary" style="margin-top: 1rem;">
+                <span class="refresh-icon">🔄</span> Auto-refresh (5min)
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="htmx-indicator">
+        <div class="spinner"></div>
+        <span>Loading advisories...</span>
+    </div>
+
+    <!-- Advisories List -->
+    <div id="advisories-list" hx-get="/security/advisories?days=30" hx-trigger="load" hx-swap="innerHTML"
+        hx-indicator="#loading-indicator">
+        <!-- Content loaded via HTMX -->
+    </div>
+
+    <!-- Modal for Advisory Details -->
+    <div id="advisory-modal" class="modal" style="display: none;">
+        <div class="modal-overlay" onclick="closeModal()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <div id="modal-body">
+                <!-- Content loaded via HTMX -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showModal() {
+        document.getElementById('advisory-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('advisory-modal').style.display = 'none';
+    }
+
+    // Close modal on ESC key
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeModal();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% if results %}
+<div class="search-results-list">
+    <p class="results-count">{{ total }} result{% if total != 1 %}s{% endif %} for "{{ query }}"</p>
+    {% for entry in results %}
+    <div class="search-result-item">
+        <a href="/log/entry/{{ entry.slug }}">
+            <h4>{{ entry.title }}</h4>
+            <p>{{ entry.summary[:150] }}...</p>
+            <span class="result-category">{{ entry.category.value if entry.category.value else entry.category }}</span>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-results">
+    <p>No results found for "{{ query }}"</p>
+    <p>Try different keywords or browse categories.</p>
+</div>
+{% endif %}

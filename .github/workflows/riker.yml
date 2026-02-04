@@ -1,0 +1,288 @@
+# ================================================================
+# Riker - Release Pipeline
+# ================================================================
+# "Make it so" - Semantic versioning and release management
+# Supports both automatic releases (after CI) and manual releases
+# Uses conventional commits for version bumping:
+#   - feat: -> minor bump
+#   - fix: -> patch bump
+#   - feat!: or BREAKING CHANGE: -> major bump
+# ================================================================
+
+name: Riker - Release
+
+on:
+  # Automatic: triggered after successful CI on main
+  workflow_run:
+    workflows: ['Data - CI']
+    types: [completed]
+    branches: [main]
+
+  # Manual: allow explicit version control
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        default: auto
+        options:
+          - auto      # Determine from conventional commits
+          - patch     # Bug fixes (0.0.X)
+          - minor     # New features (0.X.0)
+          - major     # Breaking changes (X.0.0)
+      prerelease:
+        description: 'Create as prerelease?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_REPO: ${{ github.repository }}
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 1: Determine Version
+  # ══════════════════════════════════════════════════════════════════════════
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    # For workflow_run: only run if CI succeeded
+    # For workflow_dispatch: always run
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      version: ${{ steps.semver.outputs.new_tag }}
+      changelog: ${{ steps.semver.outputs.changelog }}
+      bump: ${{ steps.determine-bump.outputs.bump }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Determine bump type
+        id: determine-bump
+        run: |
+          BUMP="${{ github.event.inputs.bump || 'auto' }}"
+
+          if [ "$BUMP" = "auto" ]; then
+            # Analyze commits since last tag for conventional commit prefixes
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+            if [ -z "$LAST_TAG" ]; then
+              COMMITS=$(git log --oneline)
+            else
+              COMMITS=$(git log --oneline ${LAST_TAG}..HEAD)
+            fi
+
+            # Check for breaking changes
+            if echo "$COMMITS" | grep -qiE '(^[a-f0-9]+ )?(\w+!:|BREAKING CHANGE)'; then
+              BUMP="major"
+            # Check for features
+            elif echo "$COMMITS" | grep -qiE '(^[a-f0-9]+ )?feat(\(.+\))?:'; then
+              BUMP="minor"
+            # Default to patch
+            else
+              BUMP="patch"
+            fi
+
+            echo "Auto-detected bump type: $BUMP"
+          fi
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+      - name: Create version tag
+        id: semver
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: main
+          default_bump: ${{ steps.determine-bump.outputs.bump }}
+          create_annotated_tag: true
+          tag_prefix: v
+
+      - name: Version Summary
+        run: |
+          {
+            echo "## Version Determined"
+            echo "- **New Version**: \`${{ steps.semver.outputs.new_tag }}\`"
+            echo "- **Previous**: \`${{ steps.semver.outputs.previous_tag }}\`"
+            echo "- **Bump Type**: \`${{ steps.determine-bump.outputs.bump }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 2: Build & Push Release Image
+  # ══════════════════════════════════════════════════════════════════════════
+  build:
+    name: Build
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.version }}
+
+      - name: Generate metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=latest
+            type=raw,value=prod
+
+      - name: Build image
+        id: buildah
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
+          tags: ${{ steps.meta.outputs.tags }}
+          context: .
+          containerfiles: Containerfile
+          oci: true
+          layers: true
+          build-args: |
+            VERSION=${{ needs.version.outputs.version }}
+
+      - name: Push to GHCR
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.buildah.outputs.image }}
+          tags: ${{ steps.buildah.outputs.tags }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Summary
+        run: |
+          {
+            echo "## Container Image Built"
+            echo "- **Version**: \`${{ needs.version.outputs.version }}\`"
+            echo "- **Tags**: \`latest\`, \`prod\`, \`${{ needs.version.outputs.version }}\`"
+            echo "- **Digest**: \`${{ steps.push.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 3: Sign Image
+  # ══════════════════════════════════════════════════════════════════════════
+  sign:
+    name: Sign
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign image
+        run: |
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}@${{ needs.build.outputs.digest }}"
+
+      - name: Verify signature
+        run: |
+          cosign verify \
+            --certificate-identity-regexp='.*' \
+            --certificate-oidc-issuer-regexp='.*' \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}@${{ needs.build.outputs.digest }}"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Job 4: Create GitHub Release
+  # ══════════════════════════════════════════════════════════════════════════
+  release:
+    name: Release
+    needs: [version, build, sign]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          CHANGELOG="${{ needs.version.outputs.changelog }}"
+
+          cat > /tmp/release-notes.md << 'EOF'
+          ## What's Changed
+
+          ${{ needs.version.outputs.changelog }}
+
+          ## Container Image
+
+          ```bash
+          # Pull the release image
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}
+
+          # Or use the latest tag
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:latest
+
+          # Verify image signature
+          cosign verify \
+            --certificate-identity-regexp='.*' \
+            --certificate-oidc-issuer-regexp='.*' \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}
+          ```
+
+          ## Image Details
+
+          | Property | Value |
+          |----------|-------|
+          | Registry | `${{ env.REGISTRY }}` |
+          | Repository | `${{ env.IMAGE_REPO }}` |
+          | Version | `${{ needs.version.outputs.version }}` |
+          | Digest | `${{ needs.build.outputs.digest }}` |
+          | Signed | Yes (Sigstore keyless OIDC) |
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.version }}
+          name: ${{ needs.version.outputs.version }}
+          body_path: /tmp/release-notes.md
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          {
+            echo "## Release Published"
+            echo ""
+            echo "- **Version**: [\`${{ needs.version.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.version }})"
+            echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}\`"
+            echo "- **Signed**: Yes"
+            echo ""
+            echo "### Changelog"
+            echo "${{ needs.version.outputs.changelog }}"
+          } >> "$GITHUB_STEP_SUMMARY"
