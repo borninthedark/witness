@@ -127,13 +127,12 @@ jobs:
   # Apply: Apply the plan (manual dispatch only, action=apply)
   # ══════════════════════════════════════════════════════════════════════════
   apply:
-    name: Apply (${{ needs.plan.outputs.environment }})
+    name: Apply (${{ github.event.inputs.environment || 'dev' }})
     needs: plan
     runs-on: ubuntu-latest
     if: |
       needs.plan.outputs.has_changes == 'true' &&
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.action == 'apply'
+      (github.event_name == 'push' || github.event.inputs.action == 'apply')
     timeout-minutes: 30
     environment:
       name: ${{ needs.plan.outputs.environment }}
