@@ -72,7 +72,7 @@ module "container_apps" {
 
   # VNet integration (optional)
   container_app_environment_infrastructure_subnet_id       = var.enable_vnet_integration ? azurerm_subnet.container_apps[0].id : null
-  container_app_environment_internal_load_balancer_enabled = var.internal_load_balancer_enabled
+  container_app_environment_internal_load_balancer_enabled = var.enable_vnet_integration ? var.internal_load_balancer_enabled : null
 
   # Log Analytics Workspace
   log_analytics_workspace_name              = "${var.app_name}-law"
