@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Containerfile
-    image: ghcr.io/${OWNER:-borninthedark}/witness:${TAG:-latest}
+    image: ${ACR_LOGIN_SERVER:-witnessdevacr.azurecr.io}/witness:${TAG:-latest}
     security_opt:
       - no-new-privileges:true
 
@@ -72,4 +72,3 @@ networks:
   fitness-net:
     driver: bridge
     name: fitness-network
-

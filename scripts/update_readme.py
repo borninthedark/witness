@@ -93,7 +93,10 @@ def update_readme() -> bool:
         return False
     content = readme.read_text(encoding="utf-8")
     docs_section = _generate_docs_section()
-    pattern = r"## 📚 Documentation.*?(?=## License|## Tooling|## Deployment|## Observability|$)"
+    pattern = (
+        r"## 📚 Documentation.*?"
+        r"(?=## License|## Tooling|## Deployment|## Observability|$)"
+    )
     if not re.search(pattern, content, flags=re.DOTALL):
         print("Documentation section not found in README.md")
         return False

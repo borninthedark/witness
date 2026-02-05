@@ -1,7 +1,7 @@
 # ================================================================
 # Picard - Container Image Build Pipeline
 # ================================================================
-# "Engage" - Builds, scans, signs, and publishes container images
+# "Engage" - Triggers ACR Build Task, scans, and signs container images
 # Scheduled builds ensure fresh base images and dependency updates
 # Downstream: Picard -> Riker (release), Picard -> Troi (docs)
 # ================================================================
@@ -15,7 +15,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
   security-events: write
   id-token: write
 
@@ -24,55 +23,44 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_REPO: ${{ github.repository }}
+  ACR_NAME: ${{ vars.ACR_NAME }}
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Build: Containerfile -> OCI image
+  # Build: Trigger ACR Build Task
   # ══════════════════════════════════════════════════════════════════════════
   build:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
-      digest: ${{ steps.push.outputs.digest }}
-      tags: ${{ steps.meta.outputs.tags }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Generate metadata
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
-          tags: |
-            type=raw,value=dev
-            type=sha,format=long
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build image
-        id: buildah
-        uses: redhat-actions/buildah-build@v2
-        with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
-          tags: ${{ steps.meta.outputs.tags }}
-          context: .
-          containerfiles: Containerfile
-          oci: true
-          layers: true
+      - name: Trigger ACR Build Task
+        id: build
+        run: |
+          az acr task run \
+            --name ${{ vars.ACR_TASK_NAME }} \
+            --registry ${{ env.ACR_NAME }} \
+            --no-logs
 
-      - name: Push to GHCR
-        id: push
-        uses: redhat-actions/push-to-registry@v2
-        with:
-          image: ${{ steps.buildah.outputs.image }}
-          tags: ${{ steps.buildah.outputs.tags }}
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST=$(az acr repository show-tags \
+            --name ${{ env.ACR_NAME }} \
+            --repository witness \
+            --orderby time_desc \
+            --top 1 \
+            -o tsv)
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Scan: Trivy vulnerability scan on published image
+  # Scan: Trivy vulnerability scan on ACR image
   # ══════════════════════════════════════════════════════════════════════════
   scan:
     name: Scan
@@ -80,17 +68,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Trivy scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}@${{ needs.build.outputs.digest }}'
+          image-ref: '${{ env.ACR_NAME }}.azurecr.io/witness:${{ needs.build.outputs.digest }}'
           format: 'sarif'
           output: 'trivy.sarif'
           severity: 'CRITICAL,HIGH'
@@ -113,19 +104,20 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.5.0
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Sign image
-        env:
-          DIGEST: ${{ needs.build.outputs.digest }}
-          TAGS: ${{ needs.build.outputs.tags }}
         run: |
-          cosign sign --yes $(printf '%s\n' "$TAGS" | sed -e '/^$/d' -e "s/$/@${DIGEST}/")
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/witness:${{ needs.build.outputs.digest }}"
+          cosign sign --yes "${IMAGE}"
 
       - name: Summary
         run: |
@@ -134,11 +126,12 @@ jobs:
             echo ""
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Tags | \`dev\`, \`sha-${{ github.sha }}\` |"
-            echo "| Digest | \`${{ needs.build.outputs.digest }}\` |"
+            echo "| Registry | \`${{ env.ACR_NAME }}.azurecr.io\` |"
+            echo "| Tag | \`${{ needs.build.outputs.digest }}\` |"
             echo "| Signed | Yes (Sigstore keyless) |"
             echo ""
             echo "\`\`\`bash"
-            echo "podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:dev"
+            echo "az acr login --name ${{ env.ACR_NAME }}"
+            echo "podman pull ${{ env.ACR_NAME }}.azurecr.io/witness:dev"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"

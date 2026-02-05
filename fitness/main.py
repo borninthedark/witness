@@ -150,11 +150,11 @@ async def create_admin_user_on_startup():
 
     from fitness.auth import UserManager
     from fitness.database_async import AsyncSessionLocal
-    from fitness.models.user import User
+    from fitness.models.user import User as UserModel
     from fitness.schemas.user import UserCreate
 
     async with AsyncSessionLocal() as session:
-        user_db = SQLAlchemyUserDatabase(session, User)
+        user_db = SQLAlchemyUserDatabase(session, UserModel)
         user_manager = UserManager(user_db)
 
         # Check if admin user already exists

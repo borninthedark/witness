@@ -56,6 +56,106 @@ resource "azurerm_subnet" "container_apps" {
 }
 
 # ================================================================
+# Azure Container Registry (AVM)
+# ================================================================
+
+module "acr" {
+  source  = "Azure/avm-res-containerregistry-registry/azurerm"
+  version = "0.5.1"
+
+  name                = var.acr_name
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = var.acr_sku
+  admin_enabled       = var.acr_admin_enabled
+  enable_telemetry    = false
+  tags                = var.tags
+
+  # Basic/Standard SKUs don't support zone redundancy
+  zone_redundancy_enabled = var.acr_sku == "Premium" ? true : false
+
+  # Retention policy only supported on Premium SKU
+  retention_policy_in_days = var.acr_sku == "Premium" ? 7 : null
+
+  # AcrPull for Container App managed identity
+  role_assignments = {
+    acr_pull = {
+      role_definition_id_or_name       = "AcrPull"
+      principal_id                     = module.container_apps.container_app_identities["app"].principal_id
+      skip_service_principal_aad_check = true
+    }
+  }
+}
+
+# ================================================================
+# ACR Build Task (Terraform-managed, GHA-triggered)
+# ================================================================
+
+resource "azurerm_container_registry_task" "build" {
+  name                  = "${var.app_name}-build"
+  container_registry_id = module.acr.resource_id
+
+  platform {
+    os = "Linux"
+  }
+
+  docker_step {
+    dockerfile_path      = "Containerfile"
+    context_path         = var.acr_task_context_url
+    context_access_token = var.container_registry_password
+    image_names          = ["witness:{{.Run.ID}}", "witness:${var.acr_image_tag}"]
+  }
+}
+
+# ================================================================
+# Azure Key Vault (AVM)
+# ================================================================
+
+module "key_vault" {
+  source  = "Azure/avm-res-keyvault-vault/azurerm"
+  version = "0.10.2"
+
+  name                       = var.key_vault_name
+  location                   = azurerm_resource_group.main.location
+  resource_group_name        = azurerm_resource_group.main.name
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = var.key_vault_sku
+  soft_delete_retention_days = var.key_vault_soft_delete_retention_days
+  purge_protection_enabled   = var.key_vault_purge_protection_enabled
+  enable_telemetry           = false
+  tags                       = var.tags
+
+  # Allow Terraform SP to manage secrets
+  network_acls = null
+
+  role_assignments = {
+    deployer = {
+      role_definition_id_or_name = "Key Vault Administrator"
+      principal_id               = data.azurerm_client_config.current.object_id
+    }
+    container_app_secrets = {
+      role_definition_id_or_name       = "Key Vault Secrets User"
+      principal_id                     = module.container_apps.container_app_identities["app"].principal_id
+      skip_service_principal_aad_check = true
+    }
+  }
+
+  secrets = {
+    secret_key = {
+      name = "secret-key"
+    }
+  }
+
+  secrets_value = {
+    secret_key = var.secret_key
+  }
+
+  wait_for_rbac_before_secret_operations = {
+    create = "60s"
+  }
+}
+
+# ================================================================
 # Container Apps using Official Azure Module (Compose-style)
 # ================================================================
 
@@ -146,15 +246,13 @@ module "container_apps" {
         type = "SystemAssigned"
       }
 
-      # Container registry configuration
-      registry = var.container_registry_server != null ? [
+      # ACR with managed identity
+      registry = [
         {
-          server               = var.container_registry_server
-          identity             = var.use_managed_identity_for_registry ? "system" : null
-          username             = var.use_managed_identity_for_registry ? null : var.container_registry_username
-          password_secret_name = var.use_managed_identity_for_registry ? null : "registry-password"
+          server   = module.acr.resource.login_server
+          identity = "system"
         }
-      ] : null
+      ]
     }
   }
 
@@ -162,20 +260,12 @@ module "container_apps" {
   # Container App Secrets
   # ================================================================
   container_app_secrets = {
-    app = concat(
-      [
-        {
-          name  = "secret-key"
-          value = var.secret_key
-        }
-      ],
-      var.container_registry_password != null && !var.use_managed_identity_for_registry ? [
-        {
-          name  = "registry-password"
-          value = var.container_registry_password
-        }
-      ] : []
-    )
+    app = [
+      {
+        name  = "secret-key"
+        value = var.secret_key
+      }
+    ]
   }
 
   depends_on = [azurerm_resource_group.main]

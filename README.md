@@ -374,9 +374,9 @@ Set `SKIP_DB_MIGRATIONS=1` to bypass Alembic migrations in ephemeral environment
 
 Azure Container Apps provides a serverless container platform with automatic scaling, built-in HTTPS, and scale-to-zero capability.
 
-#### Architecture
+#### Container Apps Architecture
 
-```
+```text
 Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
                                               |
                                         [witness app]
@@ -477,7 +477,7 @@ Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
 
 Plan and apply is handled by the **La Forge** workflow (CLI-driven):
 
-```
+```text
 Push to deploy/terraform/**
     |
     |-- La Forge - Deploy (Data CI + Worf scans -> plan -> apply)
@@ -769,21 +769,12 @@ See [docs/deployment.md](docs/deployment.md) for detailed deployment guide.
 
 ## Documentation
 
-### Architecture
 - **[Project Overview](docs/overview.md)** - Project structure, data sources, application flow.
-
-### Deployment
 - **[Deployment Guide](docs/deployment.md)** - Container, Compose, Container Apps, systemd deployment.
-
-### Operations
 - **[Tooling & Workflows](docs/tooling.md)** - Testing, linting, pre-commit workflows.
 - **[Admin User Setup](docs/admin-setup.md)** - Admin authentication, user management.
 - **[Status Dashboard Setup Guide](docs/status-dashboard-setup.md)** - Prometheus, Grafana, public status page.
-
-### Features
 - **[Certification Management & SHA-256 Verification](docs/certification-management.md)** - SHA-256 verification, status/visibility controls.
-
-### Application Documentation
 - **[Test Suite Guide](tests/README.md)** - Test structure, coverage, writing tests.
 
 ## License

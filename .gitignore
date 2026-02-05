@@ -13,6 +13,7 @@ __pycache__/
 .env.*
 .precommit_logs/
 .pre-commit-cache/
+.pre-commit-trivy-cache/
 # OS
 .DS_Store
 Thumbs.db

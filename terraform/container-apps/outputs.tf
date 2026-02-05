@@ -57,3 +57,35 @@ output "subnet_id" {
   description = "Container Apps subnet ID (if VNet integration enabled)"
   value       = var.enable_vnet_integration ? azurerm_subnet.container_apps[0].id : null
 }
+
+# ACR outputs
+output "acr_id" {
+  description = "Azure Container Registry ID"
+  value       = module.acr.resource_id
+}
+
+output "acr_login_server" {
+  description = "Azure Container Registry login server"
+  value       = module.acr.resource.login_server
+}
+
+output "acr_name" {
+  description = "Azure Container Registry name"
+  value       = module.acr.name
+}
+
+# Key Vault outputs
+output "key_vault_id" {
+  description = "Azure Key Vault ID"
+  value       = module.key_vault.resource_id
+}
+
+output "key_vault_uri" {
+  description = "Azure Key Vault URI"
+  value       = module.key_vault.uri
+}
+
+output "key_vault_name" {
+  description = "Azure Key Vault name"
+  value       = module.key_vault.name
+}

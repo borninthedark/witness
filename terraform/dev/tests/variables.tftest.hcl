@@ -12,10 +12,14 @@ run "required_variables_set" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret-key"
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret-key"
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -42,11 +46,15 @@ run "container_cpu_valid" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    container_cpu       = "0.5"
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    container_cpu        = "0.5"
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -59,11 +67,15 @@ run "container_memory_format" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    container_memory    = "1Gi"
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    container_memory     = "1Gi"
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -80,11 +92,15 @@ run "min_replicas_at_least_one" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    min_replicas        = 1
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    min_replicas         = 1
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -97,12 +113,16 @@ run "max_replicas_greater_than_min" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    min_replicas        = 1
-    max_replicas        = 5
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    min_replicas         = 1
+    max_replicas         = 5
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -119,11 +139,15 @@ run "container_port_valid_range" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    container_port      = 8000
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    container_port       = 8000
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -140,10 +164,14 @@ run "environment_default_dev" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -160,11 +188,15 @@ run "revision_mode_valid" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    revision_mode       = "Single"
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    revision_mode        = "Single"
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {
@@ -181,11 +213,15 @@ run "log_retention_compliance" {
   command = plan
 
   variables {
-    resource_group_name = "test-rg"
-    app_name            = "test-app"
-    container_image     = "ghcr.io/test/app:latest"
-    secret_key          = "test-secret"
-    log_retention_days  = 30
+    resource_group_name  = "test-rg"
+    app_name             = "test-app"
+    container_image      = "testacr.azurecr.io/app:latest"
+    secret_key           = "test-secret"
+    log_retention_days   = 30
+    acr_name             = "testacr"
+    acr_task_context_url = "https://github.com/test/repo.git#main"
+    container_registry_password = "ghp_test"
+    key_vault_name       = "test-kv"
   }
 
   assert {

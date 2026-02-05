@@ -2,7 +2,7 @@
 # Riker - Release Pipeline
 # ================================================================
 # "Make it so" - Semantic versioning and release management
-# Pulls the dev image from GHCR (built by Picard), retags for release
+# Retags the dev image in ACR (built by Picard) for release
 # Uses conventional commits for version bumping:
 #   - feat: -> minor bump
 #   - fix: -> patch bump
@@ -37,7 +37,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write
 
 concurrency:
@@ -45,8 +44,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_REPO: ${{ github.repository }}
+  ACR_NAME: ${{ vars.ACR_NAME }}
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
@@ -116,7 +114,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Retag: Pull dev image from GHCR, push with release tags
+  # Retag: Import dev image with release tags within ACR
   # ══════════════════════════════════════════════════════════════════════════
   retag:
     name: Retag
@@ -127,26 +125,29 @@ jobs:
       digest: ${{ steps.digest.outputs.digest }}
 
     steps:
-      - name: Login to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ${{ env.REGISTRY }} \
-            --username ${{ github.actor }} \
-            --password-stdin
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Copy dev image to release tags
+      - name: Retag dev to release
         run: |
-          SRC="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:dev"
-          DST="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}"
-
-          skopeo copy "docker://${SRC}" "docker://${DST}:${{ needs.version.outputs.version }}"
-          skopeo copy "docker://${SRC}" "docker://${DST}:latest"
-          skopeo copy "docker://${SRC}" "docker://${DST}:prod"
+          az acr import --name ${{ env.ACR_NAME }} \
+            --source ${{ env.ACR_NAME }}.azurecr.io/witness:dev \
+            --image witness:${{ needs.version.outputs.version }} \
+            --image witness:latest \
+            --image witness:prod \
+            --force
 
       - name: Get digest
         id: digest
         run: |
-          DIGEST=$(skopeo inspect --format '{{.Digest}}' \
-            "docker://${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}")
+          DIGEST=$(az acr repository show \
+            --name ${{ env.ACR_NAME }} \
+            --image witness:${{ needs.version.outputs.version }} \
+            --query digest -o tsv)
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Retag Summary
@@ -171,23 +172,26 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.5.0
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Sign image
         run: |
-          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}@${{ needs.retag.outputs.digest }}"
+          cosign sign --yes "${{ env.ACR_NAME }}.azurecr.io/witness@${{ needs.retag.outputs.digest }}"
 
       - name: Verify signature
         run: |
           cosign verify \
             --certificate-identity-regexp='.*' \
             --certificate-oidc-issuer-regexp='.*' \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}@${{ needs.retag.outputs.digest }}"
+            "${{ env.ACR_NAME }}.azurecr.io/witness@${{ needs.retag.outputs.digest }}"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Release: Create GitHub Release
@@ -212,25 +216,28 @@ jobs:
           ## Container Image
 
           ```bash
+          # Login to ACR
+          az acr login --name ${{ env.ACR_NAME }}
+
           # Pull the release image
-          podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}
+          podman pull ${{ env.ACR_NAME }}.azurecr.io/witness:${{ needs.version.outputs.version }}
 
           # Or use the latest tag
-          podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:latest
+          podman pull ${{ env.ACR_NAME }}.azurecr.io/witness:latest
 
           # Verify image signature
           cosign verify \
             --certificate-identity-regexp='.*' \
             --certificate-oidc-issuer-regexp='.*' \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}
+            ${{ env.ACR_NAME }}.azurecr.io/witness:${{ needs.version.outputs.version }}
           ```
 
           ## Image Details
 
           | Property | Value |
           |----------|-------|
-          | Registry | `${{ env.REGISTRY }}` |
-          | Repository | `${{ env.IMAGE_REPO }}` |
+          | Registry | `${{ env.ACR_NAME }}.azurecr.io` |
+          | Repository | `witness` |
           | Version | `${{ needs.version.outputs.version }}` |
           | Digest | `${{ needs.retag.outputs.digest }}` |
           | Signed | Yes (Sigstore keyless OIDC) |
@@ -253,7 +260,7 @@ jobs:
             echo "## Release Published"
             echo ""
             echo "- **Version**: [\`${{ needs.version.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.version }})"
-            echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}\`"
+            echo "- **Image**: \`${{ env.ACR_NAME }}.azurecr.io/witness:${{ needs.version.outputs.version }}\`"
             echo "- **Signed**: Yes"
             echo ""
             echo "### Changelog"

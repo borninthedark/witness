@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     """Central configuration entrypoint for the FastAPI application."""
 

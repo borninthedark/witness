@@ -104,7 +104,7 @@ Azure Container Apps provides a serverless container platform with automatic sca
 
 ### Architecture
 
-```
+```text
 Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
                                               |
                                         [witness app]
@@ -212,7 +212,8 @@ Terraform configuration for Azure Container Apps lives in `deploy/terraform/cont
 GitHub Actions workflows use Star Trek TNG-themed names and run in sequence:
 
 **Application Pipeline:**
-```
+
+```text
 Data - CI (lint, test, validate)
 
 Picard - Build (build, scan, sign, push to GHCR)
@@ -221,7 +222,8 @@ Picard - Build (build, scan, sign, push to GHCR)
 ```
 
 **Infrastructure Pipeline (CLI-driven via La Forge):**
-```
+
+```text
 Push to deploy/terraform/** (or manual dispatch)
     |-> La Forge - Deploy (calls Data CI + Worf Security, then plan/apply)
         |-> terraform plan -var-file=<env>/terraform.tfvars

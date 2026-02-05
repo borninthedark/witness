@@ -18,7 +18,7 @@ variable "app_name" {
 }
 
 variable "container_image" {
-  description = "Container image to deploy (e.g., ghcr.io/org/app:latest)"
+  description = "Container image to deploy (e.g., myacr.azurecr.io/app:latest)"
   type        = string
 }
 
@@ -151,30 +151,66 @@ variable "container_apps_subnet_prefixes" {
 }
 
 # ================================================================
-# Container Registry
+# Azure Container Registry
 # ================================================================
 
-variable "container_registry_server" {
-  description = "Container registry server (e.g., ghcr.io)"
+variable "acr_name" {
+  description = "Globally unique name for the Azure Container Registry (alphanumeric only)"
   type        = string
-  default     = null
 }
 
-variable "container_registry_username" {
-  description = "Container registry username"
+variable "acr_sku" {
+  description = "SKU for the Azure Container Registry (Basic, Standard, Premium)"
   type        = string
-  default     = null
+  default     = "Basic"
+}
+
+variable "acr_admin_enabled" {
+  description = "Enable admin user for the ACR"
+  type        = bool
+  default     = false
+}
+
+variable "acr_task_context_url" {
+  description = "GitHub repo URL for ACR Task context (e.g., https://github.com/borninthedark/witness.git#main)"
+  type        = string
+}
+
+variable "acr_image_tag" {
+  description = "Default tag for ACR Task builds"
+  type        = string
+  default     = "dev"
 }
 
 variable "container_registry_password" {
-  description = "Container registry password"
+  description = "GitHub PAT for ACR Build Task to access the source repository"
   type        = string
-  default     = null
   sensitive   = true
 }
 
-variable "use_managed_identity_for_registry" {
-  description = "Use managed identity for registry authentication"
+# ================================================================
+# Azure Key Vault
+# ================================================================
+
+variable "key_vault_name" {
+  description = "Name of the Azure Key Vault"
+  type        = string
+}
+
+variable "key_vault_sku" {
+  description = "SKU for the Key Vault (standard or premium)"
+  type        = string
+  default     = "standard"
+}
+
+variable "key_vault_soft_delete_retention_days" {
+  description = "Number of days to retain soft-deleted items (7-90)"
+  type        = number
+  default     = 7
+}
+
+variable "key_vault_purge_protection_enabled" {
+  description = "Enable purge protection for the Key Vault"
   type        = bool
   default     = false
 }

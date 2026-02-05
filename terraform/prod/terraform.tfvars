@@ -4,7 +4,7 @@
 # HCP Terraform workspace: witness-prod
 # Sensitive vars set in HCP Terraform workspace variables:
 #   - secret_key
-#   - container_registry_password
+#   - container_registry_password (GitHub PAT for ACR Build Task)
 # ================================================================
 
 # Core
@@ -14,7 +14,7 @@ app_name            = "witness-prod"
 location            = "eastus"
 
 # Container
-container_image  = "ghcr.io/borninthedark/witness:latest"
+container_image  = "witnessprodacr.azurecr.io/witness:latest"
 container_port   = 8000
 container_cpu    = "0.5"
 container_memory = "1Gi"
@@ -35,9 +35,16 @@ internal_load_balancer_enabled = false
 vnet_address_space             = ["10.0.0.0/16"]
 container_apps_subnet_prefixes = ["10.0.0.0/23"]
 
-# Registry (using GHCR with token)
-container_registry_server         = "ghcr.io"
-use_managed_identity_for_registry = false
+# ACR
+acr_name             = "witnessprodacr"
+acr_sku              = "Standard"
+acr_task_context_url = "https://github.com/borninthedark/witness.git#main"
+acr_image_tag        = "latest"
+
+# Key Vault
+key_vault_name                       = "witness-prod-kv"
+key_vault_soft_delete_retention_days = 90
+key_vault_purge_protection_enabled   = true
 
 # Monitoring (longer retention for production)
 log_retention_days = 90
