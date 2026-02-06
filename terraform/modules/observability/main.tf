@@ -58,7 +58,7 @@ module "app_runner_latency_alarm" {
   metric_name = "RequestLatency"
   namespace   = "AWS/AppRunner"
   period      = 300
-  statistic   = "p99"
+  extended_statistic = "p99"
 
   dimensions = {
     ServiceName = "${var.project}-${var.environment}"
