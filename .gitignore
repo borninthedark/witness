@@ -89,3 +89,4 @@ data/
 .pylintrc
 .trivyignore
 .terraform
+terraform/bootstrap/*.tfstate*
