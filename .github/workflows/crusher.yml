@@ -120,7 +120,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Container Health: Check GHCR image status (Picard / Riker builds)
+  # Container Health: Check GHCR image status
   # ══════════════════════════════════════════════════════════════════════════
   container-health:
     name: Container Health
@@ -175,7 +175,6 @@ jobs:
                   });
                 }
               } catch (e) {
-                // Try user-owned package if org fails
                 try {
                   const versions = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
                     package_type: 'container',
@@ -269,19 +268,11 @@ jobs:
 
           echo "Checking health for $ENV environment: $URL"
 
-          # Check /healthz endpoint
           HEALTHZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${URL}/healthz" 2>/dev/null || echo "000")
-
-          # Check /readyz endpoint
           READYZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${URL}/readyz" 2>/dev/null || echo "000")
-
-          # Check main page
           MAIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${URL}/" 2>/dev/null || echo "000")
-
-          # Get response times
           HEALTHZ_TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 10 "${URL}/healthz" 2>/dev/null || echo "0")
 
-          # Determine overall health
           if [ "$HEALTHZ_STATUS" = "200" ] && [ "$READYZ_STATUS" = "200" ]; then
             STATUS="healthy"
           elif [ "$HEALTHZ_STATUS" = "200" ]; then
@@ -295,23 +286,6 @@ jobs:
           echo "readyz_code=${READYZ_STATUS}" >> "$GITHUB_OUTPUT"
           echo "main_code=${MAIN_STATUS}" >> "$GITHUB_OUTPUT"
           echo "response_time=${HEALTHZ_TIME}" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
-
-      - name: Get Application Metrics
-        id: metrics
-        if: steps.health.outputs.healthz_code == '200'
-        run: |
-          URL="${{ matrix.url }}"
-
-          # Try to get status JSON
-          STATUS_JSON=$(curl -s --max-time 10 "${URL}/status/json" 2>/dev/null || echo '{}')
-
-          if [ "$STATUS_JSON" != "{}" ]; then
-            echo "metrics_available=true" >> "$GITHUB_OUTPUT"
-            echo "metrics=${STATUS_JSON}" >> "$GITHUB_OUTPUT"
-          else
-            echo "metrics_available=false" >> "$GITHUB_OUTPUT"
-          fi
         continue-on-error: true
 
       - name: Application Summary
@@ -375,7 +349,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Crusher - Infrastructure Health (HCP Terraform)"
+            echo "## Crusher - Infrastructure Health (HCP Terraform / AWS)"
             echo ""
             echo "| Workspace | Last Run Status | Resources |"
             echo "|-----------|-----------------|-----------|"
@@ -409,7 +383,6 @@ jobs:
             echo "| App (prod) | ${{ needs.application-health.outputs.prod_status || 'skipped' }} |"
             echo ""
 
-            # Determine overall status
             PIPELINE="${{ needs.pipeline-health.outputs.status }}"
             CONTAINER="${{ needs.container-health.outputs.status }}"
             APP_PROD="${{ needs.application-health.outputs.prod_status }}"

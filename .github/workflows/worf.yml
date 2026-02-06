@@ -2,7 +2,8 @@
 # Worf - Terraform Security & Validation
 # ================================================================
 # "Today is a good day to scan" - Security scans and validation
-# Scans both dev and prod workspace roots + shared module
+# Scans both dev and prod workspace roots + shared modules
+# AWS Checkov checks + tfsec
 # ================================================================
 
 name: Worf - Security
@@ -68,7 +69,7 @@ jobs:
           output_format: cli,sarif
           output_file_path: console,checkov-${{ matrix.environment }}.sarif
           soft_fail: true
-          skip_check: CKV_AZURE_4,CKV_AZURE_7,CKV2_AZURE_1,CKV2_AZURE_18,CKV2_AZURE_33
+          skip_check: CKV_AWS_144,CKV_AWS_145,CKV2_AWS_62
         continue-on-error: true
 
       - name: Upload Checkov SARIF
@@ -77,6 +78,26 @@ jobs:
         with:
           sarif_file: checkov-${{ matrix.environment }}.sarif
           category: checkov-${{ matrix.environment }}
+        continue-on-error: true
+
+      - name: Install tfsec
+        run: |
+          curl -fsSL https://github.com/aquasecurity/tfsec/releases/latest/download/tfsec-linux-amd64 -o /usr/local/bin/tfsec
+          chmod +x /usr/local/bin/tfsec
+
+      - name: tfsec Scan
+        id: tfsec
+        run: |
+          cd "${{ github.workspace }}"
+          tfsec terraform/${{ matrix.environment }} --format sarif --out tfsec-${{ matrix.environment }}.sarif || true
+        continue-on-error: true
+
+      - name: Upload tfsec SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tfsec-${{ matrix.environment }}.sarif
+          category: tfsec-${{ matrix.environment }}
         continue-on-error: true
 
       - name: Trivy Config Scan
@@ -108,6 +129,7 @@ jobs:
             echo "| Validate | ${{ steps.validate.outcome == 'success' && 'OK' || 'FAIL' }} |"
             echo "| Format | ${{ steps.fmt.outcome == 'success' && 'OK' || 'WARN' }} |"
             echo "| Checkov | ${{ steps.checkov.outcome == 'success' && 'OK' || 'WARN' }} |"
+            echo "| tfsec | ${{ steps.tfsec.outcome == 'success' && 'OK' || 'WARN' }} |"
             echo ""
             echo "Security findings uploaded to GitHub Security tab."
           } >> "$GITHUB_STEP_SUMMARY"

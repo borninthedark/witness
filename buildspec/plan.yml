@@ -1,0 +1,40 @@
+version: 0.2
+
+# ================================================================
+# CodeBuild - Terraform Plan
+# Runs terraform plan for the target environment
+# ================================================================
+
+env:
+  variables:
+    TF_VERSION: "1.14.2"
+    ENVIRONMENT: "dev"
+
+phases:
+  install:
+    commands:
+      - echo "Installing Terraform ${TF_VERSION}"
+      - curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
+      - unzip -o terraform.zip -d /usr/local/bin/
+      - terraform --version
+
+  pre_build:
+    commands:
+      - echo "Terraform Init (${ENVIRONMENT})"
+      - cd "terraform/${ENVIRONMENT}"
+      - terraform init -backend=false
+
+  build:
+    commands:
+      - echo "Terraform Plan (${ENVIRONMENT})"
+      - terraform plan -no-color -out=tfplan
+      - terraform show -no-color tfplan > plan-output.txt
+
+  post_build:
+    commands:
+      - echo "Plan complete for ${ENVIRONMENT}"
+
+artifacts:
+  files:
+    - "terraform/${ENVIRONMENT}/tfplan"
+    - "terraform/${ENVIRONMENT}/plan-output.txt"

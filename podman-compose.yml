@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Containerfile
-    image: ${ACR_LOGIN_SERVER:-witnessdevacr.azurecr.io}/witness:${TAG:-latest}
+    image: ${ECR_REGISTRY:-witness-dev}/witness:${TAG:-latest}
     security_opt:
       - no-new-privileges:true
 

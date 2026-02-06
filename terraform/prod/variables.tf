@@ -1,44 +1,71 @@
 # ================================================================
-# Container Apps Variables (pass-through to module)
+# Production Environment Variables
 # ================================================================
 
-variable "resource_group_name" {
-  description = "Name of the Azure resource group"
-  type        = string
-}
+# ================================================================
+# Project
+# ================================================================
 
-variable "app_name" {
-  description = "Name of the Container App"
+variable "project" {
+  description = "Project name"
   type        = string
-}
-
-variable "container_image" {
-  description = "Container image to deploy (e.g., myacr.azurecr.io/app:latest)"
-  type        = string
-}
-
-variable "secret_key" {
-  description = "Application secret key"
-  type        = string
-  sensitive   = true
-}
-
-variable "location" {
-  description = "Azure region for deployment"
-  type        = string
-  default     = "eastus"
+  default     = "witness"
 }
 
 variable "environment" {
-  description = "Environment name (dev, staging, production)"
+  description = "Environment name"
   type        = string
-  default     = "dev"
+  default     = "prod"
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "tags" {
-  description = "Resource tags"
+  description = "Additional resource tags"
   type        = map(string)
   default     = {}
+}
+
+# ================================================================
+# Networking
+# ================================================================
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "azs" {
+  description = "Availability zones"
+  type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
+}
+
+variable "private_subnets" {
+  description = "Private subnet CIDRs"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+variable "public_subnets" {
+  description = "Public subnet CIDRs"
+  type        = list(string)
+  default     = ["10.0.101.0/24", "10.0.102.0/24"]
+}
+
+# ================================================================
+# App Runner
+# ================================================================
+
+variable "image_tag" {
+  description = "Container image tag"
+  type        = string
+  default     = "latest"
 }
 
 variable "container_port" {
@@ -47,22 +74,16 @@ variable "container_port" {
   default     = 8000
 }
 
-variable "container_cpu" {
-  description = "CPU allocation (e.g., '0.5')"
-  type        = string
-  default     = "0.5"
-}
-
-variable "container_memory" {
-  description = "Memory allocation (e.g., '1Gi')"
-  type        = string
-  default     = "1Gi"
-}
-
 variable "log_level" {
   description = "Application log level"
   type        = string
   default     = "INFO"
+}
+
+variable "secret_key" {
+  description = "Application secret key"
+  type        = string
+  sensitive   = true
 }
 
 variable "database_url" {
@@ -71,127 +92,70 @@ variable "database_url" {
   default     = "sqlite:////app/data/fitness.db"
 }
 
-variable "min_replicas" {
-  description = "Minimum replicas"
-  type        = number
-  default     = 1
-}
-
-variable "max_replicas" {
-  description = "Maximum replicas"
-  type        = number
-  default     = 3
-}
-
-variable "revision_mode" {
-  description = "Revision mode (Single or Multiple)"
+variable "instance_cpu" {
+  description = "App Runner instance CPU"
   type        = string
-  default     = "Single"
+  default     = "1024"
 }
 
-variable "revision_suffix" {
-  description = "Revision suffix (optional)"
+variable "instance_memory" {
+  description = "App Runner instance memory"
   type        = string
-  default     = null
+  default     = "2048"
 }
 
-variable "ingress_external_enabled" {
-  description = "Allow external access"
-  type        = bool
-  default     = true
-}
-
-variable "enable_vnet_integration" {
-  description = "Enable VNet integration"
+variable "auto_deploy" {
+  description = "Auto deploy on ECR push"
   type        = bool
   default     = false
 }
 
-variable "internal_load_balancer_enabled" {
-  description = "Use internal load balancer"
-  type        = bool
-  default     = false
+variable "min_size" {
+  description = "Minimum instances"
+  type        = number
+  default     = 2
 }
 
-variable "vnet_address_space" {
-  description = "VNet address space"
-  type        = list(string)
-  default     = ["10.0.0.0/16"]
+variable "max_size" {
+  description = "Maximum instances"
+  type        = number
+  default     = 5
 }
 
-variable "container_apps_subnet_prefixes" {
-  description = "Subnet prefixes for Container Apps"
-  type        = list(string)
-  default     = ["10.0.0.0/23"]
+variable "max_concurrency" {
+  description = "Max concurrent requests per instance"
+  type        = number
+  default     = 100
 }
+
+# ================================================================
+# Observability
+# ================================================================
 
 variable "log_retention_days" {
-  description = "Log Analytics retention in days"
+  description = "Log retention in days"
   type        = number
-  default     = 30
+  default     = 90
 }
 
 # ================================================================
-# Azure Container Registry
+# CodePipeline (optional)
 # ================================================================
 
-variable "acr_name" {
-  description = "Globally unique name for the Azure Container Registry (alphanumeric only)"
-  type        = string
-}
-
-variable "acr_sku" {
-  description = "SKU for the Azure Container Registry (Basic, Standard, Premium)"
-  type        = string
-  default     = "Basic"
-}
-
-variable "acr_admin_enabled" {
-  description = "Enable admin user for the ACR"
+variable "enable_codepipeline" {
+  description = "Enable CodePipeline for TF validation"
   type        = bool
   default     = false
 }
 
-variable "acr_task_context_url" {
-  description = "GitHub repo URL for ACR Task context (e.g., https://github.com/borninthedark/witness.git#main)"
+variable "repository_id" {
+  description = "GitHub repository (owner/repo)"
   type        = string
+  default     = ""
 }
 
-variable "acr_image_tag" {
-  description = "Default tag for ACR Task builds"
+variable "codestar_connection_arn" {
+  description = "CodeStar connection ARN"
   type        = string
-  default     = "dev"
-}
-
-variable "container_registry_password" {
-  description = "GitHub PAT for ACR Build Task to access the source repository"
-  type        = string
-  sensitive   = true
-}
-
-# ================================================================
-# Azure Key Vault
-# ================================================================
-
-variable "key_vault_name" {
-  description = "Name of the Azure Key Vault"
-  type        = string
-}
-
-variable "key_vault_sku" {
-  description = "SKU for the Key Vault (standard or premium)"
-  type        = string
-  default     = "standard"
-}
-
-variable "key_vault_soft_delete_retention_days" {
-  description = "Number of days to retain soft-deleted items (7-90)"
-  type        = number
-  default     = 7
-}
-
-variable "key_vault_purge_protection_enabled" {
-  description = "Enable purge protection for the Key Vault"
-  type        = bool
-  default     = false
+  default     = ""
 }

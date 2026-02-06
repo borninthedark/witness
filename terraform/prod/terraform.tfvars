@@ -1,59 +1,39 @@
 # ================================================================
-# Production Environment - Container Apps
+# Production Environment Values
 # ================================================================
 # HCP Terraform workspace: witness-prod
 # Sensitive vars set in HCP Terraform workspace variables:
 #   - secret_key
-#   - container_registry_password (GitHub PAT for ACR Build Task)
 # ================================================================
 
-# Core
-environment         = "production"
-resource_group_name = "witness-prod-rg"
-app_name            = "witness-prod"
-location            = "eastus"
+project     = "witness"
+environment = "prod"
+aws_region  = "us-east-1"
 
-# Container
-container_image  = "witnessprodacr.azurecr.io/witness:latest"
-container_port   = 8000
-container_cpu    = "0.5"
-container_memory = "1Gi"
-log_level        = "INFO"
-database_url     = "sqlite:////app/data/fitness.db"
+# Networking
+vpc_cidr        = "10.0.0.0/16"
+azs             = ["us-east-1a", "us-east-1b"]
+private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
+public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
 
-# Scaling (always-on for production)
-min_replicas  = 1
-max_replicas  = 5
-revision_mode = "Multiple" # Blue-green deployments
+# App Runner
+image_tag       = "latest"
+container_port  = 8000
+log_level       = "INFO"
+instance_cpu    = "1024"
+instance_memory = "2048"
+auto_deploy     = false
+min_size        = 2
+max_size        = 5
+max_concurrency = 100
 
-# Ingress
-ingress_external_enabled = true
-
-# Networking (VNet for production security)
-enable_vnet_integration        = true
-internal_load_balancer_enabled = false
-vnet_address_space             = ["10.0.0.0/16"]
-container_apps_subnet_prefixes = ["10.0.0.0/23"]
-
-# ACR
-acr_name             = "witnessprodacr"
-acr_sku              = "Standard"
-acr_task_context_url = "https://github.com/borninthedark/witness.git#main"
-acr_image_tag        = "latest"
-
-# Key Vault
-key_vault_name                       = "witness-prod-kv"
-key_vault_soft_delete_retention_days = 90
-key_vault_purge_protection_enabled   = true
-
-# Monitoring (longer retention for production)
+# Observability (longer retention for production)
 log_retention_days = 90
 
-# Tags
+# CodePipeline (disabled - HCP Terraform VCS handles this)
+enable_codepipeline = false
+
 tags = {
-  Environment = "production"
-  Project     = "witness"
-  ManagedBy   = "terraform"
   CostCenter  = "production"
   Criticality = "high"
 }

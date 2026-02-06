@@ -1,7 +1,7 @@
 # ================================================================
 # Tasha - Terraform Destroy
 # ================================================================
-# "Skin of evil" - Destroys infrastructure via HCP Terraform API
+# "Skin of evil" - Destroys AWS infrastructure via HCP Terraform API
 # Auto-rollback: polls for failed applies and destroys on failure
 # Manual trigger requires typing "DESTROY" to confirm
 # ================================================================

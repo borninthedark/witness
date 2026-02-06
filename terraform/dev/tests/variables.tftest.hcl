@@ -1,5 +1,5 @@
 # ================================================================
-# Container Apps Variable Validation Tests
+# AWS App Runner Variable Validation Tests
 # Tests input variable constraints and defaults
 # Run from terraform/dev: terraform test
 # ================================================================
@@ -12,75 +12,54 @@ run "required_variables_set" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret-key"
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key = "test-secret-key-12345"
   }
 
   assert {
-    condition     = var.resource_group_name != ""
-    error_message = "Resource group name must be provided"
+    condition     = var.project != ""
+    error_message = "Project name must be provided"
   }
 
   assert {
-    condition     = var.app_name != ""
-    error_message = "App name must be provided"
+    condition     = var.environment != ""
+    error_message = "Environment must be provided"
   }
 
   assert {
-    condition     = var.container_image != ""
-    error_message = "Container image must be provided"
+    condition     = var.aws_region != ""
+    error_message = "AWS region must be provided"
   }
 }
 
 # ──────────────────────────────────────────────────────────────────
-# Test: Container resource limits
+# Test: App Runner instance configuration
 # ──────────────────────────────────────────────────────────────────
 
-run "container_cpu_valid" {
+run "instance_cpu_valid" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    container_cpu        = "0.5"
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key   = "test-secret"
+    instance_cpu = "512"
   }
 
   assert {
-    condition     = can(tonumber(var.container_cpu))
-    error_message = "Container CPU must be a valid number string"
+    condition     = contains(["256", "512", "1024", "2048", "4096"], var.instance_cpu)
+    error_message = "Instance CPU must be a valid App Runner CPU value"
   }
 }
 
-run "container_memory_format" {
+run "instance_memory_valid" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    container_memory     = "1Gi"
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key      = "test-secret"
+    instance_memory = "1024"
   }
 
   assert {
-    condition     = can(regex("^[0-9]+(\\.?[0-9]*)(Gi|Mi)$", var.container_memory))
-    error_message = "Container memory must be in format like '1Gi' or '512Mi'"
+    condition     = can(tonumber(var.instance_memory))
+    error_message = "Instance memory must be a valid number string"
   }
 }
 
@@ -88,46 +67,32 @@ run "container_memory_format" {
 # Test: Scaling configuration
 # ──────────────────────────────────────────────────────────────────
 
-run "min_replicas_at_least_one" {
+run "min_size_at_least_one" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    min_replicas         = 1
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key = "test-secret"
+    min_size   = 1
   }
 
   assert {
-    condition     = var.min_replicas >= 0
-    error_message = "Min replicas should be non-negative"
+    condition     = var.min_size >= 1
+    error_message = "Min size should be at least 1 for App Runner"
   }
 }
 
-run "max_replicas_greater_than_min" {
+run "max_size_greater_than_min" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    min_replicas         = 1
-    max_replicas         = 5
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key = "test-secret"
+    min_size   = 1
+    max_size   = 5
   }
 
   assert {
-    condition     = var.max_replicas >= var.min_replicas
-    error_message = "Max replicas should be greater than or equal to min replicas"
+    condition     = var.max_size >= var.min_size
+    error_message = "Max size should be greater than or equal to min size"
   }
 }
 
@@ -139,15 +104,8 @@ run "container_port_valid_range" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    container_port       = 8000
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key     = "test-secret"
+    container_port = 8000
   }
 
   assert {
@@ -164,14 +122,7 @@ run "environment_default_dev" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key = "test-secret"
   }
 
   assert {
@@ -180,28 +131,16 @@ run "environment_default_dev" {
   }
 }
 
-# ──────────────────────────────────────────────────────────────────
-# Test: Revision mode
-# ──────────────────────────────────────────────────────────────────
-
-run "revision_mode_valid" {
+run "aws_region_default" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    revision_mode        = "Single"
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key = "test-secret"
   }
 
   assert {
-    condition     = contains(["Single", "Multiple"], var.revision_mode)
-    error_message = "Revision mode must be 'Single' or 'Multiple'"
+    condition     = var.aws_region == "us-east-1"
+    error_message = "Default AWS region should be 'us-east-1'"
   }
 }
 
@@ -213,19 +152,30 @@ run "log_retention_compliance" {
   command = plan
 
   variables {
-    resource_group_name  = "test-rg"
-    app_name             = "test-app"
-    container_image      = "testacr.azurecr.io/app:latest"
-    secret_key           = "test-secret"
-    log_retention_days   = 30
-    acr_name             = "testacr"
-    acr_task_context_url = "https://github.com/test/repo.git#main"
-    container_registry_password = "ghp_test"
-    key_vault_name       = "test-kv"
+    secret_key         = "test-secret"
+    log_retention_days = 30
   }
 
   assert {
     condition     = var.log_retention_days >= 30
     error_message = "Log retention should be at least 30 days for compliance"
+  }
+}
+
+# ──────────────────────────────────────────────────────────────────
+# Test: Max concurrency
+# ──────────────────────────────────────────────────────────────────
+
+run "max_concurrency_valid" {
+  command = plan
+
+  variables {
+    secret_key      = "test-secret"
+    max_concurrency = 100
+  }
+
+  assert {
+    condition     = var.max_concurrency >= 1 && var.max_concurrency <= 200
+    error_message = "Max concurrency should be between 1 and 200"
   }
 }

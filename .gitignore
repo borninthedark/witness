@@ -51,6 +51,9 @@ deploy/jsonnet/params.sh
 # Generated documentation (keep source docs)
 # /docs/
 
+# Archived Azure docs (pre-migration)
+docs/azure-archive/
+
 # Deployment scripts
 setup-env.sh
 deploy.sh
