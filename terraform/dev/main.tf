@@ -83,6 +83,8 @@ module "app_runner" {
   log_level      = var.log_level
   secret_key     = var.secret_key
   database_url   = var.database_url
+  admin_username = var.admin_username
+  admin_password = var.admin_password
 
   instance_cpu    = var.instance_cpu
   instance_memory = var.instance_memory

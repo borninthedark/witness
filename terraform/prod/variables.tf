@@ -92,6 +92,18 @@ variable "database_url" {
   default     = "sqlite:////app/data/fitness.db"
 }
 
+variable "admin_username" {
+  description = "Admin console username"
+  type        = string
+  default     = "admin"
+}
+
+variable "admin_password" {
+  description = "Admin console password"
+  type        = string
+  sensitive   = true
+}
+
 variable "instance_cpu" {
   description = "App Runner instance CPU"
   type        = string

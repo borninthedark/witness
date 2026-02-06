@@ -216,6 +216,8 @@ module "app_runner" {
           PYTHONUNBUFFERED = "1"
           DATABASE_URL     = var.database_url
           SECRET_KEY       = var.secret_key
+          ADMIN_USERNAME   = var.admin_username
+          ADMIN_PASSWORD   = var.admin_password
         }
       }
     }
