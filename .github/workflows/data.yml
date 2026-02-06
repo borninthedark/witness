@@ -60,12 +60,12 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip install -r requirements.txt
 
       - name: Ruff lint & format
         run: |
-          uv run ruff check . || echo "::warning::Ruff found issues"
-          uv run ruff format --check . || echo "::warning::Formatting issues"
+          ruff check . || echo "::warning::Ruff found issues"
+          ruff format --check . || echo "::warning::Formatting issues"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Test
@@ -83,13 +83,13 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip install -r requirements.txt
 
       - name: Run tests
         env:
           DATABASE_URL: sqlite:////tmp/test.db
           PYTHONPATH: ${{ github.workspace }}
-        run: uv run pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
+        run: pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

@@ -90,3 +90,5 @@ data/
 .trivyignore
 .terraform
 terraform/bootstrap/*.tfstate*
+terraform/bootstrap/bootstrap.tfvars
+docs/private/

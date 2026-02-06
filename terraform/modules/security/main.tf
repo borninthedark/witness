@@ -165,6 +165,25 @@ data "aws_iam_policy_document" "cloudtrail_bucket" {
       values   = [data.aws_caller_identity.current.account_id]
     }
   }
+
+  statement {
+    sid    = "DenyObjectDeletion"
+    effect = "Deny"
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    actions = [
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion"
+    ]
+    resources = ["arn:aws:s3:::${var.project}-${var.environment}-cloudtrail-${data.aws_caller_identity.current.account_id}/*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:PrincipalAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
 }
 
 # ================================================================
@@ -316,4 +335,139 @@ resource "aws_iam_role_policy" "config_s3" {
       }
     ]
   })
+}
+
+# ================================================================
+# Config Managed Rules
+# ================================================================
+
+resource "aws_config_config_rule" "encrypted_volumes" {
+  count = var.enable_config ? 1 : 0
+
+  name = "${var.project}-${var.environment}-encrypted-volumes"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "ENCRYPTED_VOLUMES"
+  }
+
+  depends_on = [aws_config_configuration_recorder.main]
+}
+
+resource "aws_config_config_rule" "s3_bucket_ssl" {
+  count = var.enable_config ? 1 : 0
+
+  name = "${var.project}-${var.environment}-s3-bucket-ssl"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "S3_BUCKET_SSL_REQUESTS_ONLY"
+  }
+
+  depends_on = [aws_config_configuration_recorder.main]
+}
+
+resource "aws_config_config_rule" "iam_no_inline_policy" {
+  count = var.enable_config ? 1 : 0
+
+  name = "${var.project}-${var.environment}-iam-no-inline"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "IAM_NO_INLINE_POLICY_CHECK"
+  }
+
+  depends_on = [aws_config_configuration_recorder.main]
+}
+
+resource "aws_config_config_rule" "cloudtrail_enabled" {
+  count = var.enable_config ? 1 : 0
+
+  name = "${var.project}-${var.environment}-cloudtrail-enabled"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "CLOUD_TRAIL_ENABLED"
+  }
+
+  depends_on = [aws_config_configuration_recorder.main]
+}
+
+# ================================================================
+# GuardDuty
+# ================================================================
+
+resource "aws_guardduty_detector" "main" {
+  count = var.enable_guardduty ? 1 : 0
+
+  enable = true
+
+  datasources {
+    s3_logs {
+      enable = true
+    }
+  }
+
+  tags = var.tags
+}
+
+# ================================================================
+# Security Hub
+# ================================================================
+
+resource "aws_securityhub_account" "main" {
+  count = var.enable_security_hub ? 1 : 0
+
+  enable_default_standards  = true
+  control_finding_generator = "SECURITY_CONTROL"
+  auto_enable_controls      = true
+}
+
+# ================================================================
+# SNS Topic for Alarm Notifications
+# ================================================================
+
+resource "aws_sns_topic" "alarms" {
+  name              = "${var.project}-${var.environment}-alarms"
+  kms_master_key_id = module.kms.key_id
+
+  tags = var.tags
+}
+
+resource "aws_sns_topic_subscription" "alarm_email" {
+  count = var.alarm_email != null ? 1 : 0
+
+  topic_arn = aws_sns_topic.alarms.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
+# ================================================================
+# Budget Alert
+# ================================================================
+
+resource "aws_budgets_budget" "monthly" {
+  count = var.monthly_budget_limit > 0 ? 1 : 0
+
+  name         = "${var.project}-${var.environment}-monthly"
+  budget_type  = "COST"
+  limit_amount = tostring(var.monthly_budget_limit)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  notification {
+    comparison_operator       = "GREATER_THAN"
+    threshold                 = 80
+    threshold_type            = "PERCENTAGE"
+    notification_type         = "ACTUAL"
+    subscriber_sns_topic_arns = [aws_sns_topic.alarms.arn]
+  }
+
+  notification {
+    comparison_operator       = "GREATER_THAN"
+    threshold                 = 100
+    threshold_type            = "PERCENTAGE"
+    notification_type         = "ACTUAL"
+    subscriber_sns_topic_arns = [aws_sns_topic.alarms.arn]
+  }
 }

@@ -1,0 +1,29 @@
+# ================================================================
+# Bootstrap Variables
+# ================================================================
+# Copy this file and fill in your values:
+#
+#   cp bootstrap.tfvars.example bootstrap.tfvars
+#   terraform apply -var-file="bootstrap.tfvars"
+#
+# IMPORTANT: bootstrap.tfvars contains sensitive contact info and
+# is git-ignored. Never commit it.
+# ================================================================
+
+# Domain registration contact (all three contacts use the same info)
+contact_first_name     = ""
+contact_last_name      = ""
+contact_email          = ""              # WHOIS privacy enabled
+contact_phone          = "+1.5551234567" # E.164 format: +<country>.<number>
+contact_address_line_1 = ""
+contact_city           = ""
+contact_state          = ""
+contact_zip_code       = ""
+contact_country_code   = "US"
+
+# Uncomment to override defaults:
+# domain_name          = "princetonstrong.com"
+# project              = "witness"
+# aws_region           = "us-east-1"
+# tfc_organization     = "DefiantEmissary"
+# tfc_workspace_names  = ["witness-dev", "witness-prod"]

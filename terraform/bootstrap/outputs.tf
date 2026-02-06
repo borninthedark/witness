@@ -21,20 +21,20 @@ output "workspace_env_vars" {
 }
 
 # ================================================================
-# Route 53
+# Route 53 Domain
 # ================================================================
 
 output "hosted_zone_id" {
-  description = "Route 53 hosted zone ID"
-  value       = aws_route53_zone.main.zone_id
-}
-
-output "name_servers" {
-  description = "Route 53 name servers — set these as custom NS records at Namecheap"
-  value       = aws_route53_zone.main.name_servers
+  description = "Route 53 hosted zone ID (auto-created by domain registration)"
+  value       = aws_route53domains_domain.main.hosted_zone_id
 }
 
 output "domain_name" {
-  description = "Root domain name"
-  value       = aws_route53_zone.main.name
+  description = "Registered domain name"
+  value       = aws_route53domains_domain.main.domain_name
+}
+
+output "domain_expiration" {
+  description = "Domain expiration date"
+  value       = aws_route53domains_domain.main.expiration_date
 }

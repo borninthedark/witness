@@ -8,10 +8,6 @@
 #   3. Route 53 CNAME record for traffic routing
 # ================================================================
 
-data "aws_route53_zone" "main" {
-  name = var.domain_name
-}
-
 # ================================================================
 # App Runner Custom Domain Association
 # ================================================================
@@ -32,7 +28,7 @@ resource "aws_apprunner_custom_domain_association" "this" {
 resource "aws_route53_record" "validation" {
   count = 3
 
-  zone_id = data.aws_route53_zone.main.zone_id
+  zone_id = var.hosted_zone_id
   name    = tolist(aws_apprunner_custom_domain_association.this.certificate_validation_records)[count.index].name
   type    = tolist(aws_apprunner_custom_domain_association.this.certificate_validation_records)[count.index].type
   ttl     = 300
@@ -44,7 +40,7 @@ resource "aws_route53_record" "validation" {
 # ================================================================
 
 resource "aws_route53_record" "app" {
-  zone_id = data.aws_route53_zone.main.zone_id
+  zone_id = var.hosted_zone_id
   name    = "${var.subdomain}.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300

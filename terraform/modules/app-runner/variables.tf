@@ -124,6 +124,22 @@ variable "private_subnet_ids" {
 }
 
 # ================================================================
+# WAF / Observability
+# ================================================================
+
+variable "enable_waf" {
+  description = "Enable WAFv2 web ACL with managed rule groups"
+  type        = bool
+  default     = true
+}
+
+variable "enable_xray" {
+  description = "Enable X-Ray tracing"
+  type        = bool
+  default     = true
+}
+
+# ================================================================
 # Tags
 # ================================================================
 

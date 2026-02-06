@@ -36,11 +36,15 @@ provider "aws" {
 module "security" {
   source = "../modules/security"
 
-  project             = var.project
-  environment         = var.environment
-  kms_deletion_window = 30
-  log_retention_days  = var.log_retention_days
-  enable_config       = true
+  project              = var.project
+  environment          = var.environment
+  kms_deletion_window  = 30
+  log_retention_days   = var.log_retention_days
+  enable_config        = true
+  enable_guardduty     = true
+  enable_security_hub  = true
+  alarm_email          = var.alarm_email
+  monthly_budget_limit = var.monthly_budget_limit
 
   tags = var.tags
 }
@@ -61,8 +65,9 @@ module "networking" {
   public_subnets     = var.public_subnets
   single_nat_gateway = false
 
-  flow_log_retention_days = var.log_retention_days
-  kms_key_arn             = module.security.kms_key_arn
+  flow_log_retention_days    = var.log_retention_days
+  kms_key_arn                = module.security.kms_key_arn
+  enable_interface_endpoints = true
 
   tags = var.tags
 }
@@ -97,6 +102,9 @@ module "app_runner" {
   vpc_id             = module.networking.vpc_id
   private_subnet_ids = module.networking.private_subnet_ids
 
+  enable_waf  = true
+  enable_xray = true
+
   tags = var.tags
 }
 
@@ -109,6 +117,7 @@ module "dns" {
 
   domain_name            = var.domain_name
   subdomain              = "staging"
+  hosted_zone_id         = var.hosted_zone_id
   app_runner_service_arn = module.app_runner.service_arn
 }
 
@@ -127,6 +136,7 @@ module "observability" {
   log_retention_days   = var.log_retention_days
   error_threshold      = 5
   latency_threshold_ms = 3000
+  alarm_sns_topic_arn  = module.security.sns_topic_arn
 
   tags = var.tags
 }

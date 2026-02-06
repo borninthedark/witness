@@ -9,8 +9,13 @@
 name: Tasha - Destroy
 
 on:
+  workflow_run:
+    workflows: ['La Forge - Deploy']
+    types: [completed]
+    branches: [main]
+
   schedule:
-    - cron: '*/15 * * * *'  # Every 15 minutes: check for failed applies
+    - cron: '*/15 * * * *'  # Fallback: check for failed applies
 
   workflow_dispatch:
     inputs:
@@ -65,7 +70,7 @@ jobs:
               echo "Confirmation failed. You must type 'DESTROY' exactly."
               exit 1
             fi
-          elif [ "${{ github.event_name }}" = "schedule" ]; then
+          elif [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_run" ]; then
             # Auto-rollback: check dev workspace for failed applies
             WS="witness-dev"
             RESPONSE=$(curl -s \

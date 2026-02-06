@@ -37,7 +37,12 @@ variable "tags" {
 variable "domain_name" {
   description = "Root domain name for custom domain"
   type        = string
-  default     = "princetonstrong.online"
+  default     = "princetonstrong.com"
+}
+
+variable "hosted_zone_id" {
+  description = "Route 53 hosted zone ID (from bootstrap domain registration)"
+  type        = string
 }
 
 # ================================================================
@@ -146,6 +151,22 @@ variable "max_size" {
 
 variable "max_concurrency" {
   description = "Max concurrent requests per instance"
+  type        = number
+  default     = 100
+}
+
+# ================================================================
+# Notifications / Budget
+# ================================================================
+
+variable "alarm_email" {
+  description = "Email for alarm notifications"
+  type        = string
+  default     = null
+}
+
+variable "monthly_budget_limit" {
+  description = "Monthly budget limit in USD (0 to disable)"
   type        = number
   default     = 100
 }

@@ -240,6 +240,11 @@ module "app_runner" {
 
   auto_scaling_configuration_arn = aws_apprunner_auto_scaling_configuration_version.main.arn
 
+  observability_configuration = var.enable_xray ? {
+    observability_configuration_arn = aws_apprunner_observability_configuration.main[0].arn
+    observability_enabled           = true
+  } : null
+
   network_configuration = {
     egress_configuration = length(var.private_subnet_ids) > 0 ? {
       egress_type       = "VPC"
@@ -266,4 +271,116 @@ resource "aws_apprunner_auto_scaling_configuration_version" "main" {
   min_size        = var.min_size
 
   tags = var.tags
+}
+
+# ================================================================
+# X-Ray Observability
+# ================================================================
+
+resource "aws_apprunner_observability_configuration" "main" {
+  count = var.enable_xray ? 1 : 0
+
+  observability_configuration_name = "${var.project}-${var.environment}"
+
+  trace_configuration {
+    vendor = "AWSXRAY"
+  }
+
+  tags = var.tags
+}
+
+# ================================================================
+# WAFv2 Web ACL
+# ================================================================
+
+resource "aws_wafv2_web_acl" "main" {
+  count = var.enable_waf ? 1 : 0
+
+  name  = "${var.project}-${var.environment}-waf"
+  scope = "REGIONAL"
+
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "aws-common-rules"
+    priority = 1
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-${var.environment}-common-rules"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "aws-known-bad-inputs"
+    priority = 2
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-${var.environment}-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "aws-sqli"
+    priority = 3
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesSQLiRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-${var.environment}-sqli"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.project}-${var.environment}-waf"
+    sampled_requests_enabled   = true
+  }
+
+  tags = var.tags
+}
+
+resource "aws_wafv2_web_acl_association" "main" {
+  count = var.enable_waf ? 1 : 0
+
+  resource_arn = module.app_runner.service_arn
+  web_acl_arn  = aws_wafv2_web_acl.main[0].arn
 }

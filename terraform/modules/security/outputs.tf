@@ -36,3 +36,13 @@ output "cloudtrail_log_group_name" {
   description = "CloudTrail CloudWatch log group name"
   value       = aws_cloudwatch_log_group.cloudtrail.name
 }
+
+output "sns_topic_arn" {
+  description = "SNS topic ARN for alarm notifications"
+  value       = aws_sns_topic.alarms.arn
+}
+
+output "guardduty_detector_id" {
+  description = "GuardDuty detector ID"
+  value       = var.enable_guardduty ? aws_guardduty_detector.main[0].id : null
+}

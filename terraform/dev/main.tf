@@ -41,6 +41,9 @@ module "security" {
   kms_deletion_window = 7
   log_retention_days  = var.log_retention_days
   enable_config       = false
+  enable_guardduty    = true
+  enable_security_hub = false
+  alarm_email         = var.alarm_email
 
   tags = var.tags
 }
@@ -61,8 +64,9 @@ module "networking" {
   public_subnets     = var.public_subnets
   single_nat_gateway = true
 
-  flow_log_retention_days = var.log_retention_days
-  kms_key_arn             = module.security.kms_key_arn
+  flow_log_retention_days    = var.log_retention_days
+  kms_key_arn                = module.security.kms_key_arn
+  enable_interface_endpoints = false
 
   tags = var.tags
 }
@@ -97,6 +101,9 @@ module "app_runner" {
   vpc_id             = module.networking.vpc_id
   private_subnet_ids = module.networking.private_subnet_ids
 
+  enable_waf  = true
+  enable_xray = true
+
   tags = var.tags
 }
 
@@ -109,6 +116,7 @@ module "dns" {
 
   domain_name            = var.domain_name
   subdomain              = "engage"
+  hosted_zone_id         = var.hosted_zone_id
   app_runner_service_arn = module.app_runner.service_arn
 }
 
@@ -127,6 +135,7 @@ module "observability" {
   log_retention_days   = var.log_retention_days
   error_threshold      = 10
   latency_threshold_ms = 5000
+  alarm_sns_topic_arn  = module.security.sns_topic_arn
 
   tags = var.tags
 }

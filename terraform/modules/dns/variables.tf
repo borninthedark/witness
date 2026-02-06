@@ -3,12 +3,17 @@
 # ================================================================
 
 variable "domain_name" {
-  description = "Root domain name (must match the Route 53 hosted zone)"
+  description = "Root domain name (must match the registered domain)"
   type        = string
 }
 
 variable "subdomain" {
-  description = "Subdomain prefix (e.g. 'engage' for engage.princetonstrong.online)"
+  description = "Subdomain prefix (e.g. 'engage' for engage.princetonstrong.com)"
+  type        = string
+}
+
+variable "hosted_zone_id" {
+  description = "Route 53 hosted zone ID for the domain"
   type        = string
 }
 

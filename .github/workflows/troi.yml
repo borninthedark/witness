@@ -56,20 +56,20 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip install -r requirements.txt
 
       - name: Run tests with coverage
         env:
           DATABASE_URL: sqlite:////tmp/test.db
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          uv run pytest --cov=fitness --cov-report=json --cov-report=term -q || true
+          pytest --cov=fitness --cov-report=json --cov-report=term -q || true
 
       - name: Extract coverage percentage
         id: coverage
         run: |
           if [ -f coverage.json ]; then
-            COVERAGE=$(uv run python -c "import json; print(f\"{json.load(open('coverage.json'))['totals']['percent_covered']:.2f}\")")
+            COVERAGE=$(python -c "import json; print(f\"{json.load(open('coverage.json'))['totals']['percent_covered']:.2f}\")")
           else
             COVERAGE="0.00"
           fi
@@ -139,7 +139,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip install -r requirements.txt
 
       - name: Update Grafana Snapshot
         env:
@@ -148,7 +148,7 @@ jobs:
           DASHBOARD_UID: ${{ vars.DASHBOARD_UID || 'public-status' }}
         run: |
           if [ -f scripts/update_grafana_snapshot.py ]; then
-            uv run python scripts/update_grafana_snapshot.py
+            python scripts/update_grafana_snapshot.py
           else
             echo "Snapshot script not found, skipping"
           fi
@@ -199,13 +199,13 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip install -r requirements.txt
 
       - name: Run pip-audit
         id: pip-audit
         run: |
-          uv run pip-audit --format json --output pip-audit-report.json || true
-          VULNS=$(uv run python -c "import json; r=json.load(open('pip-audit-report.json')); print(len(r))" 2>/dev/null || echo "0")
+          pip-audit --format json --output pip-audit-report.json || true
+          VULNS=$(python -c "import json; r=json.load(open('pip-audit-report.json')); print(len(r))" 2>/dev/null || echo "0")
           echo "vulns=$VULNS" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 

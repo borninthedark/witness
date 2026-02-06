@@ -31,7 +31,7 @@ Both `witness-dev` and `witness-prod` need:
 |----------|---------|---------|
 | `AWS_REGION` | crusher | `us-east-1` |
 | `APP_URL_DEV` | crusher | App Runner URL (after first apply) |
-| `APP_URL_PROD` | crusher | `https://engage.princetonstrong.online` |
+| `APP_URL_PROD` | crusher | `https://engage.princetonstrong.com` |
 | `TF_CLOUD_ORG` | tasha, crusher | `DefiantEmissary` |
 | `ENABLE_TERRAFORM` | laforge, tasha | `true` |
 
@@ -39,14 +39,16 @@ Both `witness-dev` and `witness-prod` need:
 
 ```text
 terraform/
+├── bootstrap/             # OIDC, IAM, Route 53 hosted zone
 ├── modules/
-│   ├── networking/      # VPC, subnets, NAT, IGW
-│   ├── security/        # KMS, CloudTrail, Config
-│   ├── app-runner/      # ECR, Secrets Manager, App Runner
-│   ├── observability/   # CloudWatch logs, dashboards, alarms
-│   └── codepipeline/    # CodePipeline, CodeBuild, S3
-├── dev/                 # witness-dev workspace
-└── prod/                # witness-prod workspace
+│   ├── networking/        # VPC, subnets, NAT, IGW
+│   ├── security/          # KMS, CloudTrail, Config
+│   ├── app-runner/        # ECR, Secrets Manager, App Runner
+│   ├── dns/               # Route 53 records, App Runner custom domain
+│   ├── observability/     # CloudWatch logs, dashboards, alarms
+│   └── codepipeline/      # CodePipeline, CodeBuild, S3
+├── dev/                   # witness-dev workspace
+└── prod/                  # witness-prod workspace
 ```
 
 ## CI/CD Workflows
@@ -78,13 +80,18 @@ Tags: `dev`, `latest`, `prod`, `v*.*.*`
 
 ## DNS
 
-Update `engage.princetonstrong.online` to point to the App Runner
-service URL after first successful `terraform apply`.
+Domain `princetonstrong.com` is registered via Route 53 Domains in the
+bootstrap configuration. The hosted zone is auto-created by the domain
+registration. Custom domains (`engage.princetonstrong.com` for dev,
+`staging.princetonstrong.com` for prod) are wired via the `dns` module.
 
 ## First Deploy
 
-1. Configure HCP Terraform workspace variables (AWS creds + `secret_key`)
-2. Push terraform changes to trigger VCS workflow
-3. After apply, note the `service_url` output
-4. Update DNS to point to the App Runner URL
-5. Trigger Picard to build first container image
+1. Run `terraform apply` in `terraform/bootstrap/` (registers domain, creates
+   OIDC + IAM)
+2. Note the `hosted_zone_id` output
+3. Configure HCP Terraform workspace variables (dynamic provider credentials,
+   `secret_key`, `admin_password`, `hosted_zone_id`)
+4. Push terraform changes to trigger VCS workflow
+5. After apply, note the `service_url` and `custom_domain_url` outputs
+6. Trigger Picard to build first container image

@@ -53,6 +53,12 @@ variable "kms_key_arn" {
   default     = null
 }
 
+variable "enable_interface_endpoints" {
+  description = "Enable VPC interface endpoints for Secrets Manager, ECR, CloudWatch Logs (~$7/mo each)"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)

@@ -30,6 +30,30 @@ variable "enable_config" {
   default     = false
 }
 
+variable "enable_guardduty" {
+  description = "Enable GuardDuty threat detection"
+  type        = bool
+  default     = true
+}
+
+variable "enable_security_hub" {
+  description = "Enable Security Hub compliance dashboard"
+  type        = bool
+  default     = false
+}
+
+variable "alarm_email" {
+  description = "Email address for alarm notifications (null to skip)"
+  type        = string
+  default     = null
+}
+
+variable "monthly_budget_limit" {
+  description = "Monthly budget limit in USD (0 to disable)"
+  type        = number
+  default     = 0
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)

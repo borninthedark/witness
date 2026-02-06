@@ -45,6 +45,7 @@ opentelemetry-instrumentation-httpx==0.48b0
 defusedxml==0.7.1
 pylint==3.2.6
 ruff==0.14.4
+pip-audit==2.7.3
 autoflake==2.3.1
 bokeh==3.5.0
 lxml==5.3.0

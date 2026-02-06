@@ -31,7 +31,7 @@ permissions:
 
 env:
   APP_URL_DEV: ${{ vars.APP_URL_DEV || 'https://dev.example.com' }}
-  APP_URL_PROD: ${{ vars.APP_URL_PROD || 'https://engage.princetonstrong.online' }}
+  APP_URL_PROD: ${{ vars.APP_URL_PROD || 'https://staging.princetonstrong.com' }}
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════

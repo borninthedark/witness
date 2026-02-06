@@ -258,7 +258,7 @@ resource "aws_iam_policy" "tfc_core" {
       },
 
       # ----------------------------------------------------------
-      # Route 53 (DNS records for custom domains)
+      # Route 53 (DNS records + domain registration)
       # ----------------------------------------------------------
       {
         Sid    = "Route53"
@@ -270,6 +270,12 @@ resource "aws_iam_policy" "tfc_core" {
           "route53:ChangeResourceRecordSets",
           "route53:GetChange",
           "route53:ListTagsForResource",
+          "route53domains:GetDomainDetail",
+          "route53domains:ListDomains",
+          "route53domains:ListTagsForDomain",
+          "route53domains:UpdateDomainContact",
+          "route53domains:UpdateDomainNameservers",
+          "route53domains:GetOperationDetail",
         ]
         Resource = "*"
       },
@@ -468,6 +474,148 @@ resource "aws_iam_policy" "tfc_governance" {
   })
 }
 
+resource "aws_iam_policy" "tfc_wellarchitected" {
+  name        = "${var.project}-tfc-oidc-wellarchitected"
+  description = "WAF/LZA security services for HCP Terraform OIDC workspaces"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # ----------------------------------------------------------
+      # VPC Endpoints
+      # ----------------------------------------------------------
+      {
+        Sid    = "VPCEndpoints"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateVpcEndpoint",
+          "ec2:DeleteVpcEndpoints",
+          "ec2:ModifyVpcEndpoint",
+          "ec2:DescribeVpcEndpoints",
+          "ec2:DescribeVpcEndpointServices",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # SNS (alarm notifications)
+      # ----------------------------------------------------------
+      {
+        Sid    = "SNS"
+        Effect = "Allow"
+        Action = [
+          "sns:CreateTopic",
+          "sns:DeleteTopic",
+          "sns:GetTopicAttributes",
+          "sns:SetTopicAttributes",
+          "sns:ListTopics",
+          "sns:Subscribe",
+          "sns:Unsubscribe",
+          "sns:ListSubscriptionsByTopic",
+          "sns:TagResource",
+          "sns:UntagResource",
+          "sns:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # WAFv2
+      # ----------------------------------------------------------
+      {
+        Sid    = "WAFv2"
+        Effect = "Allow"
+        Action = [
+          "wafv2:CreateWebACL",
+          "wafv2:DeleteWebACL",
+          "wafv2:GetWebACL",
+          "wafv2:ListWebACLs",
+          "wafv2:UpdateWebACL",
+          "wafv2:AssociateWebACL",
+          "wafv2:DisassociateWebACL",
+          "wafv2:GetWebACLForResource",
+          "wafv2:ListTagsForResource",
+          "wafv2:TagResource",
+          "wafv2:UntagResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # GuardDuty
+      # ----------------------------------------------------------
+      {
+        Sid    = "GuardDuty"
+        Effect = "Allow"
+        Action = [
+          "guardduty:CreateDetector",
+          "guardduty:DeleteDetector",
+          "guardduty:GetDetector",
+          "guardduty:ListDetectors",
+          "guardduty:UpdateDetector",
+          "guardduty:TagResource",
+          "guardduty:UntagResource",
+          "guardduty:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # Security Hub
+      # ----------------------------------------------------------
+      {
+        Sid    = "SecurityHub"
+        Effect = "Allow"
+        Action = [
+          "securityhub:EnableSecurityHub",
+          "securityhub:DisableSecurityHub",
+          "securityhub:DescribeHub",
+          "securityhub:GetEnabledStandards",
+          "securityhub:BatchEnableStandards",
+          "securityhub:BatchDisableStandards",
+          "securityhub:DescribeStandards",
+          "securityhub:DescribeStandardsControls",
+          "securityhub:GetFindings",
+          "securityhub:TagResource",
+          "securityhub:UntagResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # Budgets
+      # ----------------------------------------------------------
+      {
+        Sid    = "Budgets"
+        Effect = "Allow"
+        Action = [
+          "budgets:CreateBudgetAction",
+          "budgets:DeleteBudgetAction",
+          "budgets:DescribeBudget",
+          "budgets:ModifyBudget",
+          "budgets:ViewBudget",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # X-Ray (App Runner observability)
+      # ----------------------------------------------------------
+      {
+        Sid    = "XRay"
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "tfc_core" {
   role       = aws_iam_role.tfc.name
   policy_arn = aws_iam_policy.tfc_core.arn
@@ -478,13 +626,59 @@ resource "aws_iam_role_policy_attachment" "tfc_governance" {
   policy_arn = aws_iam_policy.tfc_governance.arn
 }
 
+resource "aws_iam_role_policy_attachment" "tfc_wellarchitected" {
+  role       = aws_iam_role.tfc.name
+  policy_arn = aws_iam_policy.tfc_wellarchitected.arn
+}
+
 # ================================================================
-# Route 53 Hosted Zone (shared by all environments)
+# Route 53 Domain Registration
 # ================================================================
-# Delegate NS records from Namecheap to these name servers.
-# Both dev and prod workspaces look this up via data source.
+# Registers the domain via Route 53 Domains and automatically
+# creates a public hosted zone. No external registrar needed.
+# Both dev and prod workspaces look up the zone via data source.
 # ================================================================
 
-resource "aws_route53_zone" "main" {
-  name = var.domain_name
+resource "aws_route53domains_domain" "main" {
+  domain_name = var.domain_name
+  auto_renew  = true
+
+  admin_contact {
+    first_name     = var.contact_first_name
+    last_name      = var.contact_last_name
+    email          = var.contact_email
+    phone_number   = var.contact_phone
+    contact_type   = "PERSON"
+    address_line_1 = var.contact_address_line_1
+    city           = var.contact_city
+    state          = var.contact_state
+    zip_code       = var.contact_zip_code
+    country_code   = var.contact_country_code
+  }
+
+  registrant_contact {
+    first_name     = var.contact_first_name
+    last_name      = var.contact_last_name
+    email          = var.contact_email
+    phone_number   = var.contact_phone
+    contact_type   = "PERSON"
+    address_line_1 = var.contact_address_line_1
+    city           = var.contact_city
+    state          = var.contact_state
+    zip_code       = var.contact_zip_code
+    country_code   = var.contact_country_code
+  }
+
+  tech_contact {
+    first_name     = var.contact_first_name
+    last_name      = var.contact_last_name
+    email          = var.contact_email
+    phone_number   = var.contact_phone
+    contact_type   = "PERSON"
+    address_line_1 = var.contact_address_line_1
+    city           = var.contact_city
+    state          = var.contact_state
+    zip_code       = var.contact_zip_code
+    country_code   = var.contact_country_code
+  }
 }
