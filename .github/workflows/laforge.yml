@@ -1,9 +1,9 @@
 # ================================================================
-# La Forge - Terraform CI Gate
+# La Forge - CI/CD Orchestrator
 # ================================================================
-# "I can make it work" - CI and security gate for HCP Terraform
-# VCS-driven: HCP Terraform handles plan/apply automatically
-# This workflow runs Data CI + Worf security as quality gates
+# "I can make it work" - Central orchestrator for all CI/CD
+# Coordinates Data (CI), Worf (security), and Picard (build)
+# on every push to main. HCP Terraform VCS handles plan/apply.
 # ================================================================
 
 name: La Forge - Deploy
@@ -12,26 +12,26 @@ on:
   push:
     branches: [main]
     paths:
+      - 'fitness/**'
+      - 'scripts/**'
+      - 'tests/**'
       - 'terraform/**'
-      - '.github/workflows/laforge.yml'
-
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'Containerfile'
+      - '.github/workflows/**'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        default: 'dev'
-        type: choice
-        options: [dev, prod]
 
 permissions:
   contents: read
+  packages: write
   actions: read
   security-events: write
   pull-requests: write
+  id-token: write
 
 concurrency:
-  group: terraform-deploy
+  group: laforge-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -39,7 +39,7 @@ env:
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Prerequisites: Run Data CI and Worf security scans
+  # Stage 1: Quality gates (parallel)
   # ══════════════════════════════════════════════════════════════════════════
   data:
     name: Data - CI
@@ -50,26 +50,40 @@ jobs:
     uses: ./.github/workflows/worf.yml
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Gate: CI + Security passed, HCP Terraform VCS handles plan/apply
+  # Stage 2: Build (after CI passes)
+  # ══════════════════════════════════════════════════════════════════════════
+  picard:
+    name: Picard - Build
+    needs: [data]
+    uses: ./.github/workflows/picard.yml
+    secrets: inherit
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Stage 3: Terraform VCS gate (after all checks pass)
   # ══════════════════════════════════════════════════════════════════════════
   gate:
     name: VCS Gate
-    needs: [data, worf]
+    needs: [data, worf, picard]
     runs-on: ubuntu-latest
-    if: vars.ENABLE_TERRAFORM != 'false'
+    if: always() && !failure()
     steps:
       - name: Gate Summary
         run: |
           {
-            echo "## La Forge - VCS Gate"
+            echo "## La Forge - Pipeline Complete"
             echo ""
-            echo "CI and security checks passed."
+            echo "| Stage | Workflow | Status |"
+            echo "|-------|----------|--------|"
+            echo "| CI | Data | ${{ needs.data.result }} |"
+            echo "| Security | Worf | ${{ needs.worf.result }} |"
+            echo "| Build | Picard | ${{ needs.picard.result }} |"
+            echo ""
             echo "HCP Terraform VCS workflow handles plan/apply for AWS."
             echo ""
-            echo "| Workspace | Working Directory | Cloud |"
-            echo "|-----------|-------------------|-------|"
-            echo "| \`witness-dev\` | \`terraform/dev\` | AWS |"
-            echo "| \`witness-prod\` | \`terraform/prod\` | AWS |"
+            echo "| Workspace | Working Directory |"
+            echo "|-----------|-------------------|"
+            echo "| \`witness-dev\` | \`terraform/dev\` |"
+            echo "| \`witness-prod\` | \`terraform/prod\` |"
             echo ""
             echo "[View workspaces](https://app.terraform.io/app/DefiantEmissary/workspaces)"
           } >> "$GITHUB_STEP_SUMMARY"

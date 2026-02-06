@@ -1,30 +1,21 @@
 # ================================================================
 # Picard - Container Image Build Pipeline
 # ================================================================
-# "Engage" - Builds, scans, and signs container images
-# Pushes to GHCR and AWS ECR for App Runner deployments
-# Scheduled builds ensure fresh base images and dependency updates
-# Downstream: Picard -> Riker (release), Picard -> Troi (docs)
+# "Engage" - Builds, scans, and pushes container images to AWS ECR
+# Called by La Forge on push, plus scheduled and manual triggers
+# Downstream: Picard -> Riker (release)
 # ================================================================
 
 name: Picard - Build
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'fitness/**'
-      - 'scripts/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'Containerfile'
+  workflow_call:
   schedule:
     - cron: '0 4 * * 1'  # Weekly on Monday at 4am
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
   security-events: write
   id-token: write
 
@@ -33,48 +24,23 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/witness
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   ECR_REPOSITORY: witness-dev
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Build: Build and push to GHCR + ECR
+  # Build: Build and push to ECR
   # ══════════════════════════════════════════════════════════════════════════
   build:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
-      image: ${{ steps.build.outputs.image }}
-      digest: ${{ steps.build.outputs.digest }}
+      image: ${{ steps.push.outputs.image }}
+      tag: ${{ steps.push.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      # ── GHCR ──────────────────────────────────────────────────────
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push to GHCR
-        id: build
-        run: |
-          IMAGE="${REGISTRY}/${IMAGE_NAME}"
-          TAG="${GITHUB_SHA::8}"
-
-          docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:dev" -f Containerfile .
-          docker push "${IMAGE}:${TAG}"
-          docker push "${IMAGE}:dev"
-
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${TAG}" | cut -d@ -f2)
-          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-
-      # ── ECR ───────────────────────────────────────────────────────
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -85,22 +51,23 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Push to ECR
+      - name: Build and push to ECR
+        id: push
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          TAG: ${{ github.sha }}
         run: |
-          GHCR_IMAGE="${REGISTRY}/${IMAGE_NAME}:dev"
-          ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+          IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+          TAG="${GITHUB_SHA::8}"
 
-          docker tag "${GHCR_IMAGE}" "${ECR_IMAGE}:${TAG::8}"
-          docker tag "${GHCR_IMAGE}" "${ECR_IMAGE}:dev"
+          docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:dev" -f Containerfile .
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:dev"
 
-          docker push "${ECR_IMAGE}:${TAG::8}"
-          docker push "${ECR_IMAGE}:dev"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Scan: Trivy vulnerability scan on GHCR image
+  # Scan: Trivy vulnerability scan
   # ══════════════════════════════════════════════════════════════════════════
   scan:
     name: Scan
@@ -108,6 +75,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Trivy scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -122,42 +98,15 @@ jobs:
           sarif_file: trivy.sarif
         continue-on-error: true
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # Sign: Cosign keyless signing via Sigstore OIDC
-  # ══════════════════════════════════════════════════════════════════════════
-  sign:
-    name: Sign
-    needs: [build, scan]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.5.0
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sign image
-        run: |
-          cosign sign --yes "${{ needs.build.outputs.image }}@${{ needs.build.outputs.digest }}"
-
       - name: Summary
         run: |
           {
-            echo "## Picard - Image Built & Signed"
+            echo "## Picard - Image Built & Scanned"
             echo ""
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| GHCR | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |"
-            echo "| ECR | \`${{ env.ECR_REPOSITORY }}\` |"
-            echo "| Digest | \`${{ needs.build.outputs.digest }}\` |"
-            echo "| Signed | Yes (Sigstore keyless) |"
+            echo "| ECR | \`${{ needs.build.outputs.image }}\` |"
+            echo "| Tag | \`${{ needs.build.outputs.tag }}\` |"
             echo ""
-            echo "\`\`\`bash"
-            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev"
-            echo "\`\`\`"
+            echo "Trivy scan results uploaded to GitHub Security tab."
           } >> "$GITHUB_STEP_SUMMARY"

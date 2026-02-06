@@ -401,14 +401,15 @@ resource "aws_guardduty_detector" "main" {
   count = var.enable_guardduty ? 1 : 0
 
   enable = true
+  tags   = var.tags
+}
 
-  datasources {
-    s3_logs {
-      enable = true
-    }
-  }
+resource "aws_guardduty_detector_feature" "s3_logs" {
+  count = var.enable_guardduty ? 1 : 0
 
-  tags = var.tags
+  detector_id = aws_guardduty_detector.main[0].id
+  name        = "S3_DATA_EVENTS"
+  status      = "ENABLED"
 }
 
 # ================================================================

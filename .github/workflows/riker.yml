@@ -2,7 +2,7 @@
 # Riker - Release Pipeline
 # ================================================================
 # "Make it so" - Semantic versioning and release management
-# Retags the dev image in GHCR (built by Picard) for release
+# Retags the dev image in ECR for production release
 # Uses conventional commits for version bumping:
 #   - feat: -> minor bump
 #   - fix: -> patch bump
@@ -37,7 +37,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write
 
 concurrency:
@@ -45,8 +44,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/witness
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REPOSITORY_DEV: witness-dev
+  ECR_REPOSITORY_PROD: witness-prod
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
@@ -116,94 +116,56 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Retag: Retag dev image with release tags in GHCR
+  # Retag: Promote dev image to prod ECR repo
   # ══════════════════════════════════════════════════════════════════════════
   retag:
     name: Retag
     needs: version
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      digest: ${{ steps.digest.outputs.digest }}
 
     steps:
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Retag dev to release
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          docker pull "${IMAGE}:dev"
+          DEV_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY_DEV}:dev"
+          PROD_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY_PROD}"
 
-          docker tag "${IMAGE}:dev" "${IMAGE}:${VERSION}"
-          docker tag "${IMAGE}:dev" "${IMAGE}:latest"
-          docker tag "${IMAGE}:dev" "${IMAGE}:prod"
+          docker pull "${DEV_IMAGE}"
 
-          docker push "${IMAGE}:${VERSION}"
-          docker push "${IMAGE}:latest"
-          docker push "${IMAGE}:prod"
+          docker tag "${DEV_IMAGE}" "${PROD_IMAGE}:${VERSION}"
+          docker tag "${DEV_IMAGE}" "${PROD_IMAGE}:latest"
 
-      - name: Get digest
-        id: digest
-        env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${VERSION}" | cut -d@ -f2)
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          docker push "${PROD_IMAGE}:${VERSION}"
+          docker push "${PROD_IMAGE}:latest"
 
       - name: Retag Summary
         run: |
           {
-            echo "## Container Image Retagged"
+            echo "## Container Image Promoted"
             echo "- **Version**: \`${{ needs.version.outputs.version }}\`"
-            echo "- **Tags**: \`latest\`, \`prod\`, \`${{ needs.version.outputs.version }}\`"
-            echo "- **Digest**: \`${{ steps.digest.outputs.digest }}\`"
+            echo "- **Source**: \`${ECR_REPOSITORY_DEV}:dev\`"
+            echo "- **Target**: \`${ECR_REPOSITORY_PROD}:${{ needs.version.outputs.version }}\`, \`latest\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # Sign: Cosign keyless signing via Sigstore OIDC
-  # ══════════════════════════════════════════════════════════════════════════
-  sign:
-    name: Sign
-    needs: [version, retag]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.5.0
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sign image
-        run: |
-          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.retag.outputs.digest }}"
-
-      - name: Verify signature
-        run: |
-          cosign verify \
-            --certificate-identity-regexp='.*' \
-            --certificate-oidc-issuer-regexp='.*' \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.retag.outputs.digest }}"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Release: Create GitHub Release
   # ══════════════════════════════════════════════════════════════════════════
   release:
     name: Release
-    needs: [version, retag, sign]
+    needs: [version, retag]
     runs-on: ubuntu-latest
 
     steps:
@@ -220,28 +182,15 @@ jobs:
 
           ## Container Image
 
-          ```bash
-          docker pull ghcr.io/${{ github.repository_owner }}/witness:${{ needs.version.outputs.version }}
-
-          # Or use the latest tag
-          docker pull ghcr.io/${{ github.repository_owner }}/witness:latest
-
-          # Verify image signature
-          cosign verify \
-            --certificate-identity-regexp='.*' \
-            --certificate-oidc-issuer-regexp='.*' \
-            ghcr.io/${{ github.repository_owner }}/witness:${{ needs.version.outputs.version }}
-          ```
+          Image promoted from `witness-dev:dev` to `witness-prod:${{ needs.version.outputs.version }}`.
 
           ## Image Details
 
           | Property | Value |
           |----------|-------|
-          | Registry | `ghcr.io/${{ github.repository_owner }}` |
-          | Repository | `witness` |
+          | ECR Repository | `witness-prod` |
           | Version | `${{ needs.version.outputs.version }}` |
-          | Digest | `${{ needs.retag.outputs.digest }}` |
-          | Signed | Yes (Sigstore keyless OIDC) |
+          | Tags | `latest`, `${{ needs.version.outputs.version }}` |
           EOF
 
       - name: Create GitHub Release
@@ -261,8 +210,7 @@ jobs:
             echo "## Release Published"
             echo ""
             echo "- **Version**: [\`${{ needs.version.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.version }})"
-            echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}\`"
-            echo "- **Signed**: Yes"
+            echo "- **ECR**: \`witness-prod:${{ needs.version.outputs.version }}\`"
             echo ""
             echo "### Changelog"
             echo "${{ needs.version.outputs.changelog }}"
