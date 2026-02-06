@@ -25,3 +25,9 @@ variable "tfc_workspace_names" {
   type        = list(string)
   default     = ["witness-dev", "witness-prod"]
 }
+
+variable "domain_name" {
+  description = "Root domain name for Route 53 hosted zone"
+  type        = string
+  default     = "princetonstrong.online"
+}

@@ -101,6 +101,18 @@ module "app_runner" {
 }
 
 # ================================================================
+# DNS (Route 53 + App Runner Custom Domain)
+# ================================================================
+
+module "dns" {
+  source = "../modules/dns"
+
+  domain_name           = var.domain_name
+  subdomain             = "engage"
+  app_runner_service_arn = module.app_runner.service_arn
+}
+
+# ================================================================
 # Observability (CloudWatch)
 # ================================================================
 

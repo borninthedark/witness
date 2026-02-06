@@ -57,18 +57,20 @@ resource "aws_iam_role" "tfc" {
 }
 
 # ================================================================
-# IAM Policy — permissions for managed infrastructure
+# IAM Policies — permissions for managed infrastructure
 # ================================================================
-# Covers all services used by dev/prod workspaces:
-#   security (KMS, CloudTrail, Config), networking (VPC),
-#   app-runner (ECR, Secrets Manager, App Runner),
-#   observability (CloudWatch), codepipeline (CodePipeline,
-#   CodeBuild, CodeStar Connections, S3 artifacts)
+# Split into two policies to stay under the 6,144 byte managed
+# policy size limit.
+#
+# Policy 1 (core): VPC, App Runner, ECR, KMS, Secrets Manager,
+#   CloudWatch, Route 53, STS
+# Policy 2 (governance + CI/CD): CloudTrail, S3, Config,
+#   CodePipeline, CodeBuild, CodeStar, IAM
 # ================================================================
 
-resource "aws_iam_policy" "tfc" {
-  name        = "${var.project}-tfc-oidc"
-  description = "Permissions for HCP Terraform OIDC workspaces to manage ${var.project} infrastructure"
+resource "aws_iam_policy" "tfc_core" {
+  name        = "${var.project}-tfc-oidc-core"
+  description = "Core infrastructure permissions for HCP Terraform OIDC workspaces"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -258,6 +260,43 @@ resource "aws_iam_policy" "tfc" {
       },
 
       # ----------------------------------------------------------
+      # Route 53 (DNS records for custom domains)
+      # ----------------------------------------------------------
+      {
+        Sid    = "Route53"
+        Effect = "Allow"
+        Action = [
+          "route53:GetHostedZone",
+          "route53:ListHostedZones",
+          "route53:ListResourceRecordSets",
+          "route53:ChangeResourceRecordSets",
+          "route53:GetChange",
+          "route53:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # STS (caller identity checks)
+      # ----------------------------------------------------------
+      {
+        Sid      = "STS"
+        Effect   = "Allow"
+        Action   = ["sts:GetCallerIdentity"]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_policy" "tfc_governance" {
+  name        = "${var.project}-tfc-oidc-governance"
+  description = "Governance and CI/CD permissions for HCP Terraform OIDC workspaces"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # ----------------------------------------------------------
       # CloudTrail
       # ----------------------------------------------------------
       {
@@ -427,21 +466,27 @@ resource "aws_iam_policy" "tfc" {
         ]
         Resource = "*"
       },
-
-      # ----------------------------------------------------------
-      # STS (caller identity checks)
-      # ----------------------------------------------------------
-      {
-        Sid      = "STS"
-        Effect   = "Allow"
-        Action   = ["sts:GetCallerIdentity"]
-        Resource = "*"
-      },
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "tfc" {
+resource "aws_iam_role_policy_attachment" "tfc_core" {
   role       = aws_iam_role.tfc.name
-  policy_arn = aws_iam_policy.tfc.arn
+  policy_arn = aws_iam_policy.tfc_core.arn
+}
+
+resource "aws_iam_role_policy_attachment" "tfc_governance" {
+  role       = aws_iam_role.tfc.name
+  policy_arn = aws_iam_policy.tfc_governance.arn
+}
+
+# ================================================================
+# Route 53 Hosted Zone (shared by all environments)
+# ================================================================
+# Delegate NS records from Namecheap to these name servers.
+# Both dev and prod workspaces look this up via data source.
+# ================================================================
+
+resource "aws_route53_zone" "main" {
+  name = var.domain_name
 }
