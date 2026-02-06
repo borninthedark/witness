@@ -53,17 +53,17 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Run tests with coverage
         env:
           DATABASE_URL: sqlite:////tmp/test.db
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest --cov=fitness --cov-report=json --cov-report=term -q || true
+          uv run pytest --cov=fitness --cov-report=json --cov-report=term -q || true
 
       - name: Extract coverage percentage
         id: coverage
@@ -136,10 +136,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --frozen --no-dev
 
       - name: Update Grafana Snapshot
         env:
@@ -148,7 +149,7 @@ jobs:
           DASHBOARD_UID: ${{ vars.DASHBOARD_UID || 'public-status' }}
         run: |
           if [ -f scripts/update_grafana_snapshot.py ]; then
-            python scripts/update_grafana_snapshot.py
+            uv run python scripts/update_grafana_snapshot.py
           else
             echo "Snapshot script not found, skipping"
           fi
@@ -196,15 +197,16 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --frozen --group security
 
       - name: Run pip-audit
         id: pip-audit
         run: |
-          pip-audit --format json --output pip-audit-report.json || true
+          uv run pip-audit --format json --output pip-audit-report.json || true
           VULNS=$(python -c "import json; r=json.load(open('pip-audit-report.json')); print(len(r))" 2>/dev/null || echo "0")
           echo "vulns=$VULNS" >> "$GITHUB_OUTPUT"
         continue-on-error: true

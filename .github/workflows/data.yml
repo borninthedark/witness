@@ -57,15 +57,16 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Ruff lint & format
         run: |
-          ruff check . || echo "::warning::Ruff found issues"
-          ruff format --check . || echo "::warning::Formatting issues"
+          uv run ruff check . || echo "::warning::Ruff found issues"
+          uv run ruff format --check . || echo "::warning::Formatting issues"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Test
@@ -80,16 +81,16 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Run tests
         env:
           DATABASE_URL: sqlite:////tmp/test.db
-          PYTHONPATH: ${{ github.workspace }}
-        run: pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
+        run: uv run pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

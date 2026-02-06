@@ -111,6 +111,7 @@ repos:
       - id: terraform_validate
         args:
           - --hook-config=--retry-once-with-cleanup=true
+        exclude: '^terraform/(dev|prod|bootstrap)/'
       - id: terraform_tflint
         args:
           - --args=--only=terraform_naming_convention

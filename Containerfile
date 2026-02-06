@@ -3,6 +3,9 @@ FROM python:3.12-slim
 # Ensure pipefail is set for any RUN using pipes (fixes DL4006)
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Install uv for fast, deterministic dependency resolution
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 # hadolint ignore=DL3008
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -19,17 +22,18 @@ RUN groupadd --system app && useradd --system --gid app --create-home app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/usr/local/bin:$PATH" \
-    PYTHONPATH="/app:${PYTHONPATH}" \
-    PIP_ROOT_USER_ACTION=ignore
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app"
 
 WORKDIR /app
 
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies first (cached layer unless pyproject.toml/uv.lock change)
+COPY pyproject.toml uv.lock /app/
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . /app
-COPY ./fitness/static /app/static
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data \
