@@ -632,6 +632,73 @@ resource "aws_iam_role_policy_attachment" "tfc_wellarchitected" {
 }
 
 # ================================================================
+# GitHub Actions OIDC — ECR image push from CI/CD
+# ================================================================
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["ffffffffffffffffffffffffffffffffffffffff"]
+}
+
+resource "aws_iam_role" "github_actions" {
+  name = "${var.project}-github-actions"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:ref:refs/heads/main"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "github_ecr_push" {
+  name = "ecr-push"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ECRAuth"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECRPush"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:PutImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+        ]
+        Resource = "arn:aws:ecr:${var.aws_region}:*:repository/${var.project}-*"
+      },
+    ]
+  })
+}
+
+# ================================================================
 # Route 53 Domain Registration
 # ================================================================
 # Registers the domain via Route 53 Domains and automatically

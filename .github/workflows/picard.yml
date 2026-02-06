@@ -1,7 +1,8 @@
 # ================================================================
 # Picard - Container Image Build Pipeline
 # ================================================================
-# "Engage" - Builds, scans, and signs container images in GHCR
+# "Engage" - Builds, scans, and signs container images
+# Pushes to GHCR and AWS ECR for App Runner deployments
 # Scheduled builds ensure fresh base images and dependency updates
 # Downstream: Picard -> Riker (release), Picard -> Troi (docs)
 # ================================================================
@@ -34,10 +35,12 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/witness
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REPOSITORY: witness-dev
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Build: Build and push to GHCR
+  # Build: Build and push to GHCR + ECR
   # ══════════════════════════════════════════════════════════════════════════
   build:
     name: Build
@@ -49,14 +52,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── GHCR ──────────────────────────────────────────────────────
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push to GHCR
         id: build
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME}"
@@ -69,6 +73,31 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${TAG}" | cut -d@ -f2)
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # ── ECR ───────────────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          GHCR_IMAGE="${REGISTRY}/${IMAGE_NAME}:dev"
+          ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+
+          docker tag "${GHCR_IMAGE}" "${ECR_IMAGE}:${TAG::8}"
+          docker tag "${GHCR_IMAGE}" "${ECR_IMAGE}:dev"
+
+          docker push "${ECR_IMAGE}:${TAG::8}"
+          docker push "${ECR_IMAGE}:dev"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Scan: Trivy vulnerability scan on GHCR image
@@ -110,7 +139,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sign image
         run: |
@@ -123,7 +152,8 @@ jobs:
             echo ""
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Registry | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |"
+            echo "| GHCR | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |"
+            echo "| ECR | \`${{ env.ECR_REPOSITORY }}\` |"
             echo "| Digest | \`${{ needs.build.outputs.digest }}\` |"
             echo "| Signed | Yes (Sigstore keyless) |"
             echo ""

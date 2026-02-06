@@ -26,6 +26,12 @@ variable "tfc_workspace_names" {
   default     = ["witness-dev", "witness-prod"]
 }
 
+variable "github_repository" {
+  description = "GitHub repository (owner/repo) for Actions OIDC trust"
+  type        = string
+  default     = "PrincetonStrong/witness"
+}
+
 variable "domain_name" {
   description = "Domain name to register via Route 53 Domains"
   type        = string

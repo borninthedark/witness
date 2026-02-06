@@ -21,6 +21,15 @@ output "workspace_env_vars" {
 }
 
 # ================================================================
+# GitHub Actions
+# ================================================================
+
+output "github_actions_role_arn" {
+  description = "IAM role ARN for GitHub Actions (set as AWS_ROLE_ARN repository secret)"
+  value       = aws_iam_role.github_actions.arn
+}
+
+# ================================================================
 # Route 53 Domain
 # ================================================================
 
