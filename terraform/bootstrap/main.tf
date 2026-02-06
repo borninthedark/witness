@@ -138,6 +138,8 @@ resource "aws_iam_policy" "tfc_core" {
           "apprunner:UntagResource",
           "apprunner:AssociateCustomDomain",
           "apprunner:DisassociateCustomDomain",
+          "apprunner:AssociateWebAcl",
+          "apprunner:DisassociateWebAcl",
         ]
         Resource = "*"
       },
