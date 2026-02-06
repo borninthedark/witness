@@ -211,7 +211,7 @@ module "app_runner" {
       image_configuration = {
         port = tostring(var.container_port)
         runtime_environment_variables = {
-          ENVIRONMENT      = var.environment
+          ENVIRONMENT      = var.environment == "dev" ? "development" : "production"
           LOG_LEVEL        = var.log_level
           PYTHONUNBUFFERED = "1"
           DATABASE_URL     = var.database_url
