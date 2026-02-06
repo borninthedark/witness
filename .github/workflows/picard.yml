@@ -9,6 +9,14 @@
 name: Picard - Build
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'fitness/**'
+      - 'scripts/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'Containerfile'
   schedule:
     - cron: '0 4 * * 1'  # Weekly on Monday at 4am
   workflow_dispatch:

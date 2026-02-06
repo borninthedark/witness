@@ -1,4 +1,4 @@
-"""Certification metadata configuration."""
+"""Certification metadata configuration for the Witness platform."""
 
 from __future__ import annotations
 
