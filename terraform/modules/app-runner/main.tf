@@ -214,6 +214,8 @@ module "app_runner" {
           ENVIRONMENT      = var.environment
           LOG_LEVEL        = var.log_level
           PYTHONUNBUFFERED = "1"
+          DATABASE_URL     = var.database_url
+          SECRET_KEY       = var.secret_key
         }
       }
     }
