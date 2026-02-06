@@ -10,8 +10,6 @@
 #   terraform init && terraform apply
 # ================================================================
 
-data "aws_caller_identity" "current" {}
-data "aws_partition" "current" {}
 
 # ================================================================
 # OIDC Identity Provider for HCP Terraform

@@ -2,7 +2,6 @@
 # App Runner Module - ECR + Secrets Manager + App Runner
 # ================================================================
 
-data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 # ================================================================

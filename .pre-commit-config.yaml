@@ -104,5 +104,18 @@ repos:
           - --errors-only
           - --rcfile=.pylintrc
 
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.3
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+      - id: terraform_tflint
+        args:
+          - --args=--only=terraform_naming_convention
+          - --args=--only=terraform_deprecated_interpolation
+          - --args=--only=terraform_unused_declarations
+
 default_language_version:
   python: python3.13

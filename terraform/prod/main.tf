@@ -107,8 +107,8 @@ module "app_runner" {
 module "dns" {
   source = "../modules/dns"
 
-  domain_name           = var.domain_name
-  subdomain             = "staging"
+  domain_name            = var.domain_name
+  subdomain              = "staging"
   app_runner_service_arn = module.app_runner.service_arn
 }
 

@@ -24,9 +24,13 @@ resource "aws_apprunner_custom_domain_association" "this" {
 # ================================================================
 # Certificate Validation CNAME Records
 # ================================================================
+# App Runner always returns exactly 3 validation CNAME records,
+# but the value isn't known until apply. Hardcode the count to
+# avoid the "count depends on resource attributes" error.
+# ================================================================
 
 resource "aws_route53_record" "validation" {
-  count = length(aws_apprunner_custom_domain_association.this.certificate_validation_records)
+  count = 3
 
   zone_id = data.aws_route53_zone.main.zone_id
   name    = tolist(aws_apprunner_custom_domain_association.this.certificate_validation_records)[count.index].name

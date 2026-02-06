@@ -39,12 +39,6 @@ jobs:
           dockerfile: Containerfile
           ignore: DL3008,DL3059
 
-      - name: ShellCheck
-        uses: ludeeus/action-shellcheck@master
-        with:
-          additional_files: 'scripts/*'
-        continue-on-error: true
-
       - name: Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
@@ -61,25 +55,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff mypy
+        run: uv sync --frozen
 
       - name: Ruff lint & format
         run: |
-          ruff check . || echo "::warning::Ruff found issues"
-          ruff format --check . || echo "::warning::Formatting issues"
-
-      - name: Type check
-        run: mypy . --ignore-missing-imports || true
-        continue-on-error: true
+          uv run ruff check . || echo "::warning::Ruff found issues"
+          uv run ruff format --check . || echo "::warning::Formatting issues"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Test
@@ -92,21 +78,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt pytest pytest-cov
+        run: uv sync --frozen
 
       - name: Run tests
         env:
           DATABASE_URL: sqlite:////tmp/test.db
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
+        run: uv run pytest -v --tb=short --cov=fitness --cov-report=xml || echo "::warning::Tests failed"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

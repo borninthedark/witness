@@ -55,9 +55,9 @@ module "app_runner_latency_alarm" {
   evaluation_periods  = 3
   threshold           = var.latency_threshold_ms
 
-  metric_name = "RequestLatency"
-  namespace   = "AWS/AppRunner"
-  period      = 300
+  metric_name        = "RequestLatency"
+  namespace          = "AWS/AppRunner"
+  period             = 300
   extended_statistic = "p99"
 
   dimensions = {

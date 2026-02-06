@@ -51,15 +51,6 @@ jobs:
       - name: Terraform Init
         run: terraform init -backend=false
 
-      - name: Terraform Validate
-        id: validate
-        run: terraform validate -no-color
-
-      - name: Terraform Format Check
-        id: fmt
-        run: terraform fmt -check -recursive -diff
-        continue-on-error: true
-
       - name: Checkov Security Scan
         id: checkov
         uses: bridgecrewio/checkov-action@v12
@@ -126,8 +117,6 @@ jobs:
             echo ""
             echo "| Check | Status |"
             echo "|-------|--------|"
-            echo "| Validate | ${{ steps.validate.outcome == 'success' && 'OK' || 'FAIL' }} |"
-            echo "| Format | ${{ steps.fmt.outcome == 'success' && 'OK' || 'WARN' }} |"
             echo "| Checkov | ${{ steps.checkov.outcome == 'success' && 'OK' || 'WARN' }} |"
             echo "| tfsec | ${{ steps.tfsec.outcome == 'success' && 'OK' || 'WARN' }} |"
             echo ""
@@ -183,47 +172,3 @@ jobs:
               echo "No test files found (*.tftest.hcl)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # Cost Estimation (optional)
-  # ══════════════════════════════════════════════════════════════════════════
-  cost-estimate:
-    name: Cost Estimate
-    needs: terraform-test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: github.event_name == 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [dev, prod]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Infracost
-        uses: infracost/actions/setup@v3
-        with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
-        continue-on-error: true
-
-      - name: Generate Cost Estimate
-        if: env.INFRACOST_API_KEY != ''
-        run: |
-          infracost breakdown \
-            --path=terraform/${{ matrix.environment }} \
-            --format=json \
-            --out-file=/tmp/infracost-${{ matrix.environment }}.json
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-        continue-on-error: true
-
-      - name: Post Cost Comment
-        if: env.INFRACOST_API_KEY != ''
-        uses: infracost/actions/comment@v1
-        with:
-          path: /tmp/infracost-${{ matrix.environment }}.json
-          behavior: update
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-        continue-on-error: true

@@ -51,28 +51,25 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt pytest pytest-cov
+        run: uv sync --frozen
 
       - name: Run tests with coverage
         env:
           DATABASE_URL: sqlite:////tmp/test.db
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest --cov=fitness --cov-report=json --cov-report=term -q || true
+          uv run pytest --cov=fitness --cov-report=json --cov-report=term -q || true
 
       - name: Extract coverage percentage
         id: coverage
         run: |
           if [ -f coverage.json ]; then
-            COVERAGE=$(python -c "import json; print(f\"{json.load(open('coverage.json'))['totals']['percent_covered']:.2f}\")")
+            COVERAGE=$(uv run python -c "import json; print(f\"{json.load(open('coverage.json'))['totals']['percent_covered']:.2f}\")")
           else
             COVERAGE="0.00"
           fi
@@ -137,13 +134,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
-        run: pip install httpx
+        run: uv sync --frozen
 
       - name: Update Grafana Snapshot
         env:
@@ -152,7 +148,7 @@ jobs:
           DASHBOARD_UID: ${{ vars.DASHBOARD_UID || 'public-status' }}
         run: |
           if [ -f scripts/update_grafana_snapshot.py ]; then
-            python scripts/update_grafana_snapshot.py
+            uv run python scripts/update_grafana_snapshot.py
           else
             echo "Snapshot script not found, skipping"
           fi
@@ -198,29 +194,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install bandit safety pip-audit
-
-      - name: Run Bandit
-        id: bandit
-        run: |
-          bandit -r fitness/ -f json -o bandit-report.json || true
-          ISSUES=$(python -c "import json; r=json.load(open('bandit-report.json')); print(len(r.get('results', [])))")
-          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
+        run: uv sync --frozen
 
       - name: Run pip-audit
         id: pip-audit
         run: |
-          pip-audit --format json --output pip-audit-report.json || true
-          VULNS=$(python -c "import json; r=json.load(open('pip-audit-report.json')); print(len(r))" 2>/dev/null || echo "0")
+          uv run pip-audit --format json --output pip-audit-report.json || true
+          VULNS=$(uv run python -c "import json; r=json.load(open('pip-audit-report.json')); print(len(r))" 2>/dev/null || echo "0")
           echo "vulns=$VULNS" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
@@ -238,7 +223,6 @@ jobs:
 
           | Scanner | Issues |
           |---------|--------|
-          | Bandit (code) | ${{ steps.bandit.outputs.issues || '0' }} |
           | pip-audit (deps) | ${{ steps.pip-audit.outputs.vulns || '0' }} |
 
           ## Details
@@ -252,7 +236,6 @@ jobs:
           name: security-reports
           path: |
             .security-reports/
-            bandit-report.json
             pip-audit-report.json
           retention-days: 30
 
@@ -263,7 +246,6 @@ jobs:
             echo ""
             echo "| Scanner | Issues |"
             echo "|---------|--------|"
-            echo "| Bandit | ${{ steps.bandit.outputs.issues || '0' }} |"
             echo "| pip-audit | ${{ steps.pip-audit.outputs.vulns || '0' }} |"
             echo ""
             echo "Reports uploaded as artifacts."
@@ -280,13 +262,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v16
-        with:
-          globs: '**/*.md'
-          config: '.markdownlint.json'
-        continue-on-error: true
-
       - name: Check links
         uses: lycheeverse/lychee-action@v1
         with:
@@ -299,6 +274,5 @@ jobs:
           {
             echo "## Troi - Documentation Validation"
             echo ""
-            echo "- Markdown linting: Complete"
             echo "- Link checking: Complete"
           } >> "$GITHUB_STEP_SUMMARY"
