@@ -29,6 +29,6 @@ def test_reports_security_section_renders_when_requested() -> None:
 
 
 def test_legacy_operations_route_redirects_to_index() -> None:
-    response = client.get("/reports/operations", allow_redirects=False)
+    response = client.get("/reports/operations", follow_redirects=False)
     assert response.status_code == 307
     assert response.headers["location"].startswith("/reports/")

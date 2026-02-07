@@ -5,7 +5,7 @@
     </div>
 
     <div class="stat-card critical"
-         hx-get="/security/advisories?severity=CRITICAL&days=30"
+         hx-get="/admin/tactical/advisories?severity=CRITICAL&days=30"
          hx-target="#advisories-list"
          hx-swap="innerHTML"
          hx-indicator="#loading-indicator"
@@ -18,7 +18,7 @@
     </div>
 
     <div class="stat-card high"
-         hx-get="/security/advisories?severity=HIGH&days=30"
+         hx-get="/admin/tactical/advisories?severity=HIGH&days=30"
          hx-target="#advisories-list"
          hx-swap="innerHTML"
          hx-indicator="#loading-indicator"
@@ -31,7 +31,7 @@
     </div>
 
     <div class="stat-card medium"
-         hx-get="/security/advisories?severity=MEDIUM&days=30"
+         hx-get="/admin/tactical/advisories?severity=MEDIUM&days=30"
          hx-target="#advisories-list"
          hx-swap="innerHTML"
          hx-indicator="#loading-indicator"
@@ -44,7 +44,7 @@
     </div>
 
     <div class="stat-card low"
-         hx-get="/security/advisories?severity=LOW&days=30"
+         hx-get="/admin/tactical/advisories?severity=LOW&days=30"
          hx-target="#advisories-list"
          hx-swap="innerHTML"
          hx-indicator="#loading-indicator"
@@ -159,7 +159,7 @@
                     const severity = severities[index];
 
                     // Trigger HTMX request to filter advisories
-                    htmx.ajax('GET', `/security/advisories?severity=${severity}&days=30`, {
+                    htmx.ajax('GET', `/admin/tactical/advisories?severity=${severity}&days=30`, {
                         target: '#advisories-list',
                         swap: 'innerHTML'
                     });
@@ -182,7 +182,7 @@
 <div class="latest-critical-alert">
     <strong>⚠️ Latest Critical:</strong>
     <a href="#"
-       hx-get="/security/advisory/{{ stats.latest_critical.cve_id }}"
+       hx-get="/admin/tactical/advisory/{{ stats.latest_critical.cve_id }}"
        hx-target="#modal-body"
        onclick="showModal(); return false;">
         {{ stats.latest_critical.cve_id }}
