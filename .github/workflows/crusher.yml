@@ -3,6 +3,7 @@
 # ================================================================
 # "I'm a doctor, not a..." - Monitors pipeline and application health
 # Retrieves health data from CI pipelines and deployed applications
+# Currently orchestrated with workflow_dispatch
 # ================================================================
 
 name: Crusher - Health
