@@ -93,4 +93,5 @@ fitness/data/*.pdf
 .terraform
 terraform/bootstrap/*.tfstate*
 terraform/bootstrap/bootstrap.tfvars
+terraform/modules/codepipeline/
 docs/private/

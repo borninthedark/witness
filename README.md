@@ -1,4 +1,4 @@
-# Witness - Captain's Fitness Log
+# Witness - The Captain's Fitness Log
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![coverage](https://img.shields.io/badge/coverage-62.77%25-yellow)](tests/README.md)
@@ -14,12 +14,19 @@ is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
 
 | | |
 |---|---|
-| **[Overview](#overview)** | **[Quickstart](#quickstart)** |
-| **[Tech Stack](#technology-stack)** | **[Config](#configuration)** |
-| **[Architecture](#aws-architecture)** | **[Development](#development)** |
-| **[Terraform](#terraform-structure)** | **[Observability](#observability)** |
-| **[CI/CD](#cicd-pipelines)** | **[Security](#security)** |
-| **[Features](#features)** | **[Docs](#documentation)** |
+| **[Overview](#overview)** | **[Development](#development)** |
+| &#8226; [Capabilities](#overview) | &#8226; [Package Management](#package-management) |
+| **[Tech Stack](#technology-stack)** | &#8226; [Pre-commit Hooks](#pre-commit-hooks) |
+| **[Architecture](#aws-architecture)** | &#8226; [Testing](#testing) |
+| &#8226; [AWS Services](#aws-services-used) | **[Observability](#observability)** |
+| **[Terraform](#terraform-structure)** | **[Security](#security)** |
+| &#8226; [Well-Architected](#well-architected-alignment) | **[Documentation](#documentation)** |
+| **[CI/CD](#cicd-pipelines)** | **[AI-Assisted Dev](#ai-assisted-development)** |
+| &#8226; [Workflow Reference](#workflow-reference) | &#8226; [MCP Servers](#mcp-servers) |
+| **[Features](#features)** | **[License](#license)** |
+| **[Quickstart](#quickstart)** | |
+| &#8226; [Container Build](#container-build) | |
+| **[Config](#configuration)** | |
 
 ---
 
@@ -28,6 +35,10 @@ is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
 Witness is an enterprise-grade web application that combines professional credential management
 with a Star Trek LCARS aesthetic. It is deployed to AWS App Runner behind WAFv2 with Route 53
 custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config compliance rules.
+
+> **Migration note:** This application was originally deployed on Azure Kubernetes Service (AKS)
+> with Azure Bicep IaC. It has since been fully migrated to AWS App Runner with Terraform,
+> including networking, security, observability, and CI/CD.
 
 **Capabilities:**
 
@@ -141,7 +152,6 @@ graph LR
         APP["app-runner<br/>ECR, Secrets, App Runner,<br/>WAFv2, X-Ray"]
         DNS["dns<br/>Route 53 records,<br/>custom domain, ProtonMail"]
         OBS["observability<br/>CloudWatch logs,<br/>dashboards, alarms"]
-        CP["codepipeline<br/>CodePipeline, CodeBuild"]
     end
 
     subgraph Envs["Environment Roots"]
@@ -162,7 +172,7 @@ graph LR
 | **networking** | VPC (3 AZ), public/private subnets, NAT Gateway, S3 gateway endpoint, interface endpoints (prod) |
 | **security** | KMS CMK, CloudTrail, Config + managed rules, GuardDuty, Security Hub (prod), SNS alarm topic, budget alerts |
 | **app-runner** | ECR repo, Secrets Manager, App Runner service + VPC connector, WAFv2 (3 rule groups), X-Ray group |
-| **dns** | Route 53 A/CNAME/TXT/MX records, App Runner custom domain + ACM validation |
+| **dns** | Route 53 A/CNAME/TXT/MX records, App Runner custom domain + ACM validation, ProtonMail SPF/DKIM/MX |
 | **observability** | CloudWatch log groups, metric alarms (5xx, latency, CPU), dashboard, SNS integration |
 
 ### Well-Architected Alignment
