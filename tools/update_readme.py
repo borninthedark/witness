@@ -83,7 +83,7 @@ def generate_readme(root: Path) -> str:
     return f"""\
 # Witness - Captain's Fitness Log
 
-[![pytest](https://github.com/{REPO}/actions/workflows/data.yml/badge.svg)](https://github.com/{REPO}/actions/workflows/data.yml)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![coverage](https://img.shields.io/badge/coverage-{cov_encoded}-{cov_color})](tests/README.md)
 [![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
@@ -95,19 +95,14 @@ is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
 
 ---
 
-> **[Overview](#overview)** &#8226;
-> **[Tech Stack](#technology-stack)** &#8226;
-> **[Architecture](#aws-architecture)** &#8226;
-> **[Terraform](#terraform-structure)** &#8226;
-> **[CI/CD](#cicd-pipelines)** &#8226;
-> **[Features](#features)** &#8226;
-> **[Quickstart](#quickstart)** &#8226;
-> **[Config](#configuration)** &#8226;
-> **[Development](#development)** &#8226;
-> **[Observability](#observability)** &#8226;
-> **[Security](#security)** &#8226;
-> **[Docs](#documentation)** &#8226;
-> **[License](#license)**
+| | |
+|---|---|
+| **[Overview](#overview)** | **[Quickstart](#quickstart)** |
+| **[Tech Stack](#technology-stack)** | **[Config](#configuration)** |
+| **[Architecture](#aws-architecture)** | **[Development](#development)** |
+| **[Terraform](#terraform-structure)** | **[Observability](#observability)** |
+| **[CI/CD](#cicd-pipelines)** | **[Security](#security)** |
+| **[Features](#features)** | **[Docs](#documentation)** |
 
 ---
 

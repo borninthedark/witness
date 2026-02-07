@@ -1,7 +1,7 @@
 # Pre-commit Hooks
 
 Witness uses [pre-commit](https://pre-commit.com/) to enforce code quality **before**
-changes reach the repository. The shift-left strategy catches formatting, linting,
+changes reach the repository. The [shift-left](https://en.wikipedia.org/wiki/Shift-left_testing) strategy catches formatting, linting,
 security, and infrastructure issues at commit time so CI focuses on integration testing
 and deployment.
 
