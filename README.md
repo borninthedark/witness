@@ -42,7 +42,7 @@ custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config
 
 | Layer | Technology |
 |-------|-----------|
-| **Runtime** | Python 3.13, FastAPI 0.115.4, Uvicorn |
+| **Runtime** | Python 3.13, FastAPI 0.128.4, Uvicorn |
 | **Database** | SQLAlchemy 2.0, SQLite, Alembic |
 | **Frontend** | Jinja2, HTMX, Tailwind CSS (CDN), LCARS design system |
 | **PDF** | ReportLab, PyYAML (resume-data.yaml) |

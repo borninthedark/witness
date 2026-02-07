@@ -97,7 +97,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
     id: UUID                    # Auto-generated
     email: str                  # Used as username
-    hashed_password: str        # bcrypt hashed
+    hashed_password: str        # Argon2id hashed (pwdlib)
     is_active: bool            # Account active status
     is_superuser: bool         # Admin privileges
     is_verified: bool          # Email verification status
@@ -112,20 +112,19 @@ Admin users created on startup have:
 
 ## Password Security
 
-- Passwords are hashed using **bcrypt** (via passlib)
-- Compatible bcrypt version: `4.1.3` (pinned in `pyproject.toml`)
-- Hashes are salted and use bcrypt's adaptive cost factor
+- Passwords are hashed using **pwdlib** (bundled with fastapi-users 15.x)
+- Default algorithm: Argon2id (with bcrypt backward compatibility)
 - Plain-text passwords are never stored
 
 ## Troubleshooting
 
 ### "Internal Server Error" on Login
 
-**Cause**: bcrypt version incompatibility
+**Cause**: Missing password hashing library
 
-**Solution**: Ensure `bcrypt==4.1.3` is installed
+**Solution**: Ensure `pwdlib` is installed (transitive dep of fastapi-users)
 ```bash
-pip install bcrypt==4.1.3
+uv sync
 ```
 
 ### "User Not Found" After Entering Correct Password
@@ -170,7 +169,7 @@ The following routes require admin authentication:
 4. **Enable HTTPS** in production (`ENVIRONMENT=production`)
 5. **Set secure cookie flags** (automatic in production)
 6. **Monitor failed login attempts** (check application logs)
-7. **Keep bcrypt updated** (but pinned for compatibility)
+7. **Keep dependencies updated** (`uv sync` to pick up security patches)
 
 ## API Endpoints
 
@@ -211,5 +210,5 @@ if any(request.url.path.startswith(path) for path in admin_paths):
 ## References
 
 - [FastAPI Users Documentation](https://fastapi-users.github.io/fastapi-users/)
-- [Passlib bcrypt Handler](https://passlib.readthedocs.io/en/stable/lib/passlib.hash.bcrypt.html)
+- [pwdlib (password hashing)](https://github.com/frankie567/pwdlib)
 - [JWT Best Practices](https://datatracker.ietf.org/doc/html/rfc8725)
