@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+SCRIPTS_DIR = PROJECT_ROOT / "tools"
 CHECK_DRY_PATH = SCRIPTS_DIR / "check-dry.py"
 
 
@@ -14,7 +14,7 @@ def _load_check_dry_module():
         sys.path.insert(0, str(SCRIPTS_DIR))
     spec = importlib.util.spec_from_file_location("check_dry", CHECK_DRY_PATH)
     if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load scripts/check-dry.py")
+        raise RuntimeError("Unable to load tools/check-dry.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

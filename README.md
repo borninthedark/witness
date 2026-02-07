@@ -1,781 +1,319 @@
-# Captain's Fitness Log
+# Witness
 
+[![Picard - Deploy](https://github.com/borninthedark/witness/actions/workflows/picard.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/picard.yml)
 [![Data - CI](https://github.com/borninthedark/witness/actions/workflows/data.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/data.yml)
-[![Riker - Release](https://github.com/borninthedark/witness/actions/workflows/riker.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/riker.yml)
 [![Worf - Security](https://github.com/borninthedark/witness/actions/workflows/worf.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/worf.yml)
-[![Azure](https://img.shields.io/badge/Azure-Container_Apps-0078D4?logo=microsoft-azure&logoColor=white)](https://azure.microsoft.com/en-us/products/container-apps)
+[![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
+[![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
-[![Coverage](https://img.shields.io/badge/coverage-62.77%25-yellow)](tests/README.md)
 
-**Status Report:** A production-ready FastAPI application serving as a professional resume and certification verification platform.
+A production FastAPI application deployed on AWS App Runner, serving as a professional resume and certification verification platform with a Star Trek LCARS-inspired interface. Infrastructure is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
+
+---
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Technology Stack](#technology-stack)
-- [Quickstart](#quickstart)
+- [AWS Architecture](#aws-architecture)
+- [Terraform Structure](#terraform-structure)
+- [CI/CD Pipelines](#cicd-pipelines)
 - [Features](#features)
-- [Architecture](#architecture)
+- [Quickstart](#quickstart)
 - [Configuration](#configuration)
-- [Deployment](#deployment)
-  - [Container Deployment](#container-deployment)
-  - [Azure Container Apps](#azure-container-apps)
-  - [GitHub Actions CI/CD](#github-actions-cicd)
-- [Observability Guide](#observability-guide)
-- [Development Workflow](#development-workflow)
-- [Infrastructure as Code](#infrastructure-as-code)
-- [Security Considerations](#security-considerations)
+- [Development](#development)
+- [Observability](#observability)
+- [Security](#security)
 - [Documentation](#documentation)
+- [AI-Assisted Development](#ai-assisted-development)
+- [License](#license)
 
 ---
 
 ## Overview
 
-Captain's Fitness Log (aka "Witness") is an enterprise-grade web application that combines professional credential management with a unique Star Trek aesthetic. Built with modern Python web technologies, it serves as both a digital portfolio and a cryptographic verification system for professional certifications.
+Witness is an enterprise-grade web application that combines professional credential management with a Star Trek LCARS aesthetic. It is deployed to AWS App Runner behind WAFv2 with Route 53 custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config compliance rules.
 
-**Key Capabilities:**
-- **Digital Resume/CV Hosting** - Dynamic PDF generation from YAML data using ReportLab
-- **Certification Verification** - SHA-256 hash validation with QR codes for authenticity
-- **Contact Portal** - reCAPTCHA v2 and Formspree-protected contact form with LCARS theming
-- **Professional Portfolio** - Showcase of credentials with Credly badge integration
+**Capabilities:**
 
-### Project Stats
-
-- **Test Coverage:** 62.77% (35+ tests, targeting 80%+)
-- **Python Version:** 3.12+ (targeting 3.13)
-- **Code Quality:** Black, Ruff, MyPy, Bandit, Pylint
-- **Security:** Trivy scanning, CSRF protection, rate limiting
-- **Deployment:** Docker, Azure Container Apps
-- **CI/CD:** GitHub Actions with automated testing and security scans
-
-### Quick Facts
-
-- **Header tagline:** "Status Report"
-- **Default résumé PDF theme:** accent `#2C2F33`, page `#F4F2ED`
-- **Admin authentication:** HTTP Basic (env-driven) as MVP; designed for FastAPI-Users migration
+- **Digital Resume** -- PDF generated at container build time from YAML data via ReportLab
+- **Certification Verification** -- SHA-256 hash validation with QR codes
+- **Contact Portal** -- reCAPTCHA v2 + Formspree, honeypot, CSRF double-submit cookie
+- **Security Posture** -- WAFv2, GuardDuty, Security Hub, Config rules, X-Ray tracing
 
 ## Technology Stack
 
-### Core Framework
+| Layer | Technology |
+|-------|-----------|
+| **Runtime** | Python 3.12, FastAPI 0.115.4, Uvicorn |
+| **Database** | SQLAlchemy 2.0, SQLite, Alembic |
+| **Frontend** | Jinja2, HTMX, Tailwind CSS (CDN), LCARS design system |
+| **PDF** | ReportLab, PyYAML (resume-data.yaml) |
+| **Observability** | Prometheus, OpenTelemetry, CloudWatch, X-Ray |
+| **Security** | slowapi, CSRF, CSP/HSTS, Bandit, Trivy, Checkov |
+| **Packaging** | [uv](https://docs.astral.sh/uv/) (lockfile), setuptools build backend |
+| **Container** | Python 3.12-slim, multi-stage uv install, non-root user |
+| **Cloud** | AWS App Runner, ECR, VPC, Route 53, WAFv2, KMS, Secrets Manager |
+| **IaC** | Terraform with HCP Terraform (VCS-driven), Checkov + tfsec |
 
-- **FastAPI** (v0.115.4) - Modern async Python web framework
-- **Python 3.12+** (target: 3.13) - Primary language with type hints
-- **Uvicorn/Gunicorn** - ASGI server for production deployment
+## AWS Architecture
 
-### Database & ORM
+```text
+                ┌──────────────────────────────────────────────────┐
+                │              AWS Account                          │
+                │                                                  │
+ GitHub ──push─>│  ┌──────────┐    ┌──────────┐   ┌──────────┐   │
+ Actions        │  │   ECR    │───>│App Runner │<──│  WAFv2   │   │
+ (La Forge)     │  └──────────┘    └────┬─────┘   └──────────┘   │
+                │        ▲              │                          │
+                │        │         ┌────┴─────┐                    │
+                │    Route 53      │   VPC    │    ┌───────────┐  │
+                │  *.princeton     │ Connector│    │ GuardDuty │  │
+                │  strong.com      └────┬─────┘    └───────────┘  │
+                │                       │                          │
+                │  ┌─────────┐   ┌─────┴──────┐  ┌─────────┐    │
+                │  │Secrets  │   │  Private    │  │   KMS   │    │
+                │  │Manager  │   │  Subnets    │  │ (CMK)   │    │
+                │  └─────────┘   └─────┬──────┘  └─────────┘    │
+                │                       │                          │
+                │  ┌──────────┐  ┌─────┴──────┐  ┌───────────┐  │
+                │  │CloudTrail│  │ S3 Gateway  │  │  Config   │  │
+                │  │          │  │  Endpoint   │  │  Rules    │  │
+                │  └──────────┘  └────────────┘  └───────────┘  │
+                │                                                  │
+                │  ┌──────────┐  ┌────────────┐  ┌───────────┐  │
+                │  │CloudWatch│  │  Budgets   │  │ Security  │  │
+                │  │ + X-Ray  │  │  + SNS     │  │   Hub     │  │
+                │  └──────────┘  └────────────┘  └───────────┘  │
+                └──────────────────────────────────────────────────┘
+```
 
-- **SQLAlchemy 2.0** - Modern ORM with async support and `Mapped[]` annotations
-- **SQLite** - File-based database for local and production use
-- **Alembic** - Database migration management
-- **aiosqlite** - Async SQLite support
+See [docs/architecture.md](docs/architecture.md) for the full diagram and traffic flows.
 
-### Frontend & Templating
+### AWS Services Used
 
-- **Jinja2** - Server-side HTML templating
-- **HTMX** - Dynamic HTML interactions without heavy JavaScript
-- **SCSS/LibSass** - CSS preprocessing for maintainable styles
-- **Tailwind CSS** (CDN) - Utility-first CSS framework
-- **Custom LCARS Design System** - Star Trek-inspired UI components
+| Service | Purpose | AWS Docs |
+|---------|---------|----------|
+| [App Runner](https://docs.aws.amazon.com/apprunner/) | Container hosting with auto-scaling | [Developer Guide](https://docs.aws.amazon.com/apprunner/latest/dg/) |
+| [ECR](https://docs.aws.amazon.com/ecr/) | Container image registry | [User Guide](https://docs.aws.amazon.com/AmazonECR/latest/userguide/) |
+| [VPC](https://docs.aws.amazon.com/vpc/) | Network isolation, private subnets, NAT | [User Guide](https://docs.aws.amazon.com/vpc/latest/userguide/) |
+| [Route 53](https://docs.aws.amazon.com/route53/) | DNS, custom domain, health checks | [Developer Guide](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/) |
+| [WAFv2](https://docs.aws.amazon.com/waf/) | Web application firewall (3 rule groups) | [Developer Guide](https://docs.aws.amazon.com/waf/latest/developerguide/) |
+| [KMS](https://docs.aws.amazon.com/kms/) | Customer-managed encryption keys | [Developer Guide](https://docs.aws.amazon.com/kms/latest/developerguide/) |
+| [Secrets Manager](https://docs.aws.amazon.com/secretsmanager/) | Application secrets injection | [User Guide](https://docs.aws.amazon.com/secretsmanager/latest/userguide/) |
+| [CloudTrail](https://docs.aws.amazon.com/cloudtrail/) | API audit logging | [User Guide](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/) |
+| [GuardDuty](https://docs.aws.amazon.com/guardduty/) | Threat detection | [User Guide](https://docs.aws.amazon.com/guardduty/latest/ug/) |
+| [Security Hub](https://docs.aws.amazon.com/securityhub/) | Security posture (prod) | [User Guide](https://docs.aws.amazon.com/securityhub/latest/userguide/) |
+| [Config](https://docs.aws.amazon.com/config/) | Compliance rules | [Developer Guide](https://docs.aws.amazon.com/config/latest/developerguide/) |
+| [CloudWatch](https://docs.aws.amazon.com/cloudwatch/) | Logs, metrics, dashboards, alarms | [User Guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/) |
+| [X-Ray](https://docs.aws.amazon.com/xray/) | Distributed tracing | [Developer Guide](https://docs.aws.amazon.com/xray/latest/devguide/) |
+| [SNS](https://docs.aws.amazon.com/sns/) | Alarm notifications, budget alerts | [Developer Guide](https://docs.aws.amazon.com/sns/latest/dg/) |
+| [Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) | Cost alerts | [User Guide](https://docs.aws.amazon.com/cost-management/latest/userguide/) |
+| [S3](https://docs.aws.amazon.com/s3/) | CloudTrail logs, pipeline artifacts | [User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/) |
 
-### Security
+## Terraform Structure
 
-- **fastapi-users** - User authentication/authorization framework
-- **passlib[bcrypt]** - Secure password hashing
-- **itsdangerous** - Cryptographically signed token generation
-- **Google reCAPTCHA v2** - CAPTCHA verification (via Formspree)
-- **slowapi** - Rate limiting middleware
-- **CSRF protection** - Custom double-submit cookie implementation
+Infrastructure is organized into reusable modules with separate dev and prod root configurations, managed by [HCP Terraform](https://app.terraform.io/) (org: `DefiantEmissary`).
 
-### Document Generation
+```text
+terraform/
+├── bootstrap/           # OIDC federation, IAM policies, Route 53 zone
+├── modules/
+│   ├── networking/      # VPC, subnets, NAT, VPC endpoints (S3 GW + interface)
+│   ├── security/        # KMS, CloudTrail, Config rules, GuardDuty, Security Hub, SNS, Budgets
+│   ├── app-runner/      # ECR, Secrets Manager, App Runner, WAFv2, X-Ray
+│   ├── dns/             # Route 53 records, App Runner custom domain, Proton Mail
+│   ├── observability/   # CloudWatch logs, dashboards, alarms (SNS-wired)
+│   └── codepipeline/    # CodePipeline, CodeBuild, S3 artifacts
+├── dev/                 # witness-dev workspace
+└── prod/                # witness-prod workspace
+```
 
-- **ReportLab** - Professional PDF generation for resumes
-- **PyYAML** - Structured resume data storage
-- **qrcode[pil]** - QR code generation for certificate verification
-- **Pillow** - Image processing and manipulation
+| Module | Key Resources |
+|--------|--------------|
+| **networking** | VPC (3 AZ), public/private subnets, NAT Gateway, S3 gateway endpoint, interface endpoints (prod) |
+| **security** | KMS CMK, CloudTrail, Config + managed rules, GuardDuty, Security Hub (prod), SNS alarm topic, budget alerts |
+| **app-runner** | ECR repo, Secrets Manager, App Runner service + VPC connector, WAFv2 (3 rule groups), X-Ray group |
+| **dns** | Route 53 A/CNAME/TXT/MX records, App Runner custom domain + ACM validation |
+| **observability** | CloudWatch log groups, metric alarms (5xx, latency, CPU), dashboard, SNS integration |
 
-### Observability
+### Well-Architected Alignment
 
-- **prometheus-client** - Metrics collection and exposure
-- **python-json-logger** - Structured JSON logging
-- **asgi-correlation-id** - Request tracking across services
-- **OpenTelemetry** (optional) - Distributed tracing support
+The infrastructure follows [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/) principles:
 
-### Cloud/Azure Integration
+- **Security:** KMS encryption, least-privilege IAM, WAFv2, GuardDuty, Security Hub, CloudTrail
+- **Reliability:** Multi-AZ VPC, App Runner auto-scaling, health checks, auto-rollback
+- **Cost Optimization:** Budget alerts, VPC interface endpoints only in prod, S3 gateway endpoint
+- **Operational Excellence:** SNS alarm routing, CloudWatch dashboards, X-Ray tracing
+- **Performance:** App Runner auto-scaling, CloudWatch latency alarms
 
-- **Azure AKS** - Kubernetes runtime for production deployments
+## CI/CD Pipelines
 
-### Development Tools
+All workflows use Star Trek TNG-themed names and run on GitHub Actions.
 
-- **pytest** - Testing framework
-- **black** - Code formatting
-- **ruff** - Fast Python linter
-- **mypy** - Static type checking
-- **bandit** - Security vulnerability scanning
-- **pre-commit** - Git hooks automation
-- **pylint** - Code quality analysis
+### Pipeline Flow
+
+```text
+Push to main
+    │
+    ├── Picard (orchestrator)
+    │     ├── Data (CI: lint + test)
+    │     ├── Worf (security: Checkov + tfsec + Trivy)
+    │     ├── La Forge (build: ECR push + Cosign signing)
+    │     └── Gate (HCP Terraform VCS-driven plan/apply)
+    │           └── [on failure] Tasha (auto-rollback)
+    │
+    ├── Riker (release: semver + GHCR retag)
+    └── Troi (docs: coverage badges + reports)
+```
+
+### Workflow Reference
+
+| Workflow | File | Role | Trigger |
+|----------|------|------|---------|
+| **Picard** | `picard.yml` | CI/CD orchestrator | Push to main |
+| **Data** | `data.yml` | Lint, test, validate | Called by Picard / PR |
+| **Worf** | `worf.yml` | Checkov, tfsec, Trivy | Called by Picard |
+| **La Forge** | `laforge.yml` | Container build, ECR push, Cosign | Called by Picard + schedule |
+| **Riker** | `riker.yml` | Semver release, GHCR retag | After La Forge / manual |
+| **Crusher** | `crusher.yml` | Health checks (App Runner + pipelines) | Manual |
+| **Tasha** | `tasha.yml` | Auto-rollback on failed applies | workflow_run + schedule |
+| **Troi** | `troi.yml` | Coverage badges, security reports | After Data / manual |
+
+## Features
+
+### Resume/CV System
+
+- PDF generated at container build time from `fitness/data/resume-data.yaml`
+- LCARS-themed design with configurable accent colors
+- ETag and Last-Modified headers for caching
+- Downloadable or inline browser viewing
+
+### Certification Verification
+
+- Auto-seeds from `fitness/static/certs/` on startup
+- SHA-256 hash validation with QR codes at `/v/{slug}`
+- Supports Linux Foundation, AWS, Azure, HashiCorp, Google
+- Credly badge integration with embedded iframes
+- Metadata as code in `constants.py`
+
+### Contact Form
+
+- reCAPTCHA v2 via Formspree + honeypot field
+- CSRF double-submit cookie protection
+- Rate limiting (5 req/min submissions, 10/min views)
+- Optional SMTP email delivery with async processing
+
+### Security Posture
+
+- WAFv2 with 3 rule groups (rate limit, managed rules, IP reputation)
+- CSP headers with nonce support, HSTS, COOP, CORP
+- Endpoint-specific rate limiting via slowapi
+- Bandit, Trivy, Checkov, tfsec scanning in CI
 
 ## Quickstart
 
 ```bash
-cd fitness
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-pre-commit install  # enables lint/tests/report hooks locally
-cp .env.example .env  # configure ADMIN_PASSWORD and DATABASE_URL
-podman-compose up -d  # starts Caddy + app locally
+# Clone and install
+git clone https://github.com/borninthedark/witness.git
+cd witness
+uv sync                        # install all dependencies
+pre-commit install             # enable local hooks
+
+# Configure
+cp .env.example .env           # edit with your secrets
+
+# Run locally
+uv run uvicorn fitness.main:app --reload --port 8000
 ```
 
-**Open:** `http://example.com:8000`
+Open `http://localhost:8000`
 
-Local development uses SQLite by default. The `.env.example` file sets a local `DATABASE_URL` so Alembic migrations and the running container share the same database file.
+### Container Build
 
-## Features
-
-### 1. Resume/CV System
-
-- **Dynamic PDF Generation** - Generated from `fitness/data/resume-data.yaml` using ReportLab
-- **LCARS-themed Design** - Customizable accent colors and page styling
-- **Contact Integration** - Embedded website links and professional information
-- **Flexible Viewing** - Downloadable or inline browser viewing
-- **Efficient Caching** - ETag and Last-Modified headers for bandwidth optimization
-- **Content Separation** - YAML content decoupled from PDF presentation logic
-
-### 2. Certification Verification
-
-- **Auto-seeding** - Scans `fitness/static/certs/` for PDFs on startup
-- **SHA-256 Validation** - Cryptographic hash ensures document authenticity
-- **QR Code Generation** - Links to verification pages (`/v/{slug}`)
-- **Multi-provider Support** - Linux Foundation, AWS, Azure, HashiCorp, Google, and more
-- **Credly Integration** - Embedded badge iframes with customizable dimensions
-- **DNS TXT Validation** - Optional additional verification layer
-- **Lifecycle Management** - Tracks inactive/expired certifications
-- **Metadata as Code** - Centralized configuration in `constants.py`
-
-### 3. Contact Form
-
-- **LCARS-styled UI** - Star Trek Enterprise computer terminal aesthetics
-- **reCAPTCHA v2** - Integration via Formspree for spam prevention
-- **Honeypot Protection** - Additional spam filtering layer
-- **CSRF Validation** - Double-submit cookie protection
-- **Rate Limiting** - 5 requests/minute for submissions, 10/minute for page views
-- **Persistent Storage** - JSONL log of all submissions
-- **Email Delivery** - Optional SMTP integration
-- **Background Processing** - Async task handling for email sends
-
-### 4. Security Features
-
-- **Content Security Policy (CSP)** - Strict/transitional modes with nonce support
-- **HSTS Headers** - HTTP Strict Transport Security enforcement
-- **Rate Limiting** - Endpoint-specific throttling via slowapi
-- **CSRF Protection** - All state-changing operations protected
-- **Security Headers** - COOP, CORP, Permissions-Policy
-- **WAF-ready** - Works with Caddy and Cloudflare WAF
-- **Automated Scanning** - Bandit and Trivy in pre-commit hooks
-
-### 5. Observability
-
-- **Prometheus Metrics** - `/metrics` endpoint with request counters and latency histograms
-- **Structured Logging** - JSON logs with correlation IDs
-- **Health Checks** - `/healthz` (liveness) and `/readyz` (readiness with DB check)
-- **Distributed Tracing** - Optional OpenTelemetry for FastAPI, SQLAlchemy, and HTTPX
-- **Request Context** - Detailed error logging with full request information
-
-## Architecture
-
-### Application Flow
-
-```text
-┌──────────────────────────────────────────┐
-│      Reverse Proxy (Caddy)              │
-│   TLS Termination, Buffering, Caching   │
-└──────────────────┬───────────────────────┘
-                   │
-┌──────────────────▼───────────────────────┐
-│        FastAPI Application               │
-│         (fitness/main.py)                │
-├──────────────────────────────────────────┤
-│  Middleware Stack (ordered):             │
-│  1. GZipMiddleware                       │
-│  2. SlowAPIMiddleware (rate limiting)    │
-│  3. MetricsMiddleware (Prometheus)       │
-│  4. SecurityHeadersMiddleware (CSP/HSTS) │
-│  5. CorrelationIdMiddleware              │
-│  6. CORSMiddleware                       │
-└──────────────────┬───────────────────────┘
-                   │
-      ┌────────────┼────────────┐
-      │            │            │
-┌─────▼───┐  ┌────▼────┐  ┌────▼─────┐
-│UI Router│  │API Router│  │Admin Router│
-│(Jinja2) │  │  (JSON) │  │(protected) │
-└─────┬───┘  └────┬────┘  └────┬─────┘
-      │           │            │
-      └───────────┼────────────┘
-                  │
-          ┌───────▼────────┐
-          │   Services     │
-          │ - PDF Resume   │
-          │ - Storage      │
-          │ - Mailer       │
-          └───────┬────────┘
-                  │
-          ┌───────▼────────┐
-          │ Database (ORM) │
-          │  SQLAlchemy    │
-          └───────┬────────┘
-                  │
-          ┌───────▼───────┐
-          │    SQLite     │
-          │  fitness.db   │
-          └───────────────┘
+```bash
+# Podman (preserves health checks)
+podman build --format docker -t witness:latest -f container/Containerfile .
+podman run -p 8000:8000 --env-file .env witness:latest
 ```
-
-### Notable Design Patterns
-
-#### 1. SQLite Database Strategy
-
-`config.py` resolves a single SQLite URL:
-
-1. `DATABASE_URL` if provided
-2. Default `sqlite:///./data/fitness.db`
-
-This keeps local and production deployments consistent and file-backed.
-
-#### 2. Certification Metadata as Code
-
-`constants.py` serves as the single source of truth for all certification metadata:
-- Display names and issuers
-- Verification URLs
-- Credly badge IDs and iframe dimensions
-- Provider-specific verification methods
-- Inactive certification tracking
-
-This eliminates database drift and makes metadata version-controlled.
-
-#### 3. Star Trek LCARS Design System
-
-- Custom SCSS with LCARS color palette
-- Left accent stripe on resume PDFs
-- Contact form styled like Enterprise computer terminals
-- Font choices and spacing mirror the aesthetic
-- Assets organized in `fitness/static/lcars/`
-
-#### 4. Static Asset Fingerprinting
-
-```python
-asset_url()  # Returns: /static/styles.css?v=1699847623
-```
-
-Enables aggressive browser caching with automatic cache busting on file updates.
-
-#### 5. Resume Generation from YAML
-
-Separation of content from presentation:
-- **Data:** `fitness/data/resume-data.yaml` (human-editable)
-- **Logic:** `fitness/services/pdf_resume.py` (ReportLab engine)
-- **Styling:** Configurable accent/page colors via parameters
 
 ## Configuration
 
-### Environment Variables
-
-Create a `.env` file with these key settings:
-
-```bash
-# Application
-SECRET_KEY=your-secret-key-here
-ADMIN_PASSWORD=your-admin-password
-ENVIRONMENT=development  # or production
-CSRF_SECRET=another-secret-key
-
-# Database (SQLite only)
-DATABASE_URL=sqlite:///./data/fitness.db
-
-# Observability
-LOG_LEVEL=INFO
-ENABLE_TRACING=false
-OTLP_ENDPOINT=https://otel-collector:4318/v1/traces
-
-# Contact Form (optional SMTP)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_STARTTLS=true
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-MAIL_FROM=your-email@gmail.com
-MAIL_TO=destination@example.com
-
-# Feature Flags
-ENABLE_REPORTS_DASHBOARD=false
-```
-
-### Static Assets & Caching
-
-- **CSS/JS Fingerprinting:** `asset_url()` appends modification timestamps
-- **Immutable Headers:** Static files served with `Cache-Control: public, max-age=31536000, immutable`
-- **PDF Optimization:** Resume PDF includes `ETag` and `Last-Modified` for conditional GETs
-- **CDN-ready:** Works seamlessly with Cloudflare or Azure CDN
-
-## Deployment
-
-### Manual Deployment
-
-Follow FastAPI's [server machine guidance](https://fastapi.tiangolo.com/deployment/manually/#server-machine-and-server-program) and run behind Gunicorn with Uvicorn workers:
-
-```bash
-WEB_WORKERS=$(nproc) gunicorn -c gunicorn.conf.py fitness.main:app
-```
-
-**Best practices:**
-- Drop `--reload` in production
-- Size workers based on CPU cores (2-4× core count)
-- Keep Gunicorn behind a reverse proxy (Caddy/Nginx) for TLS termination and buffering
-
-### Container Deployment
-
-The `Containerfile` follows FastAPI's [Docker deployment recommendations](https://fastapi.tiangolo.com/deployment/docker/):
-
-**Build:**
-```bash
-# Docker
-docker build -t fitness:latest -f Containerfile .
-
-# Podman (preserves health checks)
-podman build --format docker -t fitness:latest -f Containerfile .
-```
-
-**Run with Compose:**
-```bash
-cp .env.example .env
-podman-compose up -d
-```
-
-The compose stack includes:
-- FastAPI application
-- Caddy reverse proxy with automatic HTTPS (local development)
-
-**Local Development Architecture:**
-```text
-Client → Caddy (TLS, reverse proxy) → FastAPI App → SQLite
-         :80/:443                      :8000          :5432
-```
-
-*Note: Production uses Azure Container Apps with built-in HTTPS ingress.*
-
-**Container Features:**
-- Multi-stage Python 3.12-slim base
-- Non-root `app` user for security
-- Health check on `/healthz`
-- Entrypoint script handles database migrations
-
-Set `SKIP_DB_MIGRATIONS=1` to bypass Alembic migrations in ephemeral environments.
-
-### Azure Container Apps
-
-Azure Container Apps provides a serverless container platform with automatic scaling, built-in HTTPS, and scale-to-zero capability.
-
-#### Container Apps Architecture
-
-```text
-Internet -> HTTPS Ingress (Auto TLS) -> Container Apps Environment
-                                              |
-                                        [witness app]
-                                        - FastAPI container
-                                        - System-assigned identity
-                                        - Auto-scaling (0-N replicas)
-                                              |
-                                        Log Analytics Workspace
-```
-
-#### Infrastructure Provisioning (Terraform)
-
-Terraform configurations provision the Azure infrastructure via GitHub Actions:
-
-```bash
-# Manual deployment (or push to trigger HCP Terraform VCS-driven plan)
-cd deploy/terraform/container-apps
-terraform login && terraform init
-terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
-terraform apply tfplan
-```
-
-**Terraform provisions:**
-- Container Apps Environment using official `Azure/container-apps/azure` v0.4.0 module
-- Auto-scaling (configurable min/max replicas, including scale-to-zero)
-- Log Analytics workspace for monitoring
-- Built-in HTTPS ingress with automatic TLS
-- System-assigned managed identities
-
-#### Compose-Style Configuration
-
-The module uses a compose-style approach familiar to Docker/Podman Compose users:
-
-```hcl
-container_apps = {
-  app = {
-    name          = "witness"
-    revision_mode = "Single"
-    template = {
-      min_replicas = 1
-      max_replicas = 3
-      containers = [{
-        name   = "witness"
-        image  = "ghcr.io/borninthedark/witness:latest"
-        cpu    = "0.5"
-        memory = "1Gi"
-        env    = [...]
-        liveness_probe  = { path = "/healthz" }
-        readiness_probe = { path = "/readyz" }
-      }]
-    }
-    ingress = { external_enabled = true, target_port = 8000 }
-  }
-}
-```
-
-See `deploy/terraform/container-apps/README.md` for complete configuration.
-
-### GitHub Actions CI/CD
-
-The CI/CD pipeline uses Star Trek TNG-themed workflow names:
-
-**Application Workflows:**
-
-Workflows run in sequence: **La Forge -> Riker**, **La Forge -> Troi**
-
-| Workflow | File | Purpose |
-|----------|------|---------|
-| **Data - CI** | `data.yml` | Lint, test, validate (push/PR) |
-| **La Forge - Build** | `laforge.yml` | Build, scan, push images to ECR (scheduled) |
-| **Riker - Release** | `riker.yml` | Retag image, semantic versioning, GitHub releases |
-| **Troi - Docs** | `troi.yml` | Coverage badges, security reports, doc validation |
-
-**Data - CI** (`data.yml`):
-- Python linting (Ruff, MyPy) and testing (pytest)
-- Containerfile linting (Hadolint), ShellCheck, Semgrep
-- Runs on push/PR to main
-
-**La Forge - Build** (`laforge.yml`):
-- Container image building and push to AWS ECR
-- Security scanning with Trivy
-- Pushes `dev` and `sha-*` tags to ECR
-- Scheduled weekly or manual dispatch
-
-**Riker - Release** (`riker.yml`):
-- Triggered after La Forge build or manually
-- Pulls `dev` image from ECR, retags for prod
-- Semantic versioning via conventional commits:
-  - `feat:` -> minor bump (0.X.0)
-  - `fix:` -> patch bump (0.0.X)
-  - `feat!:` or `BREAKING CHANGE:` -> major bump (X.0.0)
-- Creates GitHub releases with changelogs
-- Pushes `latest`, `prod`, and versioned tags to GHCR
-- Image signing with Cosign
-
-**Infrastructure Workflows (Terraform):**
-
-Plan and apply is handled by the **Picard** orchestrator:
-
-```text
-Push to main
-    |
-    |-- Picard - Deploy (Data CI + Worf scans -> La Forge build -> VCS gate)
-            |
-            |-- [on failure] Tasha - Destroy (auto-rollback)
-```
-
-| Workflow | File | Purpose |
-|----------|------|---------|
-| **Picard - Deploy** | `picard.yml` | CI/CD orchestrator: CI + security + build + VCS gate |
-| **Worf - Security** | `worf.yml` | Scans, validation, tests (called by Picard) |
-| **Crusher - Health** | `crusher.yml` | Pipeline, container, and workspace health checks (manual) |
-| **Tasha - Destroy** | `tasha.yml` | Destroy via HCP TF API (manual or auto-rollback) |
-
-**HCP Terraform** (org: `DefiantEmissary`):
-- VCS-driven: HCP Terraform auto plan/apply on push to main
-- Workspace: `witness-container-apps`
-- Sensitive vars passed via `-var` from GitHub secrets
-
-See `.github/workflows/` for workflow definitions.
-
-## Observability Guide
-
-### Azure Monitor Integration (Production)
-
-Azure Container Apps integrates with Azure Monitor:
-
-- **Log Analytics Workspace** - Centralized log collection
-- **Container Insights** - Application and container metrics
-- **Prometheus-compatible** - `/metrics` endpoint scraped automatically
-
-**Key Features:**
-- Unified dashboards combining metrics and logs
-- PromQL and KQL query support
-- Automatic alerting on critical metrics
-
-### Logging
-
-Structured JSON logs with correlation IDs:
-
-```json
-{
-  "timestamp": "2024-01-15T10:30:45Z",
-  "level": "INFO",
-  "correlation_id": "abc123def456",
-  "message": "Request processed successfully",
-  "path": "/certs",
-  "method": "GET",
-  "status_code": 200,
-  "duration_ms": 42.5
-}
-```
-
-**Local Development:** Configure via `LOG_LEVEL` environment variable (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-
-**AKS Production:** Logs automatically collected by Container Insights and forwarded to Log Analytics workspace.
-
-### Metrics
-
-Prometheus-compatible metrics on `/metrics` endpoint:
-
-```python
-# Request counters
-http_requests_total{method="GET",path="/certs",status="200"} 1547
-
-# Latency histograms
-http_request_duration_seconds_bucket{method="GET",path="/certs",le="0.5"} 1420
-http_request_duration_seconds_bucket{method="GET",path="/certs",le="1.0"} 1545
-http_request_duration_seconds_sum{method="GET",path="/certs"} 245.67
-http_request_duration_seconds_count{method="GET",path="/certs"} 1547
-```
-
-**Security:** The `/metrics` endpoint is protected with HTTP Basic Auth (see `fitness/config.py` for `METRICS_USERNAME` and `METRICS_PASSWORD` configuration).
-
-**AKS Production:** Automatically scraped by Azure Monitor Managed Prometheus and visualized in Grafana dashboards.
-
-**Local Development:** Access manually at `http://example.com:8000/metrics` with credentials.
-
-### Health Checks
-
-**Liveness:** `/healthz` - Returns 200 if application is running
-
-**Readiness:** `/readyz` - Returns 200 if application can serve traffic (checks DB connectivity and filesystem)
-
-### Distributed Tracing
-
-Enable OpenTelemetry tracing:
-
-```bash
-ENABLE_TRACING=true
-OTLP_ENDPOINT=https://otel-collector:4318/v1/traces
-OTLP_HEADERS=api-key=your-key,another-header=value
-```
-
-Instruments:
-- FastAPI request/response
-- SQLAlchemy database queries
-- HTTPX external HTTP calls
-
-## Development Workflow
+Key environment variables (see [docs/variables.md](docs/variables.md) for full reference):
+
+| Variable | Purpose |
+|----------|---------|
+| `SECRET_KEY` | Application signing key |
+| `ADMIN_PASSWORD` | Admin authentication |
+| `DATABASE_URL` | SQLite path (default: `sqlite:///./data/fitness.db`) |
+| `ENVIRONMENT` | `development` or `production` |
+| `ENABLE_TRACING` | OpenTelemetry X-Ray tracing |
+| `FORMSPREE_ID` | Contact form endpoint |
+
+## Development
+
+### Package Management
+
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management:
+
+- `pyproject.toml` defines `[project]` dependencies + `[dependency-groups]` for dev/security
+- `uv.lock` provides deterministic resolution
+- `uv sync --frozen` in CI, `uv run` for script execution
+- Container builds use `COPY --from=ghcr.io/astral-sh/uv:latest`
 
 ### Pre-commit Hooks
 
-Install hooks:
 ```bash
-pip install pre-commit && pre-commit install
+uv run pre-commit install
+uv run pre-commit run --all-files
 ```
 
-**Automated checks on every commit:**
-- **Formatting:** black, isort
-- **Linting:** ruff, flake8, pylint, mypy
-- **Security:** bandit (code), trivy (dependencies/containers)
-- **Validation:** yamllint, jsonlint, shellcheck, markdownlint
-- **Reports:** Automated security report generation
-
-**Optional hooks:**
-```bash
-pre-commit install --hook-type commit-msg
-pre-commit install --hook-type pre-push
-```
-
-**Update hook versions:**
-```bash
-pre-commit autoupdate
-```
-
-**Hermetic execution:**
-```bash
-python scripts/run-precommit-podman.py
-```
-
-Builds a Podman image with all tools and runs hooks in isolation.
-
-All logs written to `.precommit_logs/` (gitignored).
+Hooks include: black, isort, flake8, pylint, mypy, bandit, yamllint, shellcheck, markdownlint, terraform_fmt, terraform_validate, tflint, DRY enforcement, and README generation.
 
 ### Testing
 
-**Current Coverage:** 62.77% (35+ tests, targeting 80%+)
-
-Run the test suite:
 ```bash
-pytest                        # Run all tests with coverage
-pytest -v                     # Verbose output
-pytest -n auto                # Parallel execution (faster)
-pytest --cov-report=html      # Generate HTML coverage report
+uv run pytest                  # full suite with coverage
+uv run pytest -n auto          # parallel execution
+uv run pytest --cov-report=html  # HTML coverage report
 ```
 
-**Test Organization:**
-- `tests/security/` - CSRF and security tests (100% coverage)
-- `tests/routers/` - UI endpoint tests
-- `tests/test_integration.py` - End-to-end integration tests
-- `tests/test_smoke.py` - Quick smoke tests
-- `tests/test_constants.py` - Certification metadata tests
+Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`, `tests/test_smoke.py`.
 
-**See [tests/README.md](tests/README.md) for comprehensive test documentation, coverage goals, and writing new tests.**
+## Observability
 
-### Code Quality
+| Signal | Endpoint / Service |
+|--------|-------------------|
+| **Health** | `/healthz` (liveness), `/readyz` (readiness + DB check) |
+| **Metrics** | `/metrics` (Prometheus, Basic Auth protected) |
+| **Logs** | Structured JSON with correlation IDs, forwarded to CloudWatch |
+| **Traces** | OpenTelemetry SDK with X-Ray exporter (FastAPI, SQLAlchemy, HTTPX) |
+| **Dashboards** | CloudWatch dashboards with 5xx, latency, CPU alarms |
 
-**Recommended: Use pre-commit hooks** (runs all checks automatically)
+## Security
 
-```bash
-# Run all quality checks
-pre-commit run --all-files
-
-# Run on staged files only (faster)
-pre-commit run
-
-# Run specific hook
-pre-commit run black
-pre-commit run mypy
-```
-
-Pre-commit hooks automatically run on every commit and include:
-- **Formatting:** black, isort
-- **Linting:** ruff, flake8, pylint
-- **Type checking:** mypy
-- **Security:** bandit, trivy
-- **Validation:** yamllint, shellcheck, markdownlint
-
-**Manual commands** (for CI, troubleshooting, or specific files):
-
-```bash
-# Format code
-black fitness/ tests/
-isort fitness/ tests/
-
-# Type checking
-mypy fitness/
-
-# Security scans
-bandit -r fitness/ tests/ -ll
-trivy fs --severity HIGH,CRITICAL .
-
-# Lint specific file
-ruff check fitness/main.py --fix
-```
-
-**Why use pre-commit?**
-- Consistent with CI/CD checks
-- Catches issues before commit
-- Faster with caching
-- Single source of truth
-
-## Infrastructure as Code
-
-**Primary IaC Method:** Terraform
-
-The project uses **Terraform** for infrastructure provisioning on Azure, with configurations in `deploy/terraform/`.
-
-### Terraform Modules
-
-**Structure:**
-```text
-deploy/terraform/
-└── container-apps/                     # Azure Container Apps
-    ├── main.tf                         # Container Apps using Azure/container-apps/azure v0.4.0
-    ├── variables.tf                    # Input variables
-    ├── outputs.tf                      # Output values
-    ├── versions.tf                     # Provider requirements
-    ├── backend.tf                      # HCP Terraform backend (single workspace)
-    ├── tests/                          # Terraform native tests
-    │   └── variables.tftest.hcl
-    ├── dev/
-    │   └── terraform.tfvars            # Development environment
-    └── prod/
-        └── terraform.tfvars            # Production environment
-```
-
-**Provisions:**
-- Container Apps Environment using official `Azure/container-apps/azure` v0.4.0 module
-- Auto-scaling (configurable min/max replicas, including scale-to-zero)
-- Built-in HTTPS ingress with automatic TLS
-- Log Analytics workspace for Azure Monitor integration
-- System-assigned managed identities for secure Azure resource access
-
-**Deployment (via GitHub Actions):**
-
-Infrastructure is deployed via the La Forge workflow (CLI-driven):
-
-1. Push changes to `deploy/terraform/**`
-2. La Forge runs Data CI + Worf security scans as prerequisites
-3. La Forge runs `terraform plan -var-file=<env>/terraform.tfvars`
-4. Manual dispatch with `action=apply` to apply changes
-
-**Manual deployment:**
-```bash
-cd deploy/terraform/container-apps
-terraform login && terraform init
-terraform plan -var-file="dev/terraform.tfvars" -out=tfplan
-terraform apply tfplan
-```
-
-**Security Best Practices:**
-- Managed identities for service authentication
-- Secrets injected from GitHub Actions, never committed
-- State stored in Azure Storage with encryption
-
-**Monitoring Integration:**
-- Container logs auto-collected to Log Analytics workspace
-- `/metrics` endpoint available for Prometheus scraping
-
-See [docs/deployment.md](docs/deployment.md) for detailed deployment guide.
-
-## Security Considerations
-
-### Known Vulnerabilities
-
-**python-multipart CVE-2024-53981:**
-
-`python-multipart` pinned to `0.0.7` due to `fastapi-users==12.1.3` requirement. CVE-2024-53981 is theoretically exploitable.
-
-**Mitigations in place:**
-- Rate limiting via slowapi (5 req/min on POST endpoints)
-- WAF protection via Caddy reverse proxy
-- reCAPTCHA v2 via Formspree on contact form
-- Comprehensive request logging
-
-**Action:** Upgrade to `python-multipart>=0.0.18` when fastapi-users relaxes constraints.
-
-### Best Practices
-
-- Never logs credentials or secrets
-- No secrets in Git history
-- Regular Trivy, Checkov, and tfsec scans
-- CSRF protection on all state-changing operations
-- Rate limiting on sensitive endpoints
-- Strict CSP with nonce support (optional)
-- HSTS headers with preload directive
+- **Encryption:** KMS customer-managed keys for all at-rest encryption
+- **Network:** Private subnets, VPC endpoints, NAT Gateway
+- **WAF:** Rate limiting, AWS managed rule groups, IP reputation lists
+- **Audit:** CloudTrail API logging, Config compliance rules
+- **Detection:** GuardDuty threat detection, Security Hub (prod)
+- **Supply Chain:** Cosign image signing, Trivy + Checkov scanning
+- **Application:** CSRF, rate limiting, CSP/HSTS, honeypot, reCAPTCHA
 
 ## Documentation
 
-- **[Project Overview](docs/overview.md)** - Project structure, data sources, application flow.
-- **[Deployment Guide](docs/deployment.md)** - Container, Compose, Container Apps, systemd deployment.
-- **[Tooling & Workflows](docs/tooling.md)** - Testing, linting, pre-commit workflows.
-- **[Admin User Setup](docs/admin-setup.md)** - Admin authentication, user management.
-- **[Status Dashboard Setup Guide](docs/status-dashboard-setup.md)** - Prometheus, Grafana, public status page.
-- **[Certification Management & SHA-256 Verification](docs/certification-management.md)** - SHA-256 verification, status/visibility controls.
-- **[Test Suite Guide](tests/README.md)** - Test structure, coverage, writing tests.
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | AWS architecture diagram, traffic flows, module details |
+| [Variables](docs/variables.md) | Full variable reference for bootstrap, workspaces, and GitHub Actions |
+| [Certification Management](docs/certification-management.md) | SHA-256 verification, status/visibility controls |
+| [Admin Setup](docs/admin-setup.md) | Admin authentication, user management |
+| [Test Suite](tests/README.md) | Test structure, coverage goals, writing new tests |
+
+## AI-Assisted Development
+
+This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 ## License
 
-See LICENSE file for details.
+See [LICENSE](LICENSE) file for details.

@@ -35,10 +35,11 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . /app
 
-# Create data directory for SQLite database
+# Generate resume PDF and prepare runtime directories
 RUN mkdir -p /app/data \
+ && uv run python -c "from fitness.services.pdf_resume import generate_resume_pdf; generate_resume_pdf()" \
  && chown -R app:app /app \
- && chmod +x /app/scripts/docker-entrypoint.sh /app/scripts/db_upgrade.py
+ && chmod +x /app/tools/docker-entrypoint.sh /app/tools/db_upgrade.py
 
 USER app
 
@@ -50,5 +51,5 @@ CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
 
 EXPOSE 8000
 
-ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/tools/docker-entrypoint.sh"]
 CMD ["uvicorn","fitness.main:app","--host","0.0.0.0","--port","8000"]

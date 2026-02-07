@@ -8,7 +8,7 @@ import subprocess  # nosec B404 - required for invoking git/grep commands
 import sys
 from pathlib import Path
 
-from scripts.utils import Colors, print_colored
+from tools.utils import Colors, print_colored
 
 AZURE_SUBSCRIPTION_PATTERN = (
     r"[0-9a-fA-F]{8}-"

@@ -1,0 +1,68 @@
+# Resume configuration with black and white defaults
+# Accent color: Use #000000 for pure black, or #2C3E50 for dark slate
+# Page color: Use #FFFFFF for pure white
+
+personal:
+  name: Princeton A. Strong
+  phone: 206-666-5568
+  email: info@princetonstrong.com
+  website: https://engage.princetonstrong.com
+
+summary: |
+  Platform Engineer specializing in secure hybrid cloud & on-prem solutions by leveraging Python automation, Open Source technologies, & DevSecOps best practices.
+
+education: G.E.D., State of Ohio
+
+certifications:
+  - issuer: Microsoft
+    certification: Azure Administrator Associate
+  - issuer: Microsoft
+    certification: Azure DevOps Engineer Expert
+  - issuer: Microsoft
+    certification: Azure Solutions Architect Expert
+  - issuer: The Linux Foundation
+    certification: Linux Foundation Certified System Administrator
+  - issuer: AWS
+    certification: Certified Cloud Practitioner
+  - issuer: AWS
+    certification: Solutions Architect Associate
+  - issuer: CNCF
+    certification: Certified Kubernetes Application Developer
+
+roles:
+  - title: Enterprise Security Architect - Staff Consultant
+    dates: 12/2020 - 10/2022
+    company: Booz Allen Hamilton
+    location: McLean, VA
+    bullets:
+      - Implemented AWS infrastructure using Terraform Cloud/Enterprise with Hashicorp Sentinel; administered AWS Organizations with SCPs, consolidated billing, and cross-account IAM roles
+      - Managed GitHub Organization settings including Okta SSO/SAML integration, team permissions, branch protection policies, and repository access controls
+      - Built immutable infrastructure using Hashicorp Packer to create standardized, security-hardened AMIs for EC2 deployments
+      - Orchestrated multi-container applications using docker-compose for local development environments and testing workflows
+      - Configured Ansible playbooks for automated configuration management, server provisioning, and compliance enforcement across hybrid cloud infrastructure
+      - Implemented observability solutions using SignalFx for real-time application performance monitoring, metrics collection, and distributed tracing
+      - Designed and implemented AWS networking architecture using VPCs, subnets, route tables, NACLs, security groups, VPC peering, and Transit Gateway for secure multi-account connectivity
+      - Configured Azure Virtual Networks with NSGs, route tables, VNet peering, and Azure Firewall to establish secure hybrid cloud connectivity between on-premises and cloud environments
+      - Configured CI/CD pipelines for SAST/DAST/SCA vulnerability scanning and created scalable automated production deployment system using Terraform for cloud native applications
+      - Configured, deployed, and scaled Palo Alto CORTEX XSOAR in AWS for automated security orchestration and incident response
+      - Designed security compliance metrics aligned with DevSecOps; developed custom Splunk queries and dashboards for real-time monitoring; used YAML to create pipeline infrastructure for deploying container images into ACR & AWS ECR
+      - Wrote SQL queries to extract and analyze data from AWS RDS, Aurora, DynamoDB, and Azure SQL; created data-driven reports and visualizations for stakeholders
+
+  - title: DevOps Engineer
+    dates: 12/2018 - 04/2020
+    company: Factual Data
+    location: Columbus, OH
+    bullets:
+      - Configured pipelines for automated deploy to app servers and performed build maintenance in Jenkins and TeamCity
+      - Deployed and managed .NET Framework applications on Windows Server 2012/2016 using IIS; configured application pools, bindings, SSL certificates, and authentication methods
+      - Used Infrastructure-as-Code methodologies to automate, centralize, and scale the configuration changes made to application, database, and web frontend servers
+      - Constructed application configuration files that were added to version control using Bitbucket and SVN while also managing repository permissions and functionality
+      - Worked with development teams to implement monitoring on applications using Dynatrace and log aggregation; created Splunk queries and alerts for application performance monitoring, error tracking, and security event correlation
+      - Implemented health check endpoints and monitoring for .NET applications using custom APIs and IIS URL Rewrite; configured load balancer health probes in F5 Big IP
+      - Configured app connections to SQL databases (MS SQL Server, MariaDB, PostgreSQL) and app properties in version control; automated creation of Python BI environments using Anaconda and Pip
+      - Used knowledge of Python, Jinja templates and YAML to assist the team with Ansible Playbooks for multiple purposes including deployment and auditing
+      - Maintained a fully automated CI/CD pipeline for code deployment and state configuration using Ansible and Rundeck with Bash and PowerShell scripts
+      - Administered Windows Server environments using PowerShell DSC and Ansible for configuration management; automated IIS deployments and Windows service management
+      - Worked with Unix Admins and Networking to complete RHEL 7 migrations by configuring new RHEL 7 app and Apache or Java Tomcat web servers and adding them to the correct Big IP F5 pools
+      - Used PowerShell to automate logging and cleanup tasks improving disk utilization; utilized OpenJDK for migrating Java applications to open-source technologies
+      - Used Thycotic Secret Server to manage application secrets and grant users RBAC to application secrets

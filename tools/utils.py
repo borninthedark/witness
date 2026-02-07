@@ -71,7 +71,7 @@ def print_info(message: str) -> None:
 # -----------------------------
 def get_project_root() -> Path:
     """
-    Returns the project root assuming this file is at `fitness/scripts/utils.py`
+    Returns the project root assuming this file is at `tools/utils.py`
     or similar — walks up two levels. Adjust as needed.
     """
     current = Path(__file__).resolve()

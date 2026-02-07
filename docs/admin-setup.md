@@ -69,7 +69,7 @@ If needed, you can manually create users using the provided script:
 
 ```bash
 # From project root
-python scripts/create_admin_user.py
+python tools/create_admin_user.py
 ```
 
 This script reads from the same `.env` variables and creates the admin user.

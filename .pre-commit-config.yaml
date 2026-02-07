@@ -51,7 +51,7 @@ repos:
     rev: 1.7.6
     hooks:
       - id: bandit
-        args: ['-r', 'fitness', 'scripts', 'tests', '-ll', '-c', 'pyproject.toml']
+        args: ['-r', 'fitness', 'tools', 'tests', '-ll', '-c', 'pyproject.toml']
         pass_filenames: false
         additional_dependencies: ['bandit[toml]', 'defusedxml']
 
@@ -90,9 +90,18 @@ repos:
       - id: security-reports
         name: Generate security reports
         language: system
-        entry: scripts/precommit_log.sh
-        args: ['security-reports', '.venv/bin/python', 'scripts/generate-security-reports.py']
+        entry: tools/precommit_log.sh
+        args: ['security-reports', '.venv/bin/python', 'tools/generate-security-reports.py']
         pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: check-dry
+        name: DRY enforcement
+        language: system
+        entry: bash -c 'unset VIRTUAL_ENV; PYTHONPATH=. uv run python tools/check_dry.py --functions-only --path fitness'
+        pass_filenames: false
+        types: [python]
 
   - repo: https://github.com/pycqa/pylint
     rev: v3.2.6
@@ -101,6 +110,15 @@ repos:
         args:
           - --errors-only
           - --rcfile=.pylintrc
+
+  - repo: local
+    hooks:
+      - id: update-readme
+        name: Update README docs section
+        language: system
+        entry: bash -c 'unset VIRTUAL_ENV; PYTHONPATH=. uv run python tools/update_readme.py'
+        pass_filenames: false
+        files: ^(docs/.*\.md|tests/README\.md|tools/update_readme\.py)$
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.96.3

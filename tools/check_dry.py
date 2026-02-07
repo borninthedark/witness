@@ -9,13 +9,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from scripts.utils import (
-    Colors,
-    get_project_root,
-    print_colored,
-    print_error,
-    print_info,
-)
+from tools.utils import Colors, get_project_root, print_colored, print_error, print_info
 
 
 class CodeBlock:

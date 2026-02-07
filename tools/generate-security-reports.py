@@ -252,7 +252,7 @@ def generate_summary_report(
             "",
             "## Quick Actions",
             "",
-            "- Regenerate: `python scripts/generate-security-reports.py`",
+            "- Regenerate: `python tools/generate-security-reports.py`",
             f"- Reports timestamp: `{STAMP_SUFFIX}`",
         ]
     )

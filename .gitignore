@@ -80,8 +80,10 @@ fitness/static/lcars/assets/*
 !fitness/static/lcars/assets/README.md
 # Ruff
 .ruff_cache
-# Data
-data/
+# Data (runtime — SQLite DB, generated PDF)
+/data/
+fitness/data/*.db
+fitness/data/*.pdf
 # MyPy
 .mypy_cache
 # Tools

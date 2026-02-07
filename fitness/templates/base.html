@@ -7,7 +7,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Status Report</title>
+  <title>{% block title %}Captain's Fitness Log{% endblock %}</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="{{ asset_url('styles.css') }}">
 
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  {% block head_extra %}{% endblock %}
 </head>
 
 <body class="lcars-page">
@@ -69,15 +70,22 @@
         <a href="https://aws.amazon.com/apprunner/" target="_blank" rel="noopener noreferrer"
           title="AWS App Runner" class="badge-link">
           <img
-            src="https://img.shields.io/badge/App%20Runner-AWS-FF9900?logo=amazon-web-services&logoColor=white"
+            src="https://img.shields.io/badge/AWS-App%20Runner-232F3E?style=for-the-badge&logo=amazon-web-services&logoColor=FF9900"
             alt="AWS App Runner" class="footer-badge">
         </a>
 
         <!-- FastAPI -->
         <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener noreferrer" title="FastAPI Application"
           class="badge-link">
-          <img src="https://img.shields.io/badge/FastAPI-async%20Python%20API-009688?logo=fastapi&logoColor=white"
+          <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white"
             alt="FastAPI" class="footer-badge">
+        </a>
+
+        <!-- GitHub -->
+        <a href="https://github.com/borninthedark" target="_blank" rel="noopener noreferrer" title="GitHub"
+          class="badge-link">
+          <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white"
+            alt="GitHub" class="footer-badge">
         </a>
       </div>
 
@@ -119,7 +127,7 @@
     }
 
     .footer-badge {
-      height: 20px;
+      height: 28px;
       width: auto;
       display: block;
     }

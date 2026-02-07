@@ -148,8 +148,8 @@ jobs:
           GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
           DASHBOARD_UID: ${{ vars.DASHBOARD_UID || 'public-status' }}
         run: |
-          if [ -f scripts/update_grafana_snapshot.py ]; then
-            uv run python scripts/update_grafana_snapshot.py
+          if [ -f tools/update_grafana_snapshot.py ]; then
+            uv run python tools/update_grafana_snapshot.py
           else
             echo "Snapshot script not found, skipping"
           fi

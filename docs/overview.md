@@ -6,7 +6,7 @@
 - `fitness/static/` – Front-end assets (CSS, certification PDFs).
 - `fitness/templates/` – Jinja2 templates for the public and admin UI.
 - `tests/` – Pytest suite with smoke and integration coverage.
-- `scripts/` – Developer utilities such as the DRY checker.
+- `tools/` – Developer utilities such as the DRY checker.
 - `docs/` – Project documentation (this directory).
 
 ## Application Flow

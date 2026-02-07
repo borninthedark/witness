@@ -376,7 +376,7 @@ To enable:
   hooks:
     - id: pytest
       name: pytest
-      entry: scripts/precommit_log.sh
+      entry: tools/precommit_log.sh
       args: ['pytest', '.venv/bin/pytest']
       language: system
       pass_filenames: false
