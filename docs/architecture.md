@@ -11,42 +11,47 @@ Landing Zone Accelerator patterns adapted for a single-account deployment.
 
 ## Architecture Diagram
 
-```text
-                    ┌──────────────────────────────────────────────────┐
-                    │              AWS Account                          │
-                    │                                                  │
-   GitHub ──push──> │  ┌──────────┐    ┌──────────┐   ┌──────────┐   │
-   Actions          │  │   ECR    │───>│App Runner │<──│  WAFv2   │   │
-   (La Forge)       │  └──────────┘    └────┬─────┘   └──────────┘   │
-                    │        ▲              │                          │
-                    │        │         ┌────┴─────┐                    │
-                    │    Route 53      │   VPC    │    ┌───────────┐  │
-                    │  *.princeton     │ Connector│    │ GuardDuty │  │
-                    │  strong.com      └────┬─────┘    └───────────┘  │
-                    │                       │                          │
-                    │  ┌─────────┐   ┌─────┴──────┐  ┌─────────┐    │
-                    │  │Secrets  │   │  Private    │  │   KMS   │    │
-                    │  │Manager  │   │  Subnets    │  │ (CMK)   │    │
-                    │  └────┬────┘   └─────┬──────┘  └─────────┘    │
-                    │       │              │                          │
-                    │  ┌────┴──────────────┴────────────────────┐    │
-                    │  │  VPC Endpoints (S3, ECR, Logs, Secrets)│    │
-                    │  └───────────────────────────────────────┘    │
-                    │                                                  │
-                    │  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-                    │  │CloudWatch │  │CloudTrail │  │  X-Ray    │  │
-                    │  │Logs/Alarms│  │+ S3 Logs  │  │ Tracing   │  │
-                    │  └─────┬─────┘  └───────────┘  └───────────┘  │
-                    │        │                                        │
-                    │  ┌─────┴─────┐  ┌───────────┐  ┌───────────┐  │
-                    │  │    SNS    │  │  Security  │  │  Budgets  │  │
-                    │  │  Alarms   │  │    Hub     │  │  Alerts   │  │
-                    │  └───────────┘  └───────────┘  └───────────┘  │
-                    └──────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    classDef edge fill:#232F3E,stroke:#232F3E,color:#fff
+    classDef compute fill:#FF9900,stroke:#232F3E,color:#fff
+    classDef network fill:#8C4FFF,stroke:#232F3E,color:#fff
+    classDef security fill:#DD344C,stroke:#232F3E,color:#fff
+    classDef observe fill:#3B48CC,stroke:#232F3E,color:#fff
+    classDef storage fill:#3F8624,stroke:#232F3E,color:#fff
+    classDef external fill:#fff,stroke:#232F3E,color:#232F3E
 
-   HCP Terraform (VCS-driven)
-   ├── witness-dev   → terraform/dev/
-   └── witness-prod  → terraform/prod/
+    USER(("Internet")):::external --> R53["Route 53<br/>*.princetonstrong.com"]:::edge
+    R53 --> WAF["WAFv2<br/>3 rule groups"]:::security --> AR["App Runner"]:::compute
+    GH["GitHub Actions<br/>La Forge"]:::external -->|push| ECR["ECR"]:::compute -->|deploy| AR
+
+    AR --> VC["VPC Connector"]:::network
+    subgraph VPC["VPC 10.0.0.0/16"]
+        VC --- PS["Private Subnets<br/>2 AZ"]:::network
+        PS --- NAT["NAT Gateway"]:::network
+        PS --- EP["VPC Endpoints<br/>S3 GW + ECR, Logs,<br/>Secrets (prod)"]:::network
+    end
+
+    AR -.->|secrets| SM["Secrets Manager"]:::security
+    SM -.->|decrypt| KMS["KMS CMK"]:::security
+    AR -.->|traces| XRAY["X-Ray"]:::observe
+
+    subgraph sec["Security and Compliance"]
+        CT["CloudTrail"]:::security --> S3L["S3 Audit Logs"]:::storage
+        CT --> CWL["CloudWatch Logs"]:::observe
+        GD["GuardDuty"]:::security --> SH["Security Hub<br/>(prod)"]:::security
+        CFG["Config Rules<br/>(prod)"]:::security --> SH
+    end
+
+    subgraph obs["Observability"]
+        CW["CloudWatch<br/>Logs / Alarms / Dashboards"]:::observe -->|alarms| SNS["SNS"]:::observe
+        BUD["Budgets<br/>(prod)"]:::observe -->|alerts| SNS
+    end
+
+    subgraph hcp["HCP Terraform (VCS-driven)"]
+        DEV["witness-dev<br/>terraform/dev/"]:::compute
+        PROD["witness-prod<br/>terraform/prod/"]:::compute
+    end
 ```
 
 ## Directory Layout
@@ -197,16 +202,31 @@ depend on:
 
 ## CI/CD Pipeline
 
-```text
-Push to main
-    │
-    └── Picard (picard.yml) - CI/CD orchestrator
-        ├── Data CI (test)
-        ├── Worf Security (Checkov, tfsec, Trivy)
-        └── La Forge (laforge.yml) - ECR build/push
-            └── Riker (riker.yml) - ECR retag + GitHub Release
-                └── HCP Terraform VCS auto plan/apply
-                    └── Tasha (tasha.yml) - auto-rollback on failed applies
+```mermaid
+graph LR
+    classDef trigger fill:#24292F,stroke:#24292F,color:#fff
+    classDef ci fill:#2088FF,stroke:#1a6fcc,color:#fff
+    classDef security fill:#DD344C,stroke:#b02a3e,color:#fff
+    classDef build fill:#FF9900,stroke:#cc7a00,color:#fff
+    classDef deploy fill:#7B42BC,stroke:#623496,color:#fff
+    classDef post fill:#3F8624,stroke:#32691d,color:#fff
+
+    PUSH["Push to main"]:::trigger
+
+    subgraph PICARD["Picard -- orchestrator"]
+        direction LR
+        DATA["Data<br/>lint + test"]:::ci
+        WORF["Worf<br/>security scan"]:::security
+        LF["La Forge<br/>build + push"]:::build
+        GATE["Gate<br/>HCP Terraform"]:::deploy
+    end
+
+    PUSH --> DATA & WORF
+    DATA --> LF --> GATE
+    WORF --> GATE
+    LF -.->|on success| RIKER["Riker<br/>release"]:::post
+    LF -.->|on success| TROI["Troi<br/>docs"]:::post
+    PICARD -.->|on failure| TASHA["Tasha<br/>rollback"]:::security
 ```
 
 Linting and formatting (Terraform fmt/validate/tflint, Python black/ruff/mypy,

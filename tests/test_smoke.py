@@ -7,9 +7,9 @@ def test_health_check(client):
 
 
 def test_homepage_loads(client):
-    response = client.get("/")
+    response = client.get("/", headers={"Accept": "text/html"})
     assert response.status_code == 200
-    assert "Witness the Fitness" in response.text
+    assert "Princeton A. Strong" in response.text
 
 
 def test_contact_page_loads(client):

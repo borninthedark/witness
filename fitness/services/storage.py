@@ -5,16 +5,13 @@ from typing import BinaryIO
 
 class StorageBackend(ABC):
     @abstractmethod
-    async def save(self, file: BinaryIO, filename: str) -> str:
-        ...
+    async def save(self, file: BinaryIO, filename: str) -> str: ...
 
     @abstractmethod
-    async def delete(self, filename: str) -> bool:
-        ...
+    async def delete(self, filename: str) -> bool: ...
 
     @abstractmethod
-    async def get_url(self, filename: str) -> str:
-        ...
+    async def get_url(self, filename: str) -> str: ...
 
 
 class LocalStorage(StorageBackend):

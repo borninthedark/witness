@@ -56,17 +56,17 @@ class StatusMetrics:
             "metrics": {
                 "latency": {
                     "p95_ms": round(latency_p95, 2) if latency_p95 else None,
-                    "status": self._latency_status(latency_p95)
-                    if latency_p95
-                    else "unknown",
+                    "status": (
+                        self._latency_status(latency_p95) if latency_p95 else "unknown"
+                    ),
                 },
                 "error_rate": {
                     "percentage": round(error_rate, 3) if error_rate else 0.0,
-                    "status": "healthy"
-                    if error_rate < 0.1
-                    else "warning"
-                    if error_rate < 1.0
-                    else "degraded",
+                    "status": (
+                        "healthy"
+                        if error_rate < 0.1
+                        else "warning" if error_rate < 1.0 else "degraded"
+                    ),
                 },
                 "throughput": {
                     "requests_per_second": round(rps, 1) if rps else 0.0,

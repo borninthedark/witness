@@ -57,7 +57,7 @@ def generate_readme(root: Path) -> str:
 # Witness - The Captain's Fitness Log
 
 [![Build](https://github.com/{REPO}/actions/workflows/picard.yml/badge.svg)](https://github.com/{REPO}/actions/workflows/picard.yml)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![codecov](https://codecov.io/github/{REPO}/graph/badge.svg?token=BDO6GLJEVE)](https://codecov.io/github/{REPO})
 [![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
@@ -99,14 +99,14 @@ custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config
 
 | Layer | Technology |
 |-------|-----------|
-| **Runtime** | Python 3.12, FastAPI 0.115.4, Uvicorn |
+| **Runtime** | Python 3.13, FastAPI 0.115.4, Uvicorn |
 | **Database** | SQLAlchemy 2.0, SQLite, Alembic |
 | **Frontend** | Jinja2, HTMX, Tailwind CSS (CDN), LCARS design system |
 | **PDF** | ReportLab, PyYAML (resume-data.yaml) |
 | **Observability** | Prometheus, OpenTelemetry, CloudWatch, X-Ray |
 | **Security** | slowapi, CSRF, CSP/HSTS, Bandit, Trivy, Checkov |
 | **Packaging** | [uv](https://docs.astral.sh/uv/) (lockfile), setuptools build backend |
-| **Container** | Python 3.12-slim, multi-stage uv install, non-root user |
+| **Container** | Python 3.13-slim, multi-stage uv install, non-root user |
 | **Cloud** | AWS App Runner, ECR, VPC, Route 53, WAFv2, KMS, Secrets Manager |
 | **IaC** | Terraform with HCP Terraform (VCS-driven), Checkov + tfsec |
 

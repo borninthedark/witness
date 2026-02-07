@@ -17,7 +17,7 @@ repos:
         args: ['--fix=lf']
 
   - repo: https://github.com/psf/black
-    rev: 23.12.1
+    rev: 26.1.0
     hooks:
       - id: black
         language_version: python3.13
@@ -119,6 +119,15 @@ repos:
         entry: bash -c 'unset VIRTUAL_ENV; PYTHONPATH=. uv run python tools/update_readme.py'
         pass_filenames: false
         files: ^(docs/.*\.md|tests/README\.md|tools/update_readme\.py|coverage\.json|\.pre-commit-config\.yaml)$
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run tests
+        language: system
+        entry: bash -c 'unset VIRTUAL_ENV; DATABASE_URL=sqlite:////tmp/precommit_test.db uv run pytest -q --tb=short --no-cov'
+        pass_filenames: false
+        types: [python]
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.96.3

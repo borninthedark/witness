@@ -93,31 +93,23 @@ def test_certs_endpoint_deduplicates_by_sha256(client: TestClient, db_session: S
     assert "dup-cert-new" in response.text
 
 
-def test_certs_endpoint_hides_hidden_cert_slugs(
-    client: TestClient, db_session: Session
-):
-    """Test /certs page hides certifications in HIDDEN_CERT_SLUGS."""
-    # Delete any existing cert with this slug first to avoid constraint violations
-    db_session.query(Certification).filter_by(slug="azure-transcript").delete()
-    db_session.commit()
-
-    # Add cert with slug that should be hidden
+def test_certs_endpoint_hides_invisible_certs(client: TestClient, db_session: Session):
+    """Test /certs page hides certifications with is_visible=False."""
     db_session.add(
         Certification(
-            slug="azure-transcript",  # This is in HIDDEN_CERT_SLUGS
-            title="Azure Transcript",
-            issuer="Microsoft",
+            slug="hidden-cert-test",
+            title="Hidden Cert",
+            issuer="Test",
             sha256="hidden_cert_test_unique",
-            pdf_url="http://example.com/transcript.pdf",
+            pdf_url="http://example.com/hidden.pdf",
+            is_visible=False,
         )
     )
     db_session.commit()
 
     response = client.get("/certs")
     assert response.status_code == 200
-
-    # Should NOT show the hidden cert
-    assert "azure-transcript" not in response.text.lower()
+    assert "hidden-cert-test" not in response.text.lower()
 
 
 def test_certs_endpoint_separates_active_and_inactive(

@@ -22,7 +22,6 @@ class AdvisorySource(str, Enum):
     """Security advisory data sources."""
 
     NIST = "NIST"
-    GLSA = "GLSA"
     CVE = "CVE"
 
 

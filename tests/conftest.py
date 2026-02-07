@@ -5,10 +5,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+TESTS_ROOT = Path(__file__).parent
+
+# Set DATABASE_URL *before* importing fitness modules so the app doesn't try to
+# open the default production database path (which may not exist in test envs).
+os.environ.setdefault("DATABASE_URL", "sqlite:///test_app.db")
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 import fitness.main as main_module  # noqa: E402
 from fitness.database import Base  # noqa: E402
@@ -18,12 +24,10 @@ from fitness.models import (  # noqa: E402,F401 - ensure metadata is populated
     blog,
     certification,
 )
+from fitness.security.rate_limit import limiter  # noqa: E402
 
-TESTS_ROOT = Path(__file__).parent
-os.environ.setdefault(
-    "GENTOO_FEED_FALLBACK", str(TESTS_ROOT / "data" / "gentoo_feed_sample.xml")
-)
-os.environ.setdefault("GENTOO_FEED_DISABLE_HTTP", "1")
+# Disable rate limiting in tests to prevent cross-test 429 flakes
+limiter.enabled = False
 
 TEST_DB_PATH = Path("test_app.db")
 TESTING_SESSION_FACTORY: sessionmaker | None = None

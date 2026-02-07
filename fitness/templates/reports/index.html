@@ -157,19 +157,6 @@
     <p style="color: #9CA3AF;">No security scan results available.</p>
     {% endif %}
 
-    {% if advisories %}
-    <h3 class="section-title" style="margin-top: 2rem;">Recent Security Advisories</h3>
-    <ul class="advisories-list">
-      {% for advisory in advisories %}
-      <li class="advisory-item">
-        <h4>{{ advisory.title }}</h4>
-        <p class="advisory-meta">
-          {{ advisory.date }} | Severity: {{ advisory.severity }}
-        </p>
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
   </div>
 
   {% else %}

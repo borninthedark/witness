@@ -58,12 +58,28 @@ def test_certifications_page_deduplicates_entries(
     db_session.commit()
 
 
-def test_resume_pdf_endpoint_streams_file(client: TestClient) -> None:
+def test_resume_pdf_endpoint_streams_file(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verify the résumé PDF endpoint streams the document."""
+    from fitness.services.pdf_resume import build_resume, load_data
+
+    data_path = Path("fitness/data/resume-data.yaml")
+    if not data_path.exists():
+        pytest.skip("resume-data.yaml not found")
+
+    data = load_data(data_path)
+    pdf_path = tmp_path / "PAS-Resume.pdf"
+    build_resume(pdf_path, data, "#7B7B7B", "#FFFFFF")
+
+    import fitness.routers.ui as ui_mod
+
+    monkeypatch.setattr(ui_mod, "RESUME_STORAGE_DIR", tmp_path)
+
     response = client.get("/resume/pdf")
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
-    assert response.headers["content-disposition"].endswith("PAS-Resume.pdf")
+    assert "PAS-Resume.pdf" in response.headers["content-disposition"]
     assert len(response.content) > 1000
 
 

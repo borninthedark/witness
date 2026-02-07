@@ -33,7 +33,7 @@ uv run pre-commit run --all-files      # run everything once
 
 | Hook | Version | Config |
 |------|---------|--------|
-| [black](https://black.readthedocs.io/) | 23.12.1 | `--line-length=88` |
+| [black](https://black.readthedocs.io/) | 26.1.0 | `--line-length=88` |
 | [isort](https://pycqa.github.io/isort/) | 5.13.2 | `--profile black` |
 
 ### Python Linting

@@ -10,7 +10,6 @@
   --security-medium: #f39c12;
   --security-low: #95a5a6;
   --security-nist: #4a6f9d;
-  --security-glsa: #9b59b6;
 }
 
 /* =====================================================
@@ -545,12 +544,6 @@
   background: rgba(74, 111, 157, 0.2);
   border-color: rgba(74, 111, 157, 0.3);
   color: var(--lcars-cyan);
-}
-
-.source-badge.source-glsa {
-  background: rgba(155, 89, 182, 0.2);
-  border-color: rgba(155, 89, 182, 0.3);
-  color: #9b59b6;
 }
 
 .advisory-description {

@@ -9,7 +9,6 @@ from fitness.services.report_status import (
     collect_precommit_statuses,
     load_security_summary,
 )
-from fitness.services.security_feed import fetch_gentoo_advisories
 from fitness.utils.assets import asset_url
 
 templates = Jinja2Templates(directory="fitness/templates")
@@ -38,19 +37,12 @@ async def reports_index(
         print(f"Warning: Failed to load security summary: {e}")
         security_summary = {"entries": []}
 
-    try:
-        advisories = await fetch_gentoo_advisories(limit=12)
-    except Exception as e:
-        print(f"Warning: Failed to fetch Gentoo advisories: {e}")
-        advisories = []
-
     return templates.TemplateResponse(
         "reports/index.html",
         {
             "request": request,
             "hook_statuses": hook_statuses,
             "security_summary": security_summary,
-            "advisories": advisories,
             "active_section": active_section,
         },
     )

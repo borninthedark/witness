@@ -85,27 +85,22 @@ class TestReportsRouter:
 
 
 class TestSecurityDashboardRouter:
-    """Tests for security dashboard router endpoints."""
+    """Tests for security dashboard router endpoints (behind /admin/tactical)."""
 
-    def test_security_dashboard_loads(self, client: TestClient):
-        """Test security dashboard loads (may be slow due to API calls)."""
-        response = client.get("/security/dashboard", timeout=30)
-        # Should return 200 or may fail if external APIs are down
-        assert response.status_code in [200, 500, 503]
+    def test_tactical_dashboard_requires_auth(self, client: TestClient):
+        """Test tactical dashboard requires authentication."""
+        response = client.get("/admin/tactical/dashboard", follow_redirects=False)
+        assert response.status_code in [302, 401]
 
-    def test_security_advisories_endpoint(self, client: TestClient):
-        """Test security advisories endpoint."""
-        response = client.get("/security/advisories", timeout=30)
-        # HTMX endpoint should return HTML fragment
-        if response.status_code == 200:
-            assert "text/html" in response.headers["content-type"]
+    def test_tactical_advisories_requires_auth(self, client: TestClient):
+        """Test tactical advisories endpoint requires authentication."""
+        response = client.get("/admin/tactical/advisories", follow_redirects=False)
+        assert response.status_code in [302, 401]
 
-    def test_security_stats_endpoint(self, client: TestClient):
-        """Test security stats widget endpoint."""
-        response = client.get("/security/stats", timeout=30)
-        # Should return HTML fragment
-        if response.status_code == 200:
-            assert "text/html" in response.headers["content-type"]
+    def test_tactical_stats_requires_auth(self, client: TestClient):
+        """Test tactical stats endpoint requires authentication."""
+        response = client.get("/admin/tactical/stats", follow_redirects=False)
+        assert response.status_code in [302, 401]
 
 
 class TestStatusRouter:
@@ -166,7 +161,9 @@ class TestErrorHandlers:
 
     def test_404_handler_returns_custom_page(self, client: TestClient):
         """Test 404 error returns custom error page."""
-        response = client.get("/nonexistent-route-xyz-123")
+        response = client.get(
+            "/nonexistent-route-xyz-123", headers={"Accept": "text/html"}
+        )
         assert response.status_code == 404
         # Should return HTML error page for browser requests
         assert "text/html" in response.headers["content-type"]
@@ -244,7 +241,6 @@ class TestAuthEndpoints:
         "/certs",
         "/resume",
         "/contact",
-        "/security/dashboard",
         "/healthz",
         "/readyz",
         "/admin/login",
@@ -342,7 +338,7 @@ def test_templates_render_without_errors(client: TestClient):
     ]
 
     for route in routes_to_test:
-        response = client.get(route)
+        response = client.get(route, headers={"Accept": "text/html"})
         if response.status_code == 200:
             # Should contain valid HTML
             assert "<html" in response.text.lower()

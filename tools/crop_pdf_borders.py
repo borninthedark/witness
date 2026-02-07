@@ -102,7 +102,6 @@ def main() -> None:
         Path("fitness/static/certs/az-104.pdf"),
         Path("fitness/static/certs/az-305.pdf"),
         Path("fitness/static/certs/az-400.pdf"),
-        Path("fitness/static/certs/azure-transcript.pdf"),
     ]
     for pdf in targets:
         if not pdf.exists():

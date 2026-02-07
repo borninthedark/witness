@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fitness.models.security import (
     AdvisorySource,
@@ -12,8 +12,6 @@ from fitness.models.security import (
     SecurityAdvisory,
     SeverityLevel,
 )
-
-# from fitness.services.glsa_parser import GLSAParser  # GLSA disabled
 from fitness.services.nist_client import NISTClient
 
 
@@ -27,7 +25,6 @@ class CVEAggregator:
             nist_api_key: NIST NVD API key (optional)
         """
         self.nist_client = NISTClient(api_key=nist_api_key)
-        # self.glsa_parser = GLSAParser()  # GLSA disabled
 
     async def fetch_all_advisories(
         self,
@@ -51,10 +48,6 @@ class CVEAggregator:
         if source is None or source == AdvisorySource.NIST:
             tasks.append(self.nist_client.fetch_recent_cves(days, severity))
 
-        # GLSA disabled for now
-        # if source is None or source == AdvisorySource.GLSA:
-        #     tasks.append(self.glsa_parser.fetch_recent_glsa(days))
-
         # Execute all fetches concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -64,7 +57,7 @@ class CVEAggregator:
             if isinstance(result, list):
                 all_advisories.extend(result)
 
-        # Filter by severity if specified (GLSA results might not be pre-filtered)
+        # Filter by severity if specified
         if severity:
             all_advisories = [a for a in all_advisories if a.severity == severity]
 
@@ -96,8 +89,6 @@ class CVEAggregator:
         if advisory:
             return advisory
 
-        # If not found in NIST, could implement GLSA lookup
-        # For now, return None
         return None
 
     async def get_stats(self, days: int = 30) -> AdvisoryStats:
@@ -123,7 +114,6 @@ class CVEAggregator:
             low_count=sum(1 for a in advisories if a.severity == SeverityLevel.LOW),
             by_source={
                 "NIST": sum(1 for a in advisories if a.source == AdvisorySource.NIST),
-                "GLSA": sum(1 for a in advisories if a.source == AdvisorySource.GLSA),
             },
             latest_critical=next(
                 (a for a in advisories if a.severity == SeverityLevel.CRITICAL),
@@ -193,8 +183,6 @@ class CVEAggregator:
 
         for severity, date_counts in data_by_severity.items():
             # Create a complete date range
-            from datetime import timezone
-
             end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=days)
 

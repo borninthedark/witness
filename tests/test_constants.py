@@ -65,12 +65,6 @@ def test_az305_metadata_uses_microsoft_and_share_link() -> None:
     assert meta["verification_url"] == MICROSOFT_TRANSCRIPT_URL
 
 
-def test_azure_transcript_metadata_points_to_transcript() -> None:
-    meta: dict[str, Any] = get_cert_metadata("azure-transcript")
-    assert meta["issuer"] == "Microsoft"
-    assert meta["verification_url"] == MICROSOFT_TRANSCRIPT_URL
-
-
 def test_az104_metadata_points_to_transcript() -> None:
     meta: dict[str, Any] = get_cert_metadata("az-104")
     assert meta["issuer"] == "Microsoft"

@@ -191,11 +191,6 @@ CERT_METADATA: dict[str, CertMetadata] = {
         "issuer": "Microsoft",
         "verification_url": MICROSOFT_TRANSCRIPT_URL,
     },
-    "azure-transcript": {
-        "title": "Microsoft Learn Credential Transcript",
-        "issuer": "Microsoft",
-        "verification_url": MICROSOFT_TRANSCRIPT_URL,
-    },
     # ==========================================
     # HashiCorp Certifications (inactive)
     # ==========================================

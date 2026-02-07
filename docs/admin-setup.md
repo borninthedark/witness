@@ -4,7 +4,7 @@ This document explains how the admin authentication system works and how to conf
 
 ## Overview
 
-The application uses **FastAPI Users** for authentication, providing secure JWT-based login for admin access to protected routes like `/status` and `/admin/*`.
+The application uses **FastAPI Users** for authentication, providing secure JWT-based login for admin access to protected routes under `/admin/*`.
 
 ## Configuration
 
@@ -62,9 +62,10 @@ After login, users land on a centralized dashboard at `/admin` with navigation c
 
 - **Operational Status** — System metrics, Bokeh charts, response times, error rates, and deployment info
 - **Certification Management** — Add, update, deprecate, and manage professional certifications and PDF files
+- **Tactical** — CVE advisories, severity breakdowns, and security intelligence from NIST NVD
 
 Every admin page includes:
-- **Navigation bar** with links to Dashboard, Operational Status, and Certifications
+- **Navigation bar** with links to Dashboard, Operational Status, Certifications, and Tactical
 - **Active page indicator** (highlighted nav link)
 - **User badge** showing the logged-in user's email
 - **Sign out button** on every page
@@ -112,7 +113,7 @@ Admin users created on startup have:
 ## Password Security
 
 - Passwords are hashed using **bcrypt** (via passlib)
-- Compatible bcrypt version: `4.1.3` (pinned in requirements.txt)
+- Compatible bcrypt version: `4.1.3` (pinned in `pyproject.toml`)
 - Hashes are salted and use bcrypt's adaptive cost factor
 - Plain-text passwords are never stored
 
@@ -156,6 +157,9 @@ The following routes require admin authentication:
 | `/admin/` | Admin dashboard with navigation cards |
 | `/admin/status/` | Operational status with Bokeh charts |
 | `/admin/certs` | Certification management interface |
+| `/admin/tactical/dashboard` | CVE advisories and security intelligence |
+| `/admin/tactical/advisories` | Advisory data API (JSON) |
+| `/admin/tactical/stats` | Advisory statistics API (JSON) |
 | `/admin/login` | Login page (public) |
 
 ## Security Best Practices
@@ -197,7 +201,7 @@ The redirect logic is in `fitness/main.py:232-254` (HTTP exception handler):
 
 ```python
 # For admin-protected pages, redirect to login instead of showing error
-admin_paths = ["/status", "/admin"]
+admin_paths = ["/admin"]
 if any(request.url.path.startswith(path) for path in admin_paths):
     next_url = quote(str(request.url.path))
     login_url = f"/admin/login?next={next_url}"

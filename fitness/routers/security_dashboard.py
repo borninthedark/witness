@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from fitness.auth import current_active_user
 from fitness.config import settings
 from fitness.models.security import AdvisorySource, SeverityLevel
 from fitness.services.cve_aggregator import CVEAggregator
 from fitness.utils.assets import asset_url
 
-router = APIRouter(prefix="/security", tags=["security"])
+router = APIRouter(
+    prefix="/admin/tactical",
+    tags=["tactical"],
+    dependencies=[Depends(current_active_user)],
+)
 templates = Jinja2Templates(directory="fitness/templates")
 templates.env.globals["asset_url"] = asset_url
 
@@ -46,7 +51,7 @@ async def get_advisories(
 
     Query params:
     - severity: CRITICAL, HIGH, MEDIUM, LOW
-    - source: NIST, GLSA, CVE
+    - source: NIST, CVE
     - days: Number of days to look back (1-365)
 
     Returns:
@@ -161,4 +166,7 @@ async def get_top_advisories(
 @router.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
-    await aggregator.close()
+    try:
+        await aggregator.close()
+    except RuntimeError:
+        pass
