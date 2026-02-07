@@ -66,6 +66,7 @@ static/media/*
 .coverage*
 coverage.json
 coverage.xml
+junit.xml
 htmlcov/
 # Docker
 *.tar

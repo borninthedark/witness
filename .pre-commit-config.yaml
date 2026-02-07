@@ -125,7 +125,7 @@ repos:
       - id: pytest
         name: Run tests
         language: system
-        entry: bash -c 'unset VIRTUAL_ENV; DATABASE_URL=sqlite:////tmp/precommit_test.db uv run pytest -q --tb=short --no-cov'
+        entry: bash -c 'unset VIRTUAL_ENV; DATABASE_URL=sqlite:////tmp/precommit_test.db uv run pytest -q --tb=short --no-cov -p no:junitxml -o addopts="--strict-markers"'
         pass_filenames: false
         types: [python]
 
