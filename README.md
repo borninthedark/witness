@@ -1,7 +1,8 @@
 # Witness - The Captain's Fitness Log
 
+[![Build](https://github.com/borninthedark/witness/actions/workflows/picard.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/picard.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![coverage](https://img.shields.io/badge/coverage-62.77%25-yellow)](tests/README.md)
+[![codecov](https://codecov.io/github/borninthedark/witness/graph/badge.svg?token=BDO6GLJEVE)](https://codecov.io/github/borninthedark/witness)
 [![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
@@ -341,6 +342,9 @@ uv run pytest --cov-report=html  # HTML coverage report
 
 Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`, `tests/test_smoke.py`.
 
+Coverage is reported to [Codecov](https://codecov.io/github/borninthedark/witness) on every CI run via `codecov/codecov-action@v5`.
+Configuration lives in `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.coverage.*]`) and `codecov.yml`.
+
 ## Observability
 
 | Signal | Endpoint / Service |
@@ -374,7 +378,7 @@ Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`
 
 ## AI-Assisted Development
 
-This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [ChatGPT](https://chatgpt.com/).
+This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [ChatGPT Codex](https://chatgpt.com/codex).
 
 ### MCP Servers
 

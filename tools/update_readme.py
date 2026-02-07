@@ -3,13 +3,9 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 REPO = "borninthedark/witness"
-
-# Coverage badge: read from coverage.json if available, else fallback
-COVERAGE_FALLBACK = 62.77
 
 # Documentation entries: (rel_path, title, description)
 DOC_ENTRIES: list[tuple[str, str, str]] = [
@@ -46,30 +42,6 @@ DOC_ENTRIES: list[tuple[str, str, str]] = [
 ]
 
 
-def _coverage_pct(root: Path) -> float:
-    for candidate in ("coverage.json", "htmlcov/coverage.json"):
-        path = root / candidate
-        if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                return round(
-                    data.get("totals", {}).get("percent_covered", COVERAGE_FALLBACK), 2
-                )
-            except Exception:
-                pass
-    return COVERAGE_FALLBACK
-
-
-def _coverage_color(pct: float) -> str:
-    if pct >= 80:
-        return "brightgreen"
-    if pct >= 60:
-        return "yellow"
-    if pct >= 40:
-        return "orange"
-    return "red"
-
-
 def _docs_table(root: Path) -> str:
     rows = ["| Document | Description |", "|----------|-------------|"]
     for rel_path, title, desc in DOC_ENTRIES:
@@ -79,16 +51,14 @@ def _docs_table(root: Path) -> str:
 
 
 def generate_readme(root: Path) -> str:
-    cov = _coverage_pct(root)
-    cov_color = _coverage_color(cov)
-    cov_encoded = f"{cov}%25"
     docs = _docs_table(root)
 
     return f"""\
 # Witness - The Captain's Fitness Log
 
+[![Build](https://github.com/{REPO}/actions/workflows/picard.yml/badge.svg)](https://github.com/{REPO}/actions/workflows/picard.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![coverage](https://img.shields.io/badge/coverage-{cov_encoded}-{cov_color})](tests/README.md)
+[![codecov](https://codecov.io/github/{REPO}/graph/badge.svg?token=BDO6GLJEVE)](https://codecov.io/github/{REPO})
 [![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
@@ -428,6 +398,9 @@ uv run pytest --cov-report=html  # HTML coverage report
 
 Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`, `tests/test_smoke.py`.
 
+Coverage is reported to [Codecov](https://codecov.io/github/{REPO}) on every CI run via `codecov/codecov-action@v5`.
+Configuration lives in `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.coverage.*]`) and `codecov.yml`.
+
 ## Observability
 
 | Signal | Endpoint / Service |
@@ -454,7 +427,7 @@ Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`
 
 ## AI-Assisted Development
 
-This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [ChatGPT](https://chatgpt.com/).
+This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [ChatGPT Codex](https://chatgpt.com/codex).
 
 ### MCP Servers
 

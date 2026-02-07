@@ -99,6 +99,7 @@ addopts = [
   "--cov-report=term-missing:skip-covered",
   "--cov-report=html",
   "--cov-report=json",
+  "--cov-report=xml",
 ]
 testpaths = [
   "tests",
@@ -106,6 +107,9 @@ testpaths = [
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+filterwarnings = [
+  "ignore:pkg_resources is deprecated as an API.*:UserWarning:passlib.pwd",
+]
 
 [tool.coverage.run]
 source = ["fitness"]
