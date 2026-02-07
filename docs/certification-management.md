@@ -290,7 +290,7 @@ Anyone can verify the PDF's authenticity:
 #### Step 1: Visit Verification Page
 
 ```text
-https://engage.princetonstrong.online/v/ckad
+https://engage.princetonstrong.com/v/ckad
 ```
 
 #### Step 2: Copy the SHA-256 Hash
@@ -303,7 +303,7 @@ a3f5c9b2e1d4f8a7c6b3e9d2f1a8c5b4d7e3f9a2b8c1d6e4f2a9b7c3d5e8f1a6
 
 Click **"Download PDF"** or visit:
 ```text
-https://engage.princetonstrong.online/static/certs/ckad.pdf
+https://engage.princetonstrong.com/static/certs/ckad.pdf
 ```
 
 #### Step 4: Calculate the Hash

@@ -31,7 +31,7 @@ def test_certifications_page_deduplicates_entries(
         issuer="DRY Issuer",
         pdf_url="http://example.com/one.pdf",
         sha256=duplicate_sha,
-        dns_name="dup-one.princetonstrong.online",
+        dns_name="dup-one.princetonstrong.com",
     )
     second = Certification(
         slug="dup-two",
@@ -39,7 +39,7 @@ def test_certifications_page_deduplicates_entries(
         issuer="DRY Issuer",
         pdf_url="http://example.com/two.pdf",
         sha256=duplicate_sha,
-        dns_name="dup-two.princetonstrong.online",
+        dns_name="dup-two.princetonstrong.com",
     )
     db_session.add_all([first, second])
     db_session.commit()

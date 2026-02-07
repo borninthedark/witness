@@ -41,7 +41,7 @@ from fitness.utils.assets import asset_url
 # Local and remote paths for the resume PDF
 RESUME_STORAGE_DIR = Path("fitness/data")  # Local path to the resume
 REMOTE_RESUME_URL = (
-    "https://princetonstrong.online/PAS-Resume.pdf"  # URL of the remote resume PDF
+    "https://princetonstrong.com/PAS-Resume.pdf"  # URL of the remote resume PDF
 )
 
 CERT_STORAGE_DIR = Path("fitness/static/certs")

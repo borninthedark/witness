@@ -77,7 +77,7 @@ def seed_certifications_from_pdfs(db: Session) -> int:
         try:
             metadata = get_cert_metadata(slug)
             sha256_hash = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
-            dns_name = f"_cert.{slug}.princetonstrong.online"
+            dns_name = f"_cert.{slug}.princetonstrong.com"
             title = metadata.get("title", slug.replace("-", " ").title())
             issuer = metadata.get("issuer", "Uploaded PDF")
             verification_url = metadata.get("verification_url", "")
@@ -353,7 +353,7 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 # CORS: strict allowlist
 allowed_origins = getattr(settings, "cors_origins", []) or [
-    "https://engage.princetonstrong.online"
+    "https://engage.princetonstrong.com"
 ]
 if allowed_origins:
     app.add_middleware(

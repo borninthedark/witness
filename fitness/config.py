@@ -102,8 +102,8 @@ class Settings(BaseSettings):
     email_enabled: bool = True
     resend_api_key: str | None = None
     email_from_name: str = "Princeton A. Strong"
-    email_from_addr: str = "contact@princetonstrong.online"
-    email_to_addr: str = "info@princetonstrong.online"
+    email_from_addr: str = "contact@princetonstrong.com"
+    email_to_addr: str = "info@princetonstrong.com"
 
     # Legacy SMTP fields (for fallback)
     mail_from: str | None = None

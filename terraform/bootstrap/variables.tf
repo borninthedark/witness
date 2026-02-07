@@ -29,7 +29,7 @@ variable "tfc_workspace_names" {
 variable "github_repository" {
   description = "GitHub repository (owner/repo) for Actions OIDC trust"
   type        = string
-  default     = "PrincetonStrong/witness"
+  default     = "borninthedark/witness"
 }
 
 variable "domain_name" {

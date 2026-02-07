@@ -52,17 +52,15 @@ resource "aws_route53_record" "app" {
 # ================================================================
 
 resource "aws_route53_record" "txt" {
-  count = var.protonmail_verification_code != "" ? 1 : 0
-
   zone_id = var.hosted_zone_id
   name    = ""
   type    = "TXT"
   ttl     = 3600
 
-  records = [
-    "protonmail-verification=${var.protonmail_verification_code}",
-    "v=spf1 include:_spf.protonmail.ch ~all",
-  ]
+  records = concat(
+    ["v=spf1 include:_spf.protonmail.ch ~all"],
+    var.protonmail_verification_code != "" ? ["protonmail-verification=${var.protonmail_verification_code}"] : [],
+  )
 }
 
 resource "aws_route53_record" "mx" {

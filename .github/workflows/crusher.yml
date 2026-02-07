@@ -253,7 +253,7 @@ jobs:
           - env: dev
             url: ${{ vars.APP_URL_DEV || 'https://dev.example.com' }}
           - env: prod
-            url: ${{ vars.APP_URL_PROD || 'https://engage.princetonstrong.online' }}
+            url: ${{ vars.APP_URL_PROD || 'https://engage.princetonstrong.com' }}
         exclude:
           - env: ${{ github.event.inputs.environment == 'prod' && 'dev' || (github.event.inputs.environment == 'dev' && 'prod' || '') }}
     outputs:

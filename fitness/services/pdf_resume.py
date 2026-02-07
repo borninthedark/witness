@@ -29,8 +29,8 @@ FALLBACK_RESUME_DATA: dict[str, Any] = {
     "personal": {
         "name": "Princeton A. Strong",
         "phone": "206-666-5568",
-        "email": "info@princetonstrong.online",
-        "website": "https://princetonstrong.online",
+        "email": "info@princetonstrong.com",
+        "website": "https://princetonstrong.com",
     },
     "summary": (
         "Platform Engineer specializing in secure hybrid cloud & on-prem solutions."
