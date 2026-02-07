@@ -101,7 +101,7 @@ Set in GitHub repo Settings > Secrets and variables > Actions > Secrets.
 
 | Secret | Used By | Description |
 |--------|---------|-------------|
-| `GHCR_TOKEN` | Picard, Riker | GitHub Container Registry PAT for push/pull |
+| `AWS_ROLE_ARN` | La Forge, Riker | GitHub Actions OIDC role ARN for ECR push |
 | `TF_API_TOKEN` | Tasha, Crusher | HCP Terraform API token for workspace queries |
 | `GRAFANA_URL` | Troi | Grafana instance URL (optional, for status snapshots) |
 | `GRAFANA_API_KEY` | Troi | Grafana API key (optional, for status snapshots) |
@@ -119,7 +119,7 @@ Set in GitHub repo Settings > Secrets and variables > Actions > Variables.
 | `APP_URL_DEV` | Crusher | `https://engage.princetonstrong.com` | Dev App Runner URL |
 | `APP_URL_PROD` | Crusher | `https://staging.princetonstrong.com` | Prod App Runner URL |
 | `TF_CLOUD_ORG` | Tasha, Crusher | `DefiantEmissary` | HCP Terraform org name |
-| `ENABLE_TERRAFORM` | La Forge, Tasha | `true` | Enable Terraform workflows |
+| `ENABLE_TERRAFORM` | Picard, Tasha | `true` | Enable Terraform workflows |
 | `ENABLE_STATUS_DASHBOARD` | Troi | `true` | Enable Grafana snapshot updates |
 | `DASHBOARD_UID` | Troi | `public-status` | Grafana dashboard UID |
 

@@ -441,12 +441,12 @@ The CI/CD pipeline uses Star Trek TNG-themed workflow names:
 
 **Application Workflows:**
 
-Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
+Workflows run in sequence: **La Forge -> Riker**, **La Forge -> Troi**
 
 | Workflow | File | Purpose |
 |----------|------|---------|
 | **Data - CI** | `data.yml` | Lint, test, validate (push/PR) |
-| **Picard - Build** | `picard.yml` | Build, scan, sign, push images to GHCR (scheduled) |
+| **La Forge - Build** | `laforge.yml` | Build, scan, push images to ECR (scheduled) |
 | **Riker - Release** | `riker.yml` | Retag image, semantic versioning, GitHub releases |
 | **Troi - Docs** | `troi.yml` | Coverage badges, security reports, doc validation |
 
@@ -455,16 +455,15 @@ Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
 - Containerfile linting (Hadolint), ShellCheck, Semgrep
 - Runs on push/PR to main
 
-**Picard - Build** (`picard.yml`):
-- Container image building with Buildah (OCI format)
+**La Forge - Build** (`laforge.yml`):
+- Container image building and push to AWS ECR
 - Security scanning with Trivy
-- Image signing with Cosign (Sigstore keyless OIDC)
-- Pushes `dev` and `sha-*` tags to GHCR
+- Pushes `dev` and `sha-*` tags to ECR
 - Scheduled weekly or manual dispatch
 
 **Riker - Release** (`riker.yml`):
-- Triggered after Picard build or manually
-- Pulls `dev` image from GHCR, retags with `skopeo copy`
+- Triggered after La Forge build or manually
+- Pulls `dev` image from ECR, retags for prod
 - Semantic versioning via conventional commits:
   - `feat:` -> minor bump (0.X.0)
   - `fix:` -> patch bump (0.0.X)
@@ -475,25 +474,25 @@ Workflows run in sequence: **Picard -> Riker**, **Picard -> Troi**
 
 **Infrastructure Workflows (Terraform):**
 
-Plan and apply is handled by the **La Forge** workflow (CLI-driven):
+Plan and apply is handled by the **Picard** orchestrator:
 
 ```text
-Push to deploy/terraform/**
+Push to main
     |
-    |-- La Forge - Deploy (Data CI + Worf scans -> plan -> apply)
+    |-- Picard - Deploy (Data CI + Worf scans -> La Forge build -> VCS gate)
             |
             |-- [on failure] Tasha - Destroy (auto-rollback)
 ```
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **La Forge - Deploy** | `laforge.yml` | CI + security gate, then CLI plan/apply with `-var-file` |
-| **Worf - Security** | `worf.yml` | Scans, validation, tests (called by La Forge) |
+| **Picard - Deploy** | `picard.yml` | CI/CD orchestrator: CI + security + build + VCS gate |
+| **Worf - Security** | `worf.yml` | Scans, validation, tests (called by Picard) |
 | **Crusher - Health** | `crusher.yml` | Pipeline, container, and workspace health checks (manual) |
 | **Tasha - Destroy** | `tasha.yml` | Destroy via HCP TF API (manual or auto-rollback) |
 
 **HCP Terraform** (org: `DefiantEmissary`):
-- CLI-driven: La Forge runs `terraform plan/apply -var-file=<env>/terraform.tfvars`
+- VCS-driven: HCP Terraform auto plan/apply on push to main
 - Workspace: `witness-container-apps`
 - Sensitive vars passed via `-var` from GitHub secrets
 

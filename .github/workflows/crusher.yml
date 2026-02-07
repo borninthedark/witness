@@ -54,10 +54,10 @@ jobs:
           script: |
             const workflows = [
               { name: 'Data - CI', file: 'data.yml' },
-              { name: 'Picard - Build', file: 'picard.yml' },
+              { name: 'La Forge - Build', file: 'laforge.yml' },
               { name: 'Riker - Release', file: 'riker.yml' },
               { name: 'Worf - Security', file: 'worf.yml' },
-              { name: 'La Forge - Deploy', file: 'laforge.yml' }
+              { name: 'Picard - Deploy', file: 'picard.yml' }
             ];
 
             let healthy = 0;

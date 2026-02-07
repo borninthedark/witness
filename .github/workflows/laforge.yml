@@ -1,89 +1,125 @@
 # ================================================================
-# La Forge - CI/CD Orchestrator
+# La Forge - Container Image Build Pipeline
 # ================================================================
-# "I can make it work" - Central orchestrator for all CI/CD
-# Coordinates Data (CI), Worf (security), and Picard (build)
-# on every push to main. HCP Terraform VCS handles plan/apply.
+# "I can make it work" - Builds, scans, and pushes container images to AWS ECR
+# Called by Picard on push, plus scheduled and manual triggers
+# Downstream: La Forge -> Riker (release)
 # ================================================================
 
-name: La Forge - Deploy
+name: La Forge - Build
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'fitness/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'terraform/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'container/**'
-      - '.github/workflows/**'
+  workflow_call:
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly on Monday at 4am
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
-  actions: read
   security-events: write
-  pull-requests: write
   id-token: write
 
 concurrency:
-  group: laforge-${{ github.ref }}
-  cancel-in-progress: false
+  group: laforge-build
+  cancel-in-progress: true
 
 env:
-  TF_CLOUD_ORGANIZATION: DefiantEmissary
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REPOSITORY: witness-dev
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
-  # Stage 1: Quality gates (parallel)
+  # Build: Build and push to ECR
   # ══════════════════════════════════════════════════════════════════════════
-  data:
-    name: Data - CI
-    uses: ./.github/workflows/data.yml
-
-  worf:
-    name: Worf - Security
-    uses: ./.github/workflows/worf.yml
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # Stage 2: Build (after CI passes)
-  # ══════════════════════════════════════════════════════════════════════════
-  picard:
-    name: Picard - Build
-    needs: [data]
-    uses: ./.github/workflows/picard.yml
-    secrets: inherit
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # Stage 3: Terraform VCS gate (after all checks pass)
-  # ══════════════════════════════════════════════════════════════════════════
-  gate:
-    name: VCS Gate
-    needs: [data, worf, picard]
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    if: always() && !failure()
+    timeout-minutes: 20
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+      tag: ${{ steps.push.outputs.tag }}
     steps:
-      - name: Gate Summary
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push to ECR
+        id: push
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+          TAG="${GITHUB_SHA::8}"
+
+          docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:dev" -f container/Containerfile .
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:dev"
+
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${TAG}" | cut -d@ -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with Cosign
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Scan: Trivy vulnerability scan
+  # ══════════════════════════════════════════════════════════════════════════
+  scan:
+    name: Scan
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ needs.build.outputs.image }}:dev'
+          format: 'sarif'
+          output: 'trivy.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+        continue-on-error: true
+
+      - name: Summary
         run: |
           {
-            echo "## La Forge - Pipeline Complete"
+            echo "## La Forge - Image Built, Signed & Scanned"
             echo ""
-            echo "| Stage | Workflow | Status |"
-            echo "|-------|----------|--------|"
-            echo "| CI | Data | ${{ needs.data.result }} |"
-            echo "| Security | Worf | ${{ needs.worf.result }} |"
-            echo "| Build | Picard | ${{ needs.picard.result }} |"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| ECR | \`${{ needs.build.outputs.image }}\` |"
+            echo "| Tag | \`${{ needs.build.outputs.tag }}\` |"
+            echo "| Signed | Cosign (Sigstore keyless OIDC) |"
             echo ""
-            echo "HCP Terraform VCS workflow handles plan/apply for AWS."
-            echo ""
-            echo "| Workspace | Working Directory |"
-            echo "|-----------|-------------------|"
-            echo "| \`witness-dev\` | \`terraform/dev\` |"
-            echo "| \`witness-prod\` | \`terraform/prod\` |"
-            echo ""
-            echo "[View workspaces](https://app.terraform.io/app/DefiantEmissary/workspaces)"
+            echo "Trivy scan results uploaded to GitHub Security tab."
           } >> "$GITHUB_STEP_SUMMARY"

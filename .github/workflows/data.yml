@@ -2,7 +2,7 @@
 # Data - CI Pipeline (Lint, Test, Validate)
 # ================================================================
 # "I am fully functional" - Code quality and testing
-# Image building handled by Picard pipeline
+# Image building handled by La Forge pipeline
 # ================================================================
 
 name: Data - CI

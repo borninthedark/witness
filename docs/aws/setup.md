@@ -22,7 +22,7 @@ Both `witness-dev` and `witness-prod` need:
 
 | Secret | Used By | Notes |
 |--------|---------|-------|
-| `GHCR_TOKEN` | picard, riker | GitHub Container Registry access |
+| `AWS_ROLE_ARN` | laforge, riker | GitHub Actions OIDC role ARN for ECR push |
 | `TF_API_TOKEN` | tasha, crusher | HCP Terraform API token |
 
 ## GitHub Actions Variables
@@ -33,7 +33,7 @@ Both `witness-dev` and `witness-prod` need:
 | `APP_URL_DEV` | crusher | App Runner URL (after first apply) |
 | `APP_URL_PROD` | crusher | `https://engage.princetonstrong.com` |
 | `TF_CLOUD_ORG` | tasha, crusher | `DefiantEmissary` |
-| `ENABLE_TERRAFORM` | laforge, tasha | `true` |
+| `ENABLE_TERRAFORM` | picard, tasha | `true` |
 
 ## Terraform Structure
 
@@ -56,10 +56,11 @@ terraform/
 | Workflow | File | Trigger | Purpose |
 |----------|------|---------|---------|
 | Data | `data.yml` | workflow_call | Lint, test |
-| Picard | `picard.yml` | schedule/manual | GHCR build/push |
-| Riker | `riker.yml` | after Picard | GHCR retag + GitHub Release |
+| Picard | `picard.yml` | push to main | CI/CD orchestrator |
+| La Forge | `laforge.yml` | workflow_call/schedule | ECR build/push |
+| Riker | `riker.yml` | after La Forge | ECR retag + GitHub Release |
 | Worf | `worf.yml` | workflow_call | Checkov, tfsec, Trivy |
-| La Forge | `laforge.yml` | push terraform/** | CI gate for HCP Terraform |
+| Worf | `worf.yml` | workflow_call | Checkov, tfsec, Trivy |
 | Tasha | `tasha.yml` | schedule/manual | Auto-rollback |
 | Crusher | `crusher.yml` | manual | Health checks |
 | Troi | `troi.yml` | push/schedule | Docs, badges, reports |
@@ -94,4 +95,4 @@ registration. Custom domains (`engage.princetonstrong.com` for dev,
    `secret_key`, `admin_password`, `hosted_zone_id`)
 4. Push terraform changes to trigger VCS workflow
 5. After apply, note the `service_url` and `custom_domain_url` outputs
-6. Trigger Picard to build first container image
+6. Trigger La Forge to build first container image

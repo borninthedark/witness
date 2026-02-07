@@ -17,7 +17,7 @@ Landing Zone Accelerator patterns adapted for a single-account deployment.
                     │                                                  │
    GitHub ──push──> │  ┌──────────┐    ┌──────────┐   ┌──────────┐   │
    Actions          │  │   ECR    │───>│App Runner │<──│  WAFv2   │   │
-   (Picard)         │  └──────────┘    └────┬─────┘   └──────────┘   │
+   (La Forge)       │  └──────────┘    └────┬─────┘   └──────────┘   │
                     │        ▲              │                          │
                     │        │         ┌────┴─────┐                    │
                     │    Route 53      │   VPC    │    ┌───────────┐  │
@@ -200,16 +200,13 @@ depend on:
 ```text
 Push to main
     │
-    ├── terraform/** changed
-    │   └── La Forge (laforge.yml)
-    │       ├── Data CI (test)
-    │       └── Worf Security (Checkov, tfsec, Trivy)
-    │           └── HCP Terraform VCS auto plan/apply
-    │               └── Tasha (tasha.yml) - auto-rollback on failed applies
-    │
-    └── Application code changed
-        └── Picard (picard.yml) - GHCR build/push
-            └── Riker (riker.yml) - GHCR retag + GitHub Release
+    └── Picard (picard.yml) - CI/CD orchestrator
+        ├── Data CI (test)
+        ├── Worf Security (Checkov, tfsec, Trivy)
+        └── La Forge (laforge.yml) - ECR build/push
+            └── Riker (riker.yml) - ECR retag + GitHub Release
+                └── HCP Terraform VCS auto plan/apply
+                    └── Tasha (tasha.yml) - auto-rollback on failed applies
 ```
 
 Linting and formatting (Terraform fmt/validate/tflint, Python black/ruff/mypy,
@@ -251,7 +248,7 @@ focuses on tests, security scanning, and deployment.
 
 ### Ongoing
 
-- Code changes trigger Picard (build) then Riker (release)
-- Terraform changes trigger La Forge (gate) then HCP Terraform (plan/apply)
+- Pushes to main trigger Picard (orchestrator) -> La Forge (build) -> Riker (release)
+- HCP Terraform VCS handles plan/apply automatically
 - Failed applies trigger Tasha (auto-rollback) immediately via `workflow_run`
   and on a 15-minute schedule as fallback

@@ -10,7 +10,7 @@ name: Tasha - Destroy
 
 on:
   workflow_run:
-    workflows: ['La Forge - Deploy']
+    workflows: ['Picard - Deploy']
     types: [completed]
     branches: [main]
 
