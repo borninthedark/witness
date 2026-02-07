@@ -2,7 +2,6 @@
 
 [![Build](https://github.com/borninthedark/witness/actions/workflows/picard.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/picard.yml)
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![codecov](https://codecov.io/github/borninthedark/witness/graph/badge.svg?token=BDO6GLJEVE)](https://codecov.io/github/borninthedark/witness)
 [![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
