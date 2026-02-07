@@ -56,49 +56,31 @@ custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config
 ## AWS Architecture
 
 ```mermaid
-graph TB
-    subgraph AWS["AWS Account"]
-        direction TB
-        R53["Route 53<br/>*.princetonstrong.com"]
-        WAF["WAFv2<br/>3 rule groups"]
-        AR["App Runner<br/>auto-scaling"]
-        ECR["ECR<br/>container registry"]
+graph TD
+    USER(("Internet")) --> R53["Route 53<br/>princetonstrong.com"]
+    R53 --> WAF["WAFv2"] --> AR["App Runner"]
+    GH["GitHub Actions"] -->|image push| ECR["ECR"] -->|deploy| AR
 
-        subgraph VPC["VPC 10.0.0.0/16"]
-            direction LR
-            VC["VPC Connector"]
-            PS["Private Subnets"]
-            NAT["NAT Gateway"]
-            S3EP["S3 Gateway<br/>Endpoint"]
-            IEP["Interface<br/>Endpoints (prod)"]
-        end
-
-        SM["Secrets Manager"]
-        KMS["KMS (CMK)"]
-        CT["CloudTrail"]
-        GD["GuardDuty"]
-        SH["Security Hub (prod)"]
-        CFG["Config Rules"]
-        CW["CloudWatch + X-Ray"]
-        SNS["SNS Alarms"]
-        S3["S3 (audit logs)"]
-        BUD["Budgets + Alerts"]
+    AR --> VC["VPC Connector"]
+    subgraph VPC["VPC 10.0.0.0/16"]
+        VC --- PS["Private Subnets"]
+        PS --- NAT["NAT Gateway"]
+        PS --- EP["Endpoints<br/>S3 GW + Interface"]
     end
 
-    GH["GitHub Actions<br/>(La Forge)"] -->|push image| ECR
-    ECR -->|deploy| AR
-    R53 -->|route traffic| AR
-    WAF -->|protect| AR
-    AR -->|egress| VC
-    VC --- PS
-    PS --- NAT
-    PS --- S3EP
-    PS --- IEP
-    AR -.->|secrets| SM
-    SM -.->|decrypt| KMS
-    CT -->|logs| S3
-    CW -->|alerts| SNS
-    BUD -->|alerts| SNS
+    AR -.->|secrets| SM["Secrets Manager"] -.->|decrypt| KMS["KMS CMK"]
+
+    subgraph security["Security and Compliance"]
+        CT["CloudTrail"] --> S3L["S3 Audit Logs"]
+        CT --> CWL["CloudWatch Logs"]
+        GD["GuardDuty"] --> SH["Security Hub"]
+        CFG["Config Rules"] --> SH
+    end
+
+    subgraph observe["Observability"]
+        CW["CloudWatch + X-Ray"] -->|alarms| SNS["SNS"]
+        BUD["Budgets"] -->|alerts| SNS
+    end
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full diagram and traffic flows.
@@ -130,32 +112,27 @@ Infrastructure is organized into reusable modules with separate dev and prod roo
 managed by [HCP Terraform](https://app.terraform.io/) (org: `DefiantEmissary`).
 
 ```mermaid
-graph LR
-    subgraph Bootstrap["bootstrap/ (local state)"]
+graph TD
+    subgraph boot["bootstrap/ -- local state"]
+        direction LR
         OIDC["OIDC Federation"]
-        IAM["3 IAM Policies"]
+        IAM["IAM Policies x3"]
         R53Z["Route 53 Zone"]
     end
 
-    subgraph Modules["modules/"]
-        NET["networking<br/>VPC, subnets, NAT, endpoints"]
-        SEC["security<br/>KMS, CloudTrail, GuardDuty,<br/>Config, SecurityHub, SNS"]
-        APP["app-runner<br/>ECR, Secrets, App Runner,<br/>WAFv2, X-Ray"]
-        DNS["dns<br/>Route 53 records,<br/>custom domain, ProtonMail"]
-        OBS["observability<br/>CloudWatch logs,<br/>dashboards, alarms"]
-    end
+    boot -.->|OIDC role| DEV["dev/ -- witness-dev"] & PROD["prod/ -- witness-prod"]
 
-    subgraph Envs["Environment Roots"]
-        DEV["dev/<br/>witness-dev"]
-        PROD["prod/<br/>witness-prod"]
-    end
+    SEC["security<br/>KMS -- CloudTrail -- GuardDuty<br/>Config -- SecurityHub -- SNS -- Budgets"]
+    NET["networking<br/>VPC -- Subnets -- NAT Gateway<br/>S3 GW Endpoint -- Interface Endpoints"]
+    APP["app-runner<br/>ECR -- Secrets Manager -- App Runner<br/>WAFv2 -- X-Ray -- Auto-scaling"]
+    DNS["dns<br/>Route 53 -- Custom Domain -- ACM<br/>ProtonMail -- SPF -- DKIM"]
+    OBS["observability<br/>CloudWatch Logs -- Dashboard<br/>Metric Alarms -- SNS Integration"]
 
-    SEC --> NET --> APP --> DNS
-    SEC --> OBS
-    APP --> OBS
-    DEV --> Modules
-    PROD --> Modules
-    Bootstrap -.->|OIDC role| Envs
+    SEC -->|KMS key| NET
+    NET -->|VPC + subnets| APP
+    APP -->|service ARN| DNS
+    SEC -->|KMS + SNS topic| OBS
+    APP -->|service name| OBS
 ```
 
 | Module | Key Resources |
@@ -184,15 +161,22 @@ All workflows use Star Trek TNG-themed names and run on GitHub Actions.
 
 ```mermaid
 graph TD
-    PUSH["Push to main"] --> PICARD["Picard<br/>(orchestrator)"]
-    PICARD --> DATA["Data<br/>CI: lint + test"]
-    PICARD --> WORF["Worf<br/>security: Checkov + tfsec + Trivy"]
-    PICARD --> LF["La Forge<br/>build: ECR push + Cosign"]
-    PICARD --> GATE["Gate<br/>HCP Terraform plan/apply"]
-    GATE -->|on failure| TASHA["Tasha<br/>auto-rollback"]
+    PUSH["Push to main"]
 
-    PUSH --> RIKER["Riker<br/>release: semver + GHCR retag"]
-    PUSH --> TROI["Troi<br/>docs: coverage badges + reports"]
+    subgraph PICARD["Picard -- orchestrator"]
+        direction TB
+        DATA["Data<br/>lint + test"]
+        WORF["Worf<br/>security scan"]
+        LF["La Forge<br/>build + ECR push"]
+        GATE["Gate<br/>HCP Terraform"]
+        DATA --> LF --> GATE
+        WORF --> GATE
+    end
+
+    PUSH --> DATA & WORF
+    LF -.->|on success| RIKER["Riker -- release"]
+    LF -.->|on success| TROI["Troi -- docs"]
+    PICARD -.->|on failure| TASHA["Tasha -- rollback"]
 ```
 
 ### Workflow Reference
@@ -206,7 +190,7 @@ graph TD
 | **Riker** | `riker.yml` | Semver release, GHCR retag | After La Forge / manual |
 | **Crusher** | `crusher.yml` | Health checks (App Runner + pipelines) | Manual |
 | **Tasha** | `tasha.yml` | Auto-rollback on failed applies | workflow_run + schedule |
-| **Troi** | `troi.yml` | Coverage badges, security reports | After Data / manual |
+| **Troi** | `troi.yml` | Coverage badges, security reports | After La Forge / schedule / manual |
 
 ## Features
 
