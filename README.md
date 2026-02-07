@@ -377,7 +377,7 @@ Configuration lives in `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.cov
 
 ## AI-Assisted Development
 
-This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [ChatGPT Codex](https://chatgpt.com/codex).
+This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [ChatGPT Codex](https://chatgpt.com/codex), and [GitHub Dependabot](https://docs.github.com/en/code-security/dependabot) for automated dependency security updates.
 
 ### MCP Servers
 
