@@ -8,14 +8,6 @@
 name: Troi - Docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'fitness/**'
-      - 'tests/**'
-      - 'docs/**'
-      - '**.md'
-      - '.github/workflows/troi.yml'
   workflow_run:
     workflows: ['La Forge - Build']
     types: [completed]

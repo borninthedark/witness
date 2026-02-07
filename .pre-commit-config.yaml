@@ -118,7 +118,7 @@ repos:
         language: system
         entry: bash -c 'unset VIRTUAL_ENV; PYTHONPATH=. uv run python tools/update_readme.py'
         pass_filenames: false
-        files: ^(docs/.*\.md|tests/README\.md|tools/update_readme\.py)$
+        files: ^(docs/.*\.md|tests/README\.md|tools/update_readme\.py|coverage\.json|\.pre-commit-config\.yaml)$
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.96.3

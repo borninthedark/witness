@@ -1,38 +1,38 @@
-# Witness
+# Witness - Captain's Fitness Log
 
-[![Picard - Deploy](https://github.com/borninthedark/witness/actions/workflows/picard.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/picard.yml)
-[![Data - CI](https://github.com/borninthedark/witness/actions/workflows/data.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/data.yml)
-[![Worf - Security](https://github.com/borninthedark/witness/actions/workflows/worf.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/worf.yml)
+[![pytest](https://github.com/borninthedark/witness/actions/workflows/data.yml/badge.svg)](https://github.com/borninthedark/witness/actions/workflows/data.yml)
+[![coverage](https://img.shields.io/badge/coverage-62.77%25-yellow)](tests/README.md)
 [![AWS](https://img.shields.io/badge/AWS-App%20Runner-232F3E?logo=amazon-web-services&logoColor=FF9900)](https://aws.amazon.com/apprunner/)
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-A production FastAPI application deployed on AWS App Runner, serving as a professional resume and certification verification platform with a Star Trek LCARS-inspired interface. Infrastructure is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
+A production FastAPI application deployed on AWS App Runner, serving as a professional resume
+and certification verification platform with a Star Trek LCARS-inspired interface. Infrastructure
+is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
 
 ---
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Technology Stack](#technology-stack)
-- [AWS Architecture](#aws-architecture)
-- [Terraform Structure](#terraform-structure)
-- [CI/CD Pipelines](#cicd-pipelines)
-- [Features](#features)
-- [Quickstart](#quickstart)
-- [Configuration](#configuration)
-- [Development](#development)
-- [Observability](#observability)
-- [Security](#security)
-- [Documentation](#documentation)
-- [AI-Assisted Development](#ai-assisted-development)
-- [License](#license)
+> **[Overview](#overview)** &#8226;
+> **[Tech Stack](#technology-stack)** &#8226;
+> **[Architecture](#aws-architecture)** &#8226;
+> **[Terraform](#terraform-structure)** &#8226;
+> **[CI/CD](#cicd-pipelines)** &#8226;
+> **[Features](#features)** &#8226;
+> **[Quickstart](#quickstart)** &#8226;
+> **[Config](#configuration)** &#8226;
+> **[Development](#development)** &#8226;
+> **[Observability](#observability)** &#8226;
+> **[Security](#security)** &#8226;
+> **[Docs](#documentation)** &#8226;
+> **[License](#license)**
 
 ---
 
 ## Overview
 
-Witness is an enterprise-grade web application that combines professional credential management with a Star Trek LCARS aesthetic. It is deployed to AWS App Runner behind WAFv2 with Route 53 custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config compliance rules.
+Witness is an enterprise-grade web application that combines professional credential management
+with a Star Trek LCARS aesthetic. It is deployed to AWS App Runner behind WAFv2 with Route 53
+custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config compliance rules.
 
 **Capabilities:**
 
@@ -58,34 +58,50 @@ Witness is an enterprise-grade web application that combines professional creden
 
 ## AWS Architecture
 
-```text
-                ┌──────────────────────────────────────────────────┐
-                │              AWS Account                          │
-                │                                                  │
- GitHub ──push─>│  ┌──────────┐    ┌──────────┐   ┌──────────┐   │
- Actions        │  │   ECR    │───>│App Runner │<──│  WAFv2   │   │
- (La Forge)     │  └──────────┘    └────┬─────┘   └──────────┘   │
-                │        ▲              │                          │
-                │        │         ┌────┴─────┐                    │
-                │    Route 53      │   VPC    │    ┌───────────┐  │
-                │  *.princeton     │ Connector│    │ GuardDuty │  │
-                │  strong.com      └────┬─────┘    └───────────┘  │
-                │                       │                          │
-                │  ┌─────────┐   ┌─────┴──────┐  ┌─────────┐    │
-                │  │Secrets  │   │  Private    │  │   KMS   │    │
-                │  │Manager  │   │  Subnets    │  │ (CMK)   │    │
-                │  └─────────┘   └─────┬──────┘  └─────────┘    │
-                │                       │                          │
-                │  ┌──────────┐  ┌─────┴──────┐  ┌───────────┐  │
-                │  │CloudTrail│  │ S3 Gateway  │  │  Config   │  │
-                │  │          │  │  Endpoint   │  │  Rules    │  │
-                │  └──────────┘  └────────────┘  └───────────┘  │
-                │                                                  │
-                │  ┌──────────┐  ┌────────────┐  ┌───────────┐  │
-                │  │CloudWatch│  │  Budgets   │  │ Security  │  │
-                │  │ + X-Ray  │  │  + SNS     │  │   Hub     │  │
-                │  └──────────┘  └────────────┘  └───────────┘  │
-                └──────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph AWS["AWS Account"]
+        direction TB
+        R53["Route 53<br/>*.princetonstrong.com"]
+        WAF["WAFv2<br/>3 rule groups"]
+        AR["App Runner<br/>auto-scaling"]
+        ECR["ECR<br/>container registry"]
+
+        subgraph VPC["VPC 10.0.0.0/16"]
+            direction LR
+            VC["VPC Connector"]
+            PS["Private Subnets"]
+            NAT["NAT Gateway"]
+            S3EP["S3 Gateway<br/>Endpoint"]
+            IEP["Interface<br/>Endpoints (prod)"]
+        end
+
+        SM["Secrets Manager"]
+        KMS["KMS (CMK)"]
+        CT["CloudTrail"]
+        GD["GuardDuty"]
+        SH["Security Hub (prod)"]
+        CFG["Config Rules"]
+        CW["CloudWatch + X-Ray"]
+        SNS["SNS Alarms"]
+        S3["S3 (audit logs)"]
+        BUD["Budgets + Alerts"]
+    end
+
+    GH["GitHub Actions<br/>(La Forge)"] -->|push image| ECR
+    ECR -->|deploy| AR
+    R53 -->|route traffic| AR
+    WAF -->|protect| AR
+    AR -->|egress| VC
+    VC --- PS
+    PS --- NAT
+    PS --- S3EP
+    PS --- IEP
+    AR -.->|secrets| SM
+    SM -.->|decrypt| KMS
+    CT -->|logs| S3
+    CW -->|alerts| SNS
+    BUD -->|alerts| SNS
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full diagram and traffic flows.
@@ -113,20 +129,37 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram and traffi
 
 ## Terraform Structure
 
-Infrastructure is organized into reusable modules with separate dev and prod root configurations, managed by [HCP Terraform](https://app.terraform.io/) (org: `DefiantEmissary`).
+Infrastructure is organized into reusable modules with separate dev and prod root configurations,
+managed by [HCP Terraform](https://app.terraform.io/) (org: `DefiantEmissary`).
 
-```text
-terraform/
-├── bootstrap/           # OIDC federation, IAM policies, Route 53 zone
-├── modules/
-│   ├── networking/      # VPC, subnets, NAT, VPC endpoints (S3 GW + interface)
-│   ├── security/        # KMS, CloudTrail, Config rules, GuardDuty, Security Hub, SNS, Budgets
-│   ├── app-runner/      # ECR, Secrets Manager, App Runner, WAFv2, X-Ray
-│   ├── dns/             # Route 53 records, App Runner custom domain, Proton Mail
-│   ├── observability/   # CloudWatch logs, dashboards, alarms (SNS-wired)
-│   └── codepipeline/    # CodePipeline, CodeBuild, S3 artifacts
-├── dev/                 # witness-dev workspace
-└── prod/                # witness-prod workspace
+```mermaid
+graph LR
+    subgraph Bootstrap["bootstrap/ (local state)"]
+        OIDC["OIDC Federation"]
+        IAM["3 IAM Policies"]
+        R53Z["Route 53 Zone"]
+    end
+
+    subgraph Modules["modules/"]
+        NET["networking<br/>VPC, subnets, NAT, endpoints"]
+        SEC["security<br/>KMS, CloudTrail, GuardDuty,<br/>Config, SecurityHub, SNS"]
+        APP["app-runner<br/>ECR, Secrets, App Runner,<br/>WAFv2, X-Ray"]
+        DNS["dns<br/>Route 53 records,<br/>custom domain, ProtonMail"]
+        OBS["observability<br/>CloudWatch logs,<br/>dashboards, alarms"]
+        CP["codepipeline<br/>CodePipeline, CodeBuild"]
+    end
+
+    subgraph Envs["Environment Roots"]
+        DEV["dev/<br/>witness-dev"]
+        PROD["prod/<br/>witness-prod"]
+    end
+
+    SEC --> NET --> APP --> DNS
+    SEC --> OBS
+    APP --> OBS
+    DEV --> Modules
+    PROD --> Modules
+    Bootstrap -.->|OIDC role| Envs
 ```
 
 | Module | Key Resources |
@@ -153,18 +186,17 @@ All workflows use Star Trek TNG-themed names and run on GitHub Actions.
 
 ### Pipeline Flow
 
-```text
-Push to main
-    │
-    ├── Picard (orchestrator)
-    │     ├── Data (CI: lint + test)
-    │     ├── Worf (security: Checkov + tfsec + Trivy)
-    │     ├── La Forge (build: ECR push + Cosign signing)
-    │     └── Gate (HCP Terraform VCS-driven plan/apply)
-    │           └── [on failure] Tasha (auto-rollback)
-    │
-    ├── Riker (release: semver + GHCR retag)
-    └── Troi (docs: coverage badges + reports)
+```mermaid
+graph TD
+    PUSH["Push to main"] --> PICARD["Picard<br/>(orchestrator)"]
+    PICARD --> DATA["Data<br/>CI: lint + test"]
+    PICARD --> WORF["Worf<br/>security: Checkov + tfsec + Trivy"]
+    PICARD --> LF["La Forge<br/>build: ECR push + Cosign"]
+    PICARD --> GATE["Gate<br/>HCP Terraform plan/apply"]
+    GATE -->|on failure| TASHA["Tasha<br/>auto-rollback"]
+
+    PUSH --> RIKER["Riker<br/>release: semver + GHCR retag"]
+    PUSH --> TROI["Troi<br/>docs: coverage badges + reports"]
 ```
 
 ### Workflow Reference
@@ -268,7 +300,8 @@ uv run pre-commit install
 uv run pre-commit run --all-files
 ```
 
-Hooks include: black, isort, flake8, pylint, mypy, bandit, yamllint, shellcheck, markdownlint, terraform_fmt, terraform_validate, tflint, DRY enforcement, and README generation.
+Hooks include: black, isort, flake8, pylint, mypy, bandit, yamllint, shellcheck,
+markdownlint, terraform_fmt, terraform_validate, tflint, DRY enforcement, and README generation.
 
 ### Testing
 
@@ -308,11 +341,22 @@ Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`
 | [Variables](docs/variables.md) | Full variable reference for bootstrap, workspaces, and GitHub Actions |
 | [Certification Management](docs/certification-management.md) | SHA-256 verification, status/visibility controls |
 | [Admin Setup](docs/admin-setup.md) | Admin authentication, user management |
+| [Pre-commit Hooks](docs/pre-commit.md) | Hook reference, design decisions, shift-left strategy |
 | [Test Suite](tests/README.md) | Test structure, coverage goals, writing new tests |
 
 ## AI-Assisted Development
 
-This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+This project was developed with assistance from [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [ChatGPT](https://chatgpt.com/).
+
+### MCP Servers
+
+Infrastructure development uses [Model Context Protocol](https://modelcontextprotocol.io/) servers
+for Terraform registry lookups, provider documentation, and AWS workflow execution.
+
+| Server | Purpose | Docs |
+|--------|---------|------|
+| [Terraform Registry MCP](https://github.com/hashicorp/terraform-mcp-server) | Module/provider search, version lookups, policy discovery | [README](https://github.com/hashicorp/terraform-mcp-server#readme) |
+| [AWS Labs Terraform MCP](https://github.com/awslabs/mcp-server-terraform) | AWS provider docs, Checkov scans, terraform/terragrunt execution | [README](https://github.com/awslabs/mcp-server-terraform#readme) |
 
 ## License
 
