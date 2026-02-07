@@ -1,0 +1,72 @@
+<!-- ========================================== -->
+<!-- admin_base.html                            -->
+<!-- Shared layout for all admin panel pages    -->
+<!-- ========================================== -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-header">
+  <div class="admin-nav">
+    <a href="/admin" class="admin-nav-link {% if admin_page == 'dashboard' %}active{% endif %}">Dashboard</a>
+    <a href="/admin/status" class="admin-nav-link {% if admin_page == 'status' %}active{% endif %}">Operational Status</a>
+    <a href="/admin/certs" class="admin-nav-link {% if admin_page == 'certs' %}active{% endif %}">Certifications</a>
+  </div>
+  <div class="auth-meta">
+    <span class="user-badge">{{ user.email }}</span>
+    <form method="post" action="/auth/jwt/logout" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-small">Sign out</button>
+    </form>
+  </div>
+</div>
+
+{% block admin_content %}{% endblock %}
+{% endblock %}
+
+{% block head_extra %}
+<style>
+.admin-nav {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.admin-nav-link {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9999cc;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.admin-nav-link:hover {
+  color: #ff9900;
+  background: rgba(255, 153, 0, 0.1);
+}
+
+.admin-nav-link.active {
+  color: #ff9900;
+  background: rgba(255, 153, 0, 0.15);
+  border: 1px solid rgba(255, 153, 0, 0.3);
+}
+
+@media (max-width: 768px) {
+  .admin-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .auth-meta {
+    justify-content: center;
+  }
+}
+</style>
+{% block admin_head_extra %}{% endblock %}
+{% endblock %}

@@ -1,4 +1,7 @@
-"""Tests for blog router endpoints."""
+"""Tests for blog router endpoints.
+
+Blog/Captain's Log is deprecated — these tests are skipped until re-enabled.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from fitness.models.blog import BlogEntry
 from fitness.schemas.blog import Category, LogStatus
+
+pytestmark = pytest.mark.skip(reason="Blog router deprecated")
 
 
 @pytest.fixture

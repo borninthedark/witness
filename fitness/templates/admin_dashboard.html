@@ -1,0 +1,78 @@
+<!-- ========================================== -->
+<!-- admin_dashboard.html                       -->
+<!-- Central admin panel landing page           -->
+<!-- ========================================== -->
+{% extends "admin_base.html" %}
+{% block title %}Admin Dashboard - Captain's Fitness Log{% endblock %}
+
+{% block admin_content %}
+<section class="hero mb-3">
+  <h2>Admin Panel</h2>
+  <p>Welcome back, {{ user.email }}. Select a station below.</p>
+</section>
+
+<div class="admin-cards">
+  <a href="/admin/status" class="admin-card card">
+    <div class="admin-card-icon">&#x2B58;</div>
+    <h3>Operational Status</h3>
+    <p>System metrics, Bokeh charts, response times, error rates, and deployment info.</p>
+    <span class="admin-card-action">View Status &rarr;</span>
+  </a>
+
+  <a href="/admin/certs" class="admin-card card">
+    <div class="admin-card-icon">&#x1F4DC;</div>
+    <h3>Certification Management</h3>
+    <p>Add, update, deprecate, and manage professional certifications and PDF files.</p>
+    <span class="admin-card-action">Manage Certs &rarr;</span>
+  </a>
+</div>
+
+<style>
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.admin-card {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-card:hover {
+  transform: translateY(-4px);
+  border-color: #ff9900;
+}
+
+.admin-card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.admin-card h3 {
+  color: #ff9900;
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.admin-card p {
+  color: #9999cc;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.admin-card-action {
+  display: inline-block;
+  margin-top: 1rem;
+  color: #ff9900;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+</style>
+{% endblock %}

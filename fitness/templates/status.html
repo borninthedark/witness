@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 
-{% block title %}{{ page_title }} - Captain's Fitness Log{% endblock %}
+{% block title %}{{ page_title }} - Admin - Captain's Fitness Log{% endblock %}
 
-{% block head_extra %}
+{% block admin_head_extra %}
 <!-- Bokeh JS from CDN -->
 <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.5.0.min.js"></script>
 
@@ -229,7 +229,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block admin_content %}
 <section class="status-dashboard">
   <header class="status-header">
     <h1>⭘ SYSTEM STATUS</h1>

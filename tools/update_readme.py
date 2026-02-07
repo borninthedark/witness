@@ -28,7 +28,11 @@ DOC_ENTRIES: list[tuple[str, str, str]] = [
         "Certification Management",
         "SHA-256 verification, status/visibility controls",
     ),
-    ("docs/admin-setup.md", "Admin Setup", "Admin authentication, user management"),
+    (
+        "docs/admin-setup.md",
+        "Admin Panel",
+        "Authentication, dashboard, certification management, operational status",
+    ),
     (
         "docs/pre-commit.md",
         "Pre-commit Hooks",
@@ -339,6 +343,13 @@ graph LR
 - CSRF double-submit cookie protection
 - Rate limiting (5 req/min submissions, 10/min views)
 - Optional SMTP email delivery with async processing
+
+### Admin Panel
+
+- Centralized dashboard at `/admin` with navigation to all admin sections
+- **Operational Status** -- Bokeh charts (RPS, latency, error rate), deployment info, status badges
+- **Certification Management** -- Add/deprecate/delete certs, PDF upload, SHA-256 hashing, Open Badges validation
+- JWT cookie auth with CSRF protection, user badge and sign-out on every page
 
 ### Security Posture
 

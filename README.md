@@ -257,6 +257,13 @@ graph LR
 - Rate limiting (5 req/min submissions, 10/min views)
 - Optional SMTP email delivery with async processing
 
+### Admin Panel
+
+- Centralized dashboard at `/admin` with navigation to all admin sections
+- **Operational Status** -- Bokeh charts (RPS, latency, error rate), deployment info, status badges
+- **Certification Management** -- Add/deprecate/delete certs, PDF upload, SHA-256 hashing, Open Badges validation
+- JWT cookie auth with CSRF protection, user badge and sign-out on every page
+
 ### Security Posture
 
 - WAFv2 with 3 rule groups (rate limit, managed rules, IP reputation)
@@ -361,7 +368,7 @@ Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`
 | [Architecture](docs/architecture.md) | AWS architecture diagram, traffic flows, module details |
 | [Variables](docs/variables.md) | Full variable reference for bootstrap, workspaces, and GitHub Actions |
 | [Certification Management](docs/certification-management.md) | SHA-256 verification, status/visibility controls |
-| [Admin Setup](docs/admin-setup.md) | Admin authentication, user management |
+| [Admin Panel](docs/admin-setup.md) | Authentication, dashboard, certification management, operational status |
 | [Pre-commit Hooks](docs/pre-commit.md) | Hook reference, design decisions, shift-left strategy |
 | [Test Suite](tests/README.md) | Test structure, coverage goals, writing new tests |
 

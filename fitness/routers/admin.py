@@ -5,7 +5,7 @@ import html
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from fitness.auth import current_active_user
@@ -36,10 +36,24 @@ def hash_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
-@router.get("/", include_in_schema=False)
-def admin_root() -> RedirectResponse:
-    """Redirect from admin root to certifications management page."""
-    return RedirectResponse(url="/admin/certs", status_code=302)
+@router.get("/", response_class=HTMLResponse)
+def admin_dashboard(
+    request: Request,
+    user=Depends(current_active_user),
+):
+    """Admin dashboard landing page with navigation to sub-panels."""
+    csrf_token = issue_csrf_token(request)
+    response = templates.TemplateResponse(
+        "admin_dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "csrf_token": csrf_token,
+            "admin_page": "dashboard",
+        },
+    )
+    set_csrf_cookie(response, csrf_token)
+    return response
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -98,6 +112,7 @@ def admin_certs(
             "user": user,
             "enable_open_badges": settings.enable_open_badges,
             "csrf_token": csrf_token,
+            "admin_page": "certs",
         },
     )
     set_csrf_cookie(response, csrf_token)

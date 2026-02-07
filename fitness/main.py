@@ -37,7 +37,9 @@ from fitness.observability.metrics import MetricsMiddleware, metrics_response
 from fitness.observability.tracing import configure_tracing
 from fitness.routers.admin import router as admin_router
 from fitness.routers.api import router as api_router
-from fitness.routers.blog import router as blog_router
+
+# Blog/Captain's Log deprecated — re-enable when content is ready
+# from fitness.routers.blog import router as blog_router
 from fitness.routers.contact import router as contact_router
 from fitness.routers.reports import router as reports_router
 from fitness.routers.security_dashboard import router as security_router
@@ -214,10 +216,10 @@ CSP_DIRECTIVES_STRICT = [
     "object-src 'self'",  # CRITICAL: Allow PDFs to be embedded/downloaded
     "img-src 'self' data: https://www.credly.com https://cdn.credly.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "style-src 'self' https://fonts.googleapis.com",
+    "style-src 'self' https://fonts.googleapis.com https://cdn.bokeh.org",
     (
         "script-src 'self' https://www.google.com/recaptcha/ "
-        "https://www.gstatic.com/recaptcha/"
+        "https://www.gstatic.com/recaptcha/ https://cdn.bokeh.org"
     ),
     (
         "frame-src 'self' https://www.google.com/recaptcha/ "
@@ -235,7 +237,10 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     "object-src 'self'",  # CRITICAL: Allow PDFs to be embedded/downloaded
     "img-src 'self' data: https://www.credly.com https://cdn.credly.com",
     ("font-src 'self' data: https://fonts.gstatic.com " "https://cdn.credly.com"),
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    (
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com "
+        "https://cdn.bokeh.org"
+    ),
     (
         "script-src 'self' 'unsafe-inline' "
         "https://www.google.com/recaptcha/ "
@@ -499,7 +504,7 @@ app.include_router(reports_router)
 app.include_router(api_router)
 app.include_router(admin_router)
 app.include_router(contact_router)
-app.include_router(blog_router)
+# app.include_router(blog_router)  # deprecated
 app.include_router(security_router)
 app.include_router(status_router)
 # Auth

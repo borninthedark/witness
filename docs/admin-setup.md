@@ -42,10 +42,10 @@ The startup process:
 
 ### 1. Accessing Protected Routes
 
-When an unauthenticated user tries to access `/status` or `/admin/*`:
+When an unauthenticated user tries to access `/admin/*`:
 
 ```text
-GET /status → 401 Unauthorized → Redirect to /admin/login?next=/status
+GET /admin → 401 Unauthorized → Redirect to /admin/login?next=/admin
 ```
 
 ### 2. Login Process
@@ -53,8 +53,21 @@ GET /status → 401 Unauthorized → Redirect to /admin/login?next=/status
 1. User visits `/admin/login`
 2. Enters username and password
 3. Form submits to `/auth/jwt/login` (FastAPI Users endpoint)
-4. On success: Redirects back to original page (via `?next=` parameter)
+4. On success: Redirects to the **Admin Dashboard** (`/admin`)
 5. On failure: Shows error message on login form
+
+### 3. Admin Dashboard
+
+After login, users land on a centralized dashboard at `/admin` with navigation cards:
+
+- **Operational Status** — System metrics, Bokeh charts, response times, error rates, and deployment info
+- **Certification Management** — Add, update, deprecate, and manage professional certifications and PDF files
+
+Every admin page includes:
+- **Navigation bar** with links to Dashboard, Operational Status, and Certifications
+- **Active page indicator** (highlighted nav link)
+- **User badge** showing the logged-in user's email
+- **Sign out button** on every page
 
 ### 3. Session Management
 
@@ -124,15 +137,15 @@ python -m uvicorn fitness.main:app --reload
 # Look for: "✅ Created admin user: admin"
 ```
 
-### Can't Access `/status` Page
+### Can't Access Status Page
 
 **Cause**: Not logged in
 
 **Solution**:
-1. Visit http://example.com:8000/status
-2. You'll be redirected to `/admin/login?next=/status`
+1. Visit http://example.com:8000/admin/status
+2. You'll be redirected to `/admin/login?next=/admin/status`
 3. Enter your credentials from `.env`
-4. After login, you'll be redirected back to `/status`
+4. After login, you'll be redirected back to the status page
 
 ## Protected Routes
 
@@ -140,8 +153,8 @@ The following routes require admin authentication:
 
 | Route | Description |
 |-------|-------------|
-| `/status` | System status dashboard with Bokeh charts |
-| `/admin/` | Redirects to `/admin/certs` |
+| `/admin/` | Admin dashboard with navigation cards |
+| `/admin/status/` | Operational status with Bokeh charts |
 | `/admin/certs` | Certification management interface |
 | `/admin/login` | Login page (public) |
 

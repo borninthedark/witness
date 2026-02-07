@@ -1,19 +1,9 @@
 <!-- ========================================== -->
 <!-- admin_certs.html -->
 <!-- ========================================== -->
-{% extends "base.html" %}
-{% block content %}
-<div class="admin-header">
-  <h2>Admin • Certifications</h2>
-  <div class="auth-meta">
-    <span class="user-badge">{{ user.email }}</span>
-    <form method="post" action="/auth/jwt/logout" style="display:inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn btn-small">Sign out</button>
-    </form>
-  </div>
-</div>
-
+{% extends "admin_base.html" %}
+{% block title %}Certifications - Admin - Captain's Fitness Log{% endblock %}
+{% block admin_content %}
 <div class="card mb-3">
   <h3 class="text-accent">Add New Certification</h3>
   <form hx-post="/admin/certs" hx-target="#rows" hx-swap="beforeend" enctype="multipart/form-data" class="admin-form" action="/admin/certs">

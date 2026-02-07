@@ -67,6 +67,26 @@ def test_resume_pdf_endpoint_streams_file(client: TestClient) -> None:
     assert len(response.content) > 1000
 
 
+def test_resume_pdf_fits_two_pages(tmp_path: Path) -> None:
+    """Resume PDF must not exceed two pages."""
+    import re
+
+    from fitness.services.pdf_resume import build_resume, load_data
+
+    data_path = Path("fitness/data/resume-data.yaml")
+    if not data_path.exists():
+        pytest.skip("resume-data.yaml not found")
+
+    data = load_data(data_path)
+    out = tmp_path / "resume.pdf"
+    build_resume(out, data, "#7B7B7B", "#FFFFFF")
+
+    content = out.read_bytes().decode("latin-1")
+    counts = re.findall(r"/Count\s+(\d+)", content)
+    pages = max(int(c) for c in counts) if counts else 0
+    assert pages <= 2, f"Resume is {pages} pages, must be <= 2"
+
+
 @pytest.mark.usefixtures("client")
 def test_contact_form_submission_writes_log(
     monkeypatch: pytest.MonkeyPatch, client: TestClient, tmp_path: Path

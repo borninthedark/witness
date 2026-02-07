@@ -19,8 +19,8 @@ from reportlab.platypus import (
 
 from fitness.config import settings
 
-# Accent & output filename - Black and White defaults
-DEFAULT_ACCENT = colors.black  # Pure black for professional B&W look
+# Accent & output filename - DS9 Dominion War era uniform grey
+DEFAULT_ACCENT = colors.HexColor("#7B7B7B")  # Shoulder yoke grey
 DEFAULT_PAGE_COLOR = colors.white  # Pure white background
 RESUME_FILENAME = "PAS-Resume.pdf"
 
@@ -182,8 +182,8 @@ def bullets_table(
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
             ]
         )
     )
@@ -468,9 +468,9 @@ def build_resume(
         story.extend(
             [
                 header,
-                Spacer(1, 5),
+                Spacer(1, 3),
                 bullets_table(styles, r.get("bullets", []), accent=accent),
-                Spacer(1, 8),
+                Spacer(1, 6),
             ]
         )
 
@@ -511,8 +511,8 @@ def generate_resume_pdf(
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / RESUME_FILENAME
 
-    # Use black and white defaults if not specified
-    final_accent = accent_hex if accent_hex else "#000000"
+    # DS9 Dominion War era grey accent, pure white page
+    final_accent = accent_hex if accent_hex else "#7B7B7B"
     final_page = page_color_hex if page_color_hex else "#FFFFFF"
 
     build_resume(

@@ -18,6 +18,7 @@ from slowapi.util import get_remote_address
 from fitness.auth import current_active_user
 from fitness.config import settings
 from fitness.observability.safe_metrics import get_safe_observability_snapshot
+from fitness.security import issue_csrf_token, set_csrf_cookie
 from fitness.services.status_metrics import status_service
 from fitness.staticfiles import templates
 
@@ -56,17 +57,23 @@ async def status_page(request: Request, user=Depends(current_active_user)):
         print(f"Warning: Failed to generate Bokeh charts: {e}")
         bokeh_div = '<div class="error">Unable to load charts at this time.</div>'
 
-    return templates.TemplateResponse(
+    csrf_token = issue_csrf_token(request)
+    response = templates.TemplateResponse(
         "status.html",
         {
             "request": request,
             "status": metrics,
+            "user": user,
             "grafana_snapshot_url": grafana_url,
             "page_title": "System Status",
             "bokeh_script": bokeh_script,
             "bokeh_div": bokeh_div,
+            "csrf_token": csrf_token,
+            "admin_page": "status",
         },
     )
+    set_csrf_cookie(response, csrf_token)
+    return response
 
 
 def _generate_bokeh_charts(snapshot) -> tuple[str, str]:

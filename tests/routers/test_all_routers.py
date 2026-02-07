@@ -244,7 +244,6 @@ class TestAuthEndpoints:
         "/certs",
         "/resume",
         "/contact",
-        "/log/",
         "/security/dashboard",
         "/healthz",
         "/readyz",
@@ -298,7 +297,8 @@ def test_app_can_register_new_routes(client: TestClient):
     assert len(routes) > 0, "No routes registered in app"
 
     # Verify key routers are present
-    assert any("/log" in route for route in routes), "Blog router not registered"
+    # Blog router deprecated — re-enable when content is ready
+    # assert any("/log" in route for route in routes), "Blog router not registered"
     assert any("/admin" in route for route in routes), "Admin router not registered"
     assert any("/api" in route for route in routes), "API router not registered"
 
@@ -339,7 +339,6 @@ def test_templates_render_without_errors(client: TestClient):
         "/",
         "/certs",
         "/contact",
-        "/log/",
     ]
 
     for route in routes_to_test:
