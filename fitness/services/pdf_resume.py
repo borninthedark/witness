@@ -146,7 +146,7 @@ def get_fonts() -> tuple[str, str]:
 
 
 class BulletIcon(Flowable):
-    """Small square bullet used in experience section."""
+    """Small round bullet used in experience section."""
 
     def __init__(self, size: float = 4.5, color=DEFAULT_ACCENT):
         super().__init__()
@@ -157,7 +157,8 @@ class BulletIcon(Flowable):
 
     def draw(self):
         self.canv.setFillColor(self.color)
-        self.canv.rect(0, 0, self.size, self.size, fill=1, stroke=0)
+        r = self.size / 2
+        self.canv.circle(r, r, r, fill=1, stroke=0)
 
 
 def bullets_table(
@@ -181,8 +182,8 @@ def bullets_table(
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 1),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ]
         )
     )
@@ -467,9 +468,9 @@ def build_resume(
         story.extend(
             [
                 header,
-                Spacer(1, 3),
+                Spacer(1, 5),
                 bullets_table(styles, r.get("bullets", []), accent=accent),
-                Spacer(1, 6),
+                Spacer(1, 8),
             ]
         )
 

@@ -57,29 +57,38 @@ custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config
 
 ```mermaid
 graph TD
-    USER(("Internet")) --> R53["Route 53<br/>princetonstrong.com"]
-    R53 --> WAF["WAFv2"] --> AR["App Runner"]
-    GH["GitHub Actions"] -->|image push| ECR["ECR"] -->|deploy| AR
+    classDef edge fill:#232F3E,stroke:#232F3E,color:#fff
+    classDef compute fill:#FF9900,stroke:#232F3E,color:#fff
+    classDef network fill:#8C4FFF,stroke:#232F3E,color:#fff
+    classDef security fill:#DD344C,stroke:#232F3E,color:#fff
+    classDef observe fill:#3B48CC,stroke:#232F3E,color:#fff
+    classDef storage fill:#3F8624,stroke:#232F3E,color:#fff
+    classDef external fill:#fff,stroke:#232F3E,color:#232F3E
 
-    AR --> VC["VPC Connector"]
+    USER(("Internet")):::external --> R53["Route 53"]:::edge
+    R53 --> WAF["WAFv2"]:::security --> AR["App Runner"]:::compute
+    GH["GitHub Actions"]:::external -->|push| ECR["ECR"]:::compute -->|deploy| AR
+
+    AR --> VC["VPC Connector"]:::network
     subgraph VPC["VPC 10.0.0.0/16"]
-        VC --- PS["Private Subnets"]
-        PS --- NAT["NAT Gateway"]
-        PS --- EP["Endpoints<br/>S3 GW + Interface"]
+        VC --- PS["Private Subnets"]:::network
+        PS --- NAT["NAT Gateway"]:::network
+        PS --- EP["S3 GW + Interface<br/>Endpoints"]:::network
     end
 
-    AR -.->|secrets| SM["Secrets Manager"] -.->|decrypt| KMS["KMS CMK"]
+    AR -.->|secrets| SM["Secrets Manager"]:::security
+    SM -.->|decrypt| KMS["KMS CMK"]:::security
 
-    subgraph security["Security and Compliance"]
-        CT["CloudTrail"] --> S3L["S3 Audit Logs"]
-        CT --> CWL["CloudWatch Logs"]
-        GD["GuardDuty"] --> SH["Security Hub"]
-        CFG["Config Rules"] --> SH
+    subgraph sec["Security and Compliance"]
+        CT["CloudTrail"]:::security --> S3L["S3 Audit Logs"]:::storage
+        CT --> CWL["CloudWatch Logs"]:::observe
+        GD["GuardDuty"]:::security --> SH["Security Hub"]:::security
+        CFG["Config Rules"]:::security --> SH
     end
 
-    subgraph observe["Observability"]
-        CW["CloudWatch + X-Ray"] -->|alarms| SNS["SNS"]
-        BUD["Budgets"] -->|alerts| SNS
+    subgraph obs["Observability"]
+        CW["CloudWatch + X-Ray"]:::observe -->|alarms| SNS["SNS"]:::observe
+        BUD["Budgets"]:::observe -->|alerts| SNS
     end
 ```
 
@@ -112,26 +121,25 @@ Infrastructure is organized into reusable modules with separate dev and prod roo
 managed by [HCP Terraform](https://app.terraform.io/) (org: `DefiantEmissary`).
 
 ```mermaid
-graph TD
-    subgraph boot["bootstrap/ -- local state"]
-        direction LR
-        OIDC["OIDC Federation"]
-        IAM["IAM Policies x3"]
-        R53Z["Route 53 Zone"]
+graph LR
+    classDef boot fill:#545B64,stroke:#232F3E,color:#fff
+    classDef env fill:#FF9900,stroke:#232F3E,color:#fff
+    classDef mod fill:#527FFF,stroke:#232F3E,color:#fff
+
+    subgraph Bootstrap
+        direction TB
+        OIDC["OIDC"]:::boot
+        IAM["IAM x3"]:::boot
+        R53Z["Route 53"]:::boot
     end
 
-    boot -.->|OIDC role| DEV["dev/ -- witness-dev"] & PROD["prod/ -- witness-prod"]
+    OIDC & IAM & R53Z -.-> DEV["dev/<br/>witness-dev"]:::env & PROD["prod/<br/>witness-prod"]:::env
 
-    SEC["security<br/>KMS -- CloudTrail -- GuardDuty<br/>Config -- SecurityHub -- SNS -- Budgets"]
-    NET["networking<br/>VPC -- Subnets -- NAT Gateway<br/>S3 GW Endpoint -- Interface Endpoints"]
-    APP["app-runner<br/>ECR -- Secrets Manager -- App Runner<br/>WAFv2 -- X-Ray -- Auto-scaling"]
-    DNS["dns<br/>Route 53 -- Custom Domain -- ACM<br/>ProtonMail -- SPF -- DKIM"]
-    OBS["observability<br/>CloudWatch Logs -- Dashboard<br/>Metric Alarms -- SNS Integration"]
-
-    SEC -->|KMS key| NET
-    NET -->|VPC + subnets| APP
-    APP -->|service ARN| DNS
-    SEC -->|KMS + SNS topic| OBS
+    DEV & PROD --> SEC["security"]:::mod
+    SEC -->|KMS key| NET["networking"]:::mod
+    NET -->|VPC, subnets| APP["app-runner"]:::mod
+    APP -->|service ARN| DNS["dns"]:::mod
+    SEC -->|KMS, SNS| OBS["observability"]:::mod
     APP -->|service name| OBS
 ```
 
@@ -160,23 +168,30 @@ All workflows use Star Trek TNG-themed names and run on GitHub Actions.
 ### Pipeline Flow
 
 ```mermaid
-graph TD
-    PUSH["Push to main"]
+graph LR
+    classDef trigger fill:#24292F,stroke:#24292F,color:#fff
+    classDef ci fill:#2088FF,stroke:#1a6fcc,color:#fff
+    classDef security fill:#DD344C,stroke:#b02a3e,color:#fff
+    classDef build fill:#FF9900,stroke:#cc7a00,color:#fff
+    classDef deploy fill:#7B42BC,stroke:#623496,color:#fff
+    classDef post fill:#3F8624,stroke:#32691d,color:#fff
+
+    PUSH["Push to main"]:::trigger
 
     subgraph PICARD["Picard -- orchestrator"]
-        direction TB
-        DATA["Data<br/>lint + test"]
-        WORF["Worf<br/>security scan"]
-        LF["La Forge<br/>build + ECR push"]
-        GATE["Gate<br/>HCP Terraform"]
-        DATA --> LF --> GATE
-        WORF --> GATE
+        direction LR
+        DATA["Data<br/>lint + test"]:::ci
+        WORF["Worf<br/>security scan"]:::security
+        LF["La Forge<br/>build + push"]:::build
+        GATE["Gate<br/>HCP Terraform"]:::deploy
     end
 
     PUSH --> DATA & WORF
-    LF -.->|on success| RIKER["Riker -- release"]
-    LF -.->|on success| TROI["Troi -- docs"]
-    PICARD -.->|on failure| TASHA["Tasha -- rollback"]
+    DATA --> LF --> GATE
+    WORF --> GATE
+    LF -.->|on success| RIKER["Riker<br/>release"]:::post
+    LF -.->|on success| TROI["Troi<br/>docs"]:::post
+    PICARD -.->|on failure| TASHA["Tasha<br/>rollback"]:::security
 ```
 
 ### Workflow Reference
