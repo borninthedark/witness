@@ -34,11 +34,12 @@ dependencies = [
   "asgi-correlation-id==4.3.1",
   "python-json-logger==2.0.7",
   "prometheus-client==0.20.0",
-  "opentelemetry-sdk==1.27.0",
-  "opentelemetry-exporter-otlp==1.27.0",
-  "opentelemetry-instrumentation-fastapi==0.48b0",
-  "opentelemetry-instrumentation-sqlalchemy==0.48b0",
-  "opentelemetry-instrumentation-httpx==0.48b0",
+  "opentelemetry-sdk==1.39.1",
+  "opentelemetry-exporter-otlp==1.39.1",
+  "opentelemetry-instrumentation-fastapi==0.60b1",
+  "opentelemetry-instrumentation-sqlalchemy==0.60b1",
+  "opentelemetry-instrumentation-httpx==0.60b1",
+  "protobuf>=5.29.6",
   "bokeh==3.8.2",
   "python-dateutil==2.9.0",
   "aiofiles==23.2.1",
@@ -107,9 +108,7 @@ testpaths = [
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-filterwarnings = [
-  "ignore:pkg_resources is deprecated as an API.*:UserWarning:passlib.pwd",
-]
+filterwarnings = []
 
 [tool.coverage.run]
 source = ["fitness"]
