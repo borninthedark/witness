@@ -76,7 +76,7 @@ def test_503_template_includes_recovery_actions(client: TestClient):
     # Check for recovery action links
     assert "Retry Current Request" in response.text
     assert 'href="/"' in response.text  # Home link
-    assert 'href="/status"' in response.text  # Status dashboard link
+    assert 'href="/admin/status"' in response.text  # Status dashboard link
     assert 'href="/contact"' in response.text  # Contact/support link
 
 

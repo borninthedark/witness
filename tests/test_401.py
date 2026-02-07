@@ -96,9 +96,10 @@ def test_403_also_uses_401_template(client: TestClient):
     assert "AUTHORIZATION REQUIRED" in response.text
 
 
-def test_status_page_returns_401_without_auth(client: TestClient):
-    """Test that /status/ returns 401 error page when accessed without auth."""
-    response = client.get("/status/", headers={"Accept": "text/html"})
-    assert response.status_code == 401
-    assert "text/html" in response.headers["content-type"]
-    assert "AUTHORIZATION REQUIRED" in response.text
+def test_status_page_redirects_without_auth(client: TestClient):
+    """Test that /admin/status/ redirects to login when accessed without auth."""
+    response = client.get(
+        "/admin/status/", headers={"Accept": "text/html"}, follow_redirects=False
+    )
+    assert response.status_code == 302
+    assert "/admin/login" in response.headers["location"]

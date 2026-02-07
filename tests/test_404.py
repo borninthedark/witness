@@ -35,7 +35,7 @@ def test_404_page_includes_navigation_links(client: TestClient):
     assert 'href="/"' in response.text  # Home link
     assert 'href="/certs"' in response.text  # Certifications link
     assert 'href="/resume"' in response.text  # Resume link
-    assert 'href="/status"' in response.text  # Status link
+    assert 'href="/admin/status"' in response.text  # Status link
     assert 'href="/contact"' in response.text  # Contact link
 
 
