@@ -40,7 +40,7 @@ dependencies = [
   "opentelemetry-instrumentation-fastapi==0.48b0",
   "opentelemetry-instrumentation-sqlalchemy==0.48b0",
   "opentelemetry-instrumentation-httpx==0.48b0",
-  "bokeh==3.5.0",
+  "bokeh==3.8.2",
   "python-dateutil==2.9.0",
   "aiofiles==23.2.1",
   "markdown==3.7",
