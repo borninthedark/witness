@@ -1,10 +1,12 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 
 {% block title %}Security Advisories Dashboard{% endblock %}
 
-{% block content %}
+{% block admin_head_extra %}
 <link rel="stylesheet" href="{{ asset_url('css/security.css') }}">
+{% endblock %}
 
+{% block admin_content %}
 <div class="security-dashboard">
     <header class="dashboard-header">
         <h1>Advisory Dashboard</h1>
@@ -12,14 +14,14 @@
     </header>
 
     <!-- Statistics Widget -->
-    <div id="stats-widget" hx-get="/security/stats?days=30" hx-trigger="load, every 300s" hx-swap="innerHTML">
+    <div id="stats-widget" hx-get="/admin/tactical/stats?days=30" hx-trigger="load, every 300s" hx-swap="innerHTML">
         {% include "security/stats_widget.html" %}
     </div>
 
     <!-- Filters -->
     <div class="filters-container">
         <h2>Filters</h2>
-        <form id="advisory-filters" hx-get="/security/advisories" hx-target="#advisories-list"
+        <form id="advisory-filters" hx-get="/admin/tactical/advisories" hx-target="#advisories-list"
             hx-trigger="change, submit" hx-swap="innerHTML" hx-indicator="#loading-indicator">
 
             <div class="filter-group">
@@ -44,9 +46,9 @@
         </form>
 
         <div class="auto-refresh">
-            <button hx-get="/security/advisories" hx-target="#advisories-list" hx-include="#advisory-filters"
+            <button hx-get="/admin/tactical/advisories" hx-target="#advisories-list" hx-include="#advisory-filters"
                 hx-trigger="every 300s" class="btn btn-secondary" style="margin-top: 1rem;">
-                <span class="refresh-icon">🔄</span> Auto-refresh (5min)
+                <span class="refresh-icon">&#x1F504;</span> Auto-refresh (5min)
             </button>
         </div>
     </div>
@@ -58,7 +60,7 @@
     </div>
 
     <!-- Advisories List -->
-    <div id="advisories-list" hx-get="/security/advisories?days=30" hx-trigger="load" hx-swap="innerHTML"
+    <div id="advisories-list" hx-get="/admin/tactical/advisories?days=30" hx-trigger="load" hx-swap="innerHTML"
         hx-indicator="#loading-indicator">
         <!-- Content loaded via HTMX -->
     </div>
@@ -67,7 +69,7 @@
     <div id="advisory-modal" class="modal" style="display: none;">
         <div class="modal-overlay" onclick="closeModal()"></div>
         <div class="modal-content">
-            <button class="modal-close" onclick="closeModal()">✕</button>
+            <button class="modal-close" onclick="closeModal()">&#x2715;</button>
             <div id="modal-body">
                 <!-- Content loaded via HTMX -->
             </div>

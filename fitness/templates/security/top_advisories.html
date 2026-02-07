@@ -4,7 +4,7 @@
         <div style="display: flex; gap: 1rem; align-items: center;">
             <span class="count-badge">{{ total }} found</span>
             <button
-                hx-get="/security/advisories"
+                hx-get="/admin/tactical/advisories"
                 hx-target="#advisories-list"
                 hx-swap="innerHTML"
                 class="btn btn-secondary"
@@ -18,7 +18,7 @@
     <div class="advisories-grid">
         {% for advisory in advisories %}
         <div class="advisory-card severity-{{ advisory.severity.lower() }}"
-             hx-get="/security/advisory/{{ advisory.cve_id }}"
+             hx-get="/admin/tactical/advisory/{{ advisory.cve_id }}"
              hx-target="#modal-body"
              onclick="showModal()">
 

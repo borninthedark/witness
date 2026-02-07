@@ -25,7 +25,7 @@ aggregator = CVEAggregator(nist_api_key=settings.nist_api_key)
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def security_dashboard(request: Request):
+async def security_dashboard(request: Request, user=Depends(current_active_user)):
     """Main security dashboard page.
 
     Returns:
@@ -36,7 +36,12 @@ async def security_dashboard(request: Request):
 
     return templates.TemplateResponse(
         "security/dashboard.html",
-        {"request": request, "stats": stats, "current_page": "security"},
+        {
+            "request": request,
+            "stats": stats,
+            "user": user,
+            "admin_page": "tactical",
+        },
     )
 
 

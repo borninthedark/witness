@@ -8,7 +8,7 @@
     <div class="advisories-grid">
         {% for advisory in advisories %}
         <div class="advisory-card severity-{{ advisory.severity.lower() }}"
-             hx-get="/security/advisory/{{ advisory.cve_id }}"
+             hx-get="/admin/tactical/advisory/{{ advisory.cve_id }}"
              hx-target="#modal-body"
              onclick="showModal()">
 
