@@ -46,3 +46,57 @@ resource "aws_route53_record" "app" {
   ttl     = 300
   records = [aws_apprunner_custom_domain_association.this.dns_target]
 }
+
+# ================================================================
+# Proton Mail
+# ================================================================
+
+resource "aws_route53_record" "txt" {
+  count = var.protonmail_verification_code != "" ? 1 : 0
+
+  zone_id = var.hosted_zone_id
+  name    = ""
+  type    = "TXT"
+  ttl     = 3600
+
+  records = [
+    "protonmail-verification=${var.protonmail_verification_code}",
+    "v=spf1 include:_spf.protonmail.ch ~all",
+  ]
+}
+
+resource "aws_route53_record" "mx" {
+  zone_id = var.hosted_zone_id
+  name    = ""
+  type    = "MX"
+  ttl     = 3600
+
+  records = [
+    "10 mail.protonmail.ch",
+    "20 mailsec.protonmail.ch",
+  ]
+}
+
+resource "aws_route53_record" "dmarc" {
+  zone_id = var.hosted_zone_id
+  name    = "_dmarc"
+  type    = "TXT"
+  ttl     = 3600
+
+  records = [
+    "v=DMARC1; p=quarantine",
+  ]
+}
+
+resource "aws_route53_record" "dkim" {
+  count = 3
+
+  zone_id = var.hosted_zone_id
+  name    = "protonmail${count.index == 0 ? "" : count.index + 1}._domainkey"
+  type    = "CNAME"
+  ttl     = 3600
+
+  records = [
+    "protonmail${count.index == 0 ? "" : count.index + 1}.domainkey.d4rmgptbr32blnyq5244uir2hdftatqu3gnrefujosfqqnfrim5na.domains.proton.ch.",
+  ]
+}

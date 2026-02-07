@@ -4,8 +4,8 @@ services:
   app:
     container_name: fitness-app
     build:
-      context: .
-      dockerfile: Containerfile
+      context: ..
+      dockerfile: container/Containerfile
     image: ${ECR_REGISTRY:-witness-dev}/witness:${TAG:-latest}
     security_opt:
       - no-new-privileges:true
@@ -55,7 +55,7 @@ services:
       - "${HTTPS_PORT:-8443}:443"
     volumes:
       # SELinux-labeled bind mounts (Fedora)
-      - ./Caddyfile:/etc/caddy/Caddyfile:Z,ro
+      - ./container/Caddyfile:/etc/caddy/Caddyfile:Z,ro
       - ./fitness/static:/srv:Z,ro
 
       # named volumes (no SELinux suffix needed)

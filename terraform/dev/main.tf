@@ -118,6 +118,8 @@ module "dns" {
   subdomain              = "engage"
   hosted_zone_id         = var.hosted_zone_id
   app_runner_service_arn = module.app_runner.service_arn
+
+  protonmail_verification_code = var.protonmail_verification_code
 }
 
 # ================================================================

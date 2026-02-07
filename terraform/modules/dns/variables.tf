@@ -21,3 +21,9 @@ variable "app_runner_service_arn" {
   description = "ARN of the App Runner service to associate with the custom domain"
   type        = string
 }
+
+variable "protonmail_verification_code" {
+  description = "Proton Mail domain verification code (omit prefix)"
+  type        = string
+  default     = ""
+}

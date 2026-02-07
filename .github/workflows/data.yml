@@ -36,7 +36,7 @@ jobs:
       - name: Lint Containerfile
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: Containerfile
+          dockerfile: container/Containerfile
           ignore: DL3008,DL3059
 
       - name: Semgrep

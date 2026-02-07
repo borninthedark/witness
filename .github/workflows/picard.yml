@@ -59,7 +59,7 @@ jobs:
           IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
           TAG="${GITHUB_SHA::8}"
 
-          docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:dev" -f Containerfile .
+          docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:dev" -f container/Containerfile .
           docker push "${IMAGE}:${TAG}"
           docker push "${IMAGE}:dev"
 

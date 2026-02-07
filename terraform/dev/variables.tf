@@ -159,6 +159,12 @@ variable "max_concurrency" {
 # Notifications
 # ================================================================
 
+variable "protonmail_verification_code" {
+  description = "Proton Mail domain verification code"
+  type        = string
+  default     = ""
+}
+
 variable "alarm_email" {
   description = "Email for alarm notifications"
   type        = string

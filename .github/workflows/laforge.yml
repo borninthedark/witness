@@ -18,7 +18,7 @@ on:
       - 'terraform/**'
       - 'pyproject.toml'
       - 'uv.lock'
-      - 'Containerfile'
+      - 'container/**'
       - '.github/workflows/**'
   workflow_dispatch:
 
