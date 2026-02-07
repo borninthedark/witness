@@ -95,21 +95,12 @@ is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
 
 ---
 
-| | |
-|---|---|
-| **[Overview](#overview)** | **[Development](#development)** |
-| &#8226; [Capabilities](#overview) | &#8226; [Package Management](#package-management) |
-| **[Tech Stack](#technology-stack)** | &#8226; [Pre-commit Hooks](#pre-commit-hooks) |
-| **[Architecture](#aws-architecture)** | &#8226; [Testing](#testing) |
-| &#8226; [AWS Services](#aws-services-used) | **[Observability](#observability)** |
-| **[Terraform](#terraform-structure)** | **[Security](#security)** |
-| &#8226; [Well-Architected](#well-architected-alignment) | **[Documentation](#documentation)** |
-| **[CI/CD](#cicd-pipelines)** | **[AI-Assisted Dev](#ai-assisted-development)** |
-| &#8226; [Workflow Reference](#workflow-reference) | &#8226; [MCP Servers](#mcp-servers) |
-| **[Features](#features)** | **[License](#license)** |
-| **[Quickstart](#quickstart)** | |
-| &#8226; [Container Build](#container-build) | |
-| **[Config](#configuration)** | |
+- **[Overview](#overview)** &#8226; **[Tech Stack](#technology-stack)** &#8226; **[Architecture](#aws-architecture)** &#8226; **[Terraform](#terraform-structure)** &#8226; **[CI/CD](#cicd-pipelines)** &#8226; **[Features](#features)**
+  - [AWS Services](#aws-services-used) &#8226; [Well-Architected](#well-architected-alignment) &#8226; [Workflow Reference](#workflow-reference)
+- **[Quickstart](#quickstart)** &#8226; **[Config](#configuration)** &#8226; **[Development](#development)** &#8226; **[Observability](#observability)** &#8226; **[Security](#security)**
+  - [Container Build](#container-build) &#8226; [Package Management](#package-management) &#8226; [Pre-commit Hooks](#pre-commit-hooks) &#8226; [Testing](#testing)
+- **[Documentation](#documentation)** &#8226; **[AI-Assisted Dev](#ai-assisted-development)** &#8226; **[License](#license)**
+  - [MCP Servers](#mcp-servers)
 
 ---
 
