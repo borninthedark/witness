@@ -52,6 +52,8 @@ resource "aws_route53_record" "app" {
 # ================================================================
 
 resource "aws_route53_record" "spf" {
+  depends_on = [aws_route53_record.protonmail_verification]
+
   zone_id = var.hosted_zone_id
   name    = ""
   type    = "TXT"
@@ -64,8 +66,7 @@ resource "aws_route53_record" "spf" {
 }
 
 resource "aws_route53_record" "protonmail_verification" {
-  count      = var.protonmail_verification_code != "" ? 1 : 0
-  depends_on = [aws_route53_record.spf]
+  count = var.protonmail_verification_code != "" ? 1 : 0
 
   zone_id = var.hosted_zone_id
   name    = ""
