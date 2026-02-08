@@ -51,16 +51,30 @@ resource "aws_route53_record" "app" {
 # Proton Mail
 # ================================================================
 
-resource "aws_route53_record" "txt" {
+resource "aws_route53_record" "spf" {
   zone_id = var.hosted_zone_id
   name    = ""
   type    = "TXT"
   ttl     = 3600
 
-  records = concat(
-    ["v=spf1 include:_spf.protonmail.ch ~all"],
-    var.protonmail_verification_code != "" ? ["protonmail-verification=${var.protonmail_verification_code}"] : [],
-  )
+  multivalue_answer_routing_policy = true
+  set_identifier                   = "spf"
+
+  records = ["v=spf1 include:_spf.protonmail.ch ~all"]
+}
+
+resource "aws_route53_record" "protonmail_verification" {
+  count = var.protonmail_verification_code != "" ? 1 : 0
+
+  zone_id = var.hosted_zone_id
+  name    = ""
+  type    = "TXT"
+  ttl     = 3600
+
+  multivalue_answer_routing_policy = true
+  set_identifier                   = "protonmail-verification"
+
+  records = ["protonmail-verification=${var.protonmail_verification_code}"]
 }
 
 resource "aws_route53_record" "mx" {
