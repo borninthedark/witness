@@ -51,6 +51,13 @@ resource "aws_route53_record" "app" {
 # Proton Mail
 # ================================================================
 
+# Migrate the old combined TXT record to the new SPF-only resource.
+# Remove this block after the first successful apply.
+moved {
+  from = aws_route53_record.txt
+  to   = aws_route53_record.spf
+}
+
 resource "aws_route53_record" "spf" {
   zone_id = var.hosted_zone_id
   name    = ""
@@ -64,7 +71,8 @@ resource "aws_route53_record" "spf" {
 }
 
 resource "aws_route53_record" "protonmail_verification" {
-  count = var.protonmail_verification_code != "" ? 1 : 0
+  count      = var.protonmail_verification_code != "" ? 1 : 0
+  depends_on = [aws_route53_record.spf]
 
   zone_id = var.hosted_zone_id
   name    = ""
