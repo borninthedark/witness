@@ -36,8 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
-      image: ${{ steps.push.outputs.image }}
-      tag: ${{ steps.push.outputs.tag }}
+      image: ${{ steps.meta.outputs.image }}
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,32 +51,31 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Image metadata
+        id: meta
+        run: |
+          echo "image=${{ steps.ecr-login.outputs.registry }}/${ECR_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push to ECR
         id: push
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-        run: |
-          IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
-          TAG="${GITHUB_SHA::8}"
-
-          docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:dev" -f container/Containerfile .
-          docker push "${IMAGE}:${TAG}"
-          docker push "${IMAGE}:dev"
-
-          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${TAG}" | cut -d@ -f2)" >> "$GITHUB_OUTPUT"
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: container/Containerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:dev
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image with Cosign
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          DIGEST: ${{ steps.push.outputs.digest }}
-        run: |
-          IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
-          cosign sign --yes "${IMAGE}@${DIGEST}"
+        run: cosign sign --yes "${{ steps.meta.outputs.image }}@${{ steps.push.outputs.digest }}"
 
   # ══════════════════════════════════════════════════════════════════════════
   # Scan: Trivy vulnerability scan
