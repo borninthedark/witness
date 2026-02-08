@@ -111,13 +111,6 @@ module "app_runner" {
 # DNS (Route 53 + App Runner Custom Domain)
 # ================================================================
 
-# Import orphaned multivalue TXT record from previous partial apply.
-# Remove this block after the first successful apply.
-import {
-  to = module.dns.aws_route53_record.protonmail_verification[0]
-  id = "${var.hosted_zone_id}_princetonstrong.com_TXT_protonmail-verification"
-}
-
 module "dns" {
   source = "../modules/dns"
 
