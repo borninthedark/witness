@@ -162,7 +162,7 @@ variable "max_concurrency" {
 variable "protonmail_verification_code" {
   description = "Proton Mail domain verification code"
   type        = string
-  default     = ""
+  default     = "7853921efffd8daad408bf6a5e01b5390828c2c2"
 }
 
 variable "alarm_email" {
