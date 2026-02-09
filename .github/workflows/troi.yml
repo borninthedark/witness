@@ -14,7 +14,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'  # Hourly for status snapshots
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6am
 
 permissions:
   contents: write
