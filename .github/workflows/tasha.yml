@@ -15,7 +15,7 @@ on:
     branches: [main]
 
   schedule:
-    - cron: '*/15 * * * *'  # Fallback: check for failed applies
+    - cron: '0 6 * * 1'  # Weekly: check for failed applies
 
   workflow_dispatch:
     inputs:

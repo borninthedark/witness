@@ -45,8 +45,7 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REPOSITORY_DEV: witness-dev
-  ECR_REPOSITORY_PROD: witness-prod
+  ECR_REPOSITORY: witness-dev
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════
@@ -140,24 +139,23 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          DEV_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY_DEV}:dev"
-          PROD_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY_PROD}"
+          DEV_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:dev"
 
           docker pull "${DEV_IMAGE}"
 
-          docker tag "${DEV_IMAGE}" "${PROD_IMAGE}:${VERSION}"
-          docker tag "${DEV_IMAGE}" "${PROD_IMAGE}:latest"
+          docker tag "${DEV_IMAGE}" "${ECR_REGISTRY}/${ECR_REPOSITORY}:${VERSION}"
+          docker tag "${DEV_IMAGE}" "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
 
-          docker push "${PROD_IMAGE}:${VERSION}"
-          docker push "${PROD_IMAGE}:latest"
+          docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${VERSION}"
+          docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
 
       - name: Retag Summary
         run: |
           {
-            echo "## Container Image Promoted"
+            echo "## Container Image Tagged"
             echo "- **Version**: \`${{ needs.version.outputs.version }}\`"
-            echo "- **Source**: \`${ECR_REPOSITORY_DEV}:dev\`"
-            echo "- **Target**: \`${ECR_REPOSITORY_PROD}:${{ needs.version.outputs.version }}\`, \`latest\`"
+            echo "- **Repository**: \`${ECR_REPOSITORY}\`"
+            echo "- **Tags**: \`${{ needs.version.outputs.version }}\`, \`latest\`, \`dev\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ══════════════════════════════════════════════════════════════════════════
@@ -182,15 +180,15 @@ jobs:
 
           ## Container Image
 
-          Image promoted from `witness-dev:dev` to `witness-prod:${{ needs.version.outputs.version }}`.
+          Image tagged as `witness-dev:${{ needs.version.outputs.version }}`.
 
           ## Image Details
 
           | Property | Value |
           |----------|-------|
-          | ECR Repository | `witness-prod` |
+          | ECR Repository | `witness-dev` |
           | Version | `${{ needs.version.outputs.version }}` |
-          | Tags | `latest`, `${{ needs.version.outputs.version }}` |
+          | Tags | `${{ needs.version.outputs.version }}`, `latest`, `dev` |
           EOF
 
       - name: Create GitHub Release
@@ -210,7 +208,7 @@ jobs:
             echo "## Release Published"
             echo ""
             echo "- **Version**: [\`${{ needs.version.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.version }})"
-            echo "- **ECR**: \`witness-prod:${{ needs.version.outputs.version }}\`"
+            echo "- **ECR**: \`witness-dev:${{ needs.version.outputs.version }}\`"
             echo ""
             echo "### Changelog"
             echo "${{ needs.version.outputs.changelog }}"
