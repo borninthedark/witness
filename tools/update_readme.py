@@ -66,6 +66,8 @@ A production FastAPI application deployed on AWS App Runner, serving as a profes
 and certification verification platform with a Star Trek LCARS-inspired interface. Infrastructure
 is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
 
+**[View the live site](https://engage.princetonstrong.com)**
+
 ---
 
 - **[Overview](#overview)** &#8226; **[Tech Stack](#technology-stack)** &#8226; **[Architecture](#aws-architecture)** &#8226; **[Terraform](#terraform-structure)** &#8226; **[CI/CD](#cicd-pipelines)** &#8226; **[Features](#features)**
