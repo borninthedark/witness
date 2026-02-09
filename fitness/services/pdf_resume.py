@@ -19,8 +19,8 @@ from reportlab.platypus import (
 
 from fitness.config import settings
 
-# Accent & output filename - DS9 Dominion War era uniform grey
-DEFAULT_ACCENT = colors.HexColor("#7B7B7B")  # Shoulder yoke grey
+# Accent & output filename
+DEFAULT_ACCENT = colors.HexColor("#2C3E50")  # Dark slate
 DEFAULT_PAGE_COLOR = colors.white  # Pure white background
 RESUME_FILENAME = "PAS-Resume.pdf"
 
@@ -511,8 +511,8 @@ def generate_resume_pdf(
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / RESUME_FILENAME
 
-    # DS9 Dominion War era grey accent, pure white page
-    final_accent = accent_hex if accent_hex else "#7B7B7B"
+    # Dark slate accent, pure white page
+    final_accent = accent_hex if accent_hex else "#2C3E50"
     final_page = page_color_hex if page_color_hex else "#FFFFFF"
 
     build_resume(
