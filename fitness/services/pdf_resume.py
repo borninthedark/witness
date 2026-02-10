@@ -222,7 +222,7 @@ def certs_table_better(
                     "ROWBACKGROUNDS",
                     (0, 1),
                     (-1, -1),
-                    [colors.whitesmoke, colors.Color(0.98, 0.99, 1.0)],
+                    [colors.white, colors.white],
                 ),
             ]
         )

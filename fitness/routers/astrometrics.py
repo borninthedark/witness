@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -28,6 +30,7 @@ async def astrometrics_dashboard(
     """Astrometrics dashboard — APOD image, NEO table, AI briefing."""
     briefing = await astrometrics_service.get_briefing()
     csrf_token = issue_csrf_token(request)
+    neo_objects_json = json.dumps([o.model_dump() for o in briefing.neo_objects])
 
     response = templates.TemplateResponse(
         "astrometrics/dashboard.html",
@@ -37,6 +40,7 @@ async def astrometrics_dashboard(
             "user": user,
             "csrf_token": csrf_token,
             "admin_page": "astrometrics",
+            "neo_objects_json": neo_objects_json,
         },
     )
     set_csrf_cookie(response, csrf_token)
