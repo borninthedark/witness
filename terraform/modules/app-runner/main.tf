@@ -209,15 +209,19 @@ module "app_runner" {
       image_repository_type = "ECR"
       image_configuration = {
         port = tostring(var.container_port)
-        runtime_environment_variables = {
-          ENVIRONMENT      = var.environment == "dev" ? "development" : "production"
-          LOG_LEVEL        = var.log_level
-          PYTHONUNBUFFERED = "1"
-          DATABASE_URL     = var.database_url
-          SECRET_KEY       = var.secret_key
-          ADMIN_USERNAME   = var.admin_username
-          ADMIN_PASSWORD   = var.admin_password
-        }
+        runtime_environment_variables = merge(
+          {
+            ENVIRONMENT      = var.environment == "dev" ? "development" : "production"
+            LOG_LEVEL        = var.log_level
+            PYTHONUNBUFFERED = "1"
+            DATABASE_URL     = var.database_url
+            SECRET_KEY       = var.secret_key
+            ADMIN_USERNAME   = var.admin_username
+            ADMIN_PASSWORD   = var.admin_password
+          },
+          var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {},
+          var.nasa_api_key != "" ? { NASA_API_KEY = var.nasa_api_key } : {},
+        )
       }
     }
     auto_deployments_enabled = var.auto_deploy

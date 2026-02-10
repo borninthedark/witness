@@ -4,6 +4,8 @@
 # HCP Terraform workspace: witness-dev
 # Sensitive vars set in HCP Terraform workspace variables:
 #   - secret_key
+#   - anthropic_api_key (optional — enables Captain's Log + Astrometrics AI)
+#   - nasa_api_key      (optional — DEMO_KEY used when unset)
 # ================================================================
 
 project     = "witness"
