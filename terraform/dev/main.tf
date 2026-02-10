@@ -82,13 +82,15 @@ module "app_runner" {
   environment = var.environment
   kms_key_arn = module.security.kms_key_arn
 
-  image_tag      = var.image_tag
-  container_port = var.container_port
-  log_level      = var.log_level
-  secret_key     = var.secret_key
-  database_url   = var.database_url
-  admin_username = var.admin_username
-  admin_password = var.admin_password
+  image_tag         = var.image_tag
+  container_port    = var.container_port
+  log_level         = var.log_level
+  secret_key        = var.secret_key
+  database_url      = var.database_url
+  admin_username    = var.admin_username
+  admin_password    = var.admin_password
+  anthropic_api_key = var.anthropic_api_key
+  nasa_api_key      = var.nasa_api_key
 
   instance_cpu    = var.instance_cpu
   instance_memory = var.instance_memory

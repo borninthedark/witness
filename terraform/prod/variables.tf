@@ -119,6 +119,19 @@ variable "admin_password" {
   sensitive   = true
 }
 
+variable "anthropic_api_key" {
+  description = "Anthropic API key for AI features"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "nasa_api_key" {
+  description = "NASA API key (optional)"
+  type        = string
+  default     = ""
+}
+
 variable "instance_cpu" {
   description = "App Runner instance CPU"
   type        = string
