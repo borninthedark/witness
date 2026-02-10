@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     # PDF defaults
     default_accent_color: str = "#2e3440"
-    default_page_color: str = "#eceff4"
+    default_page_color: str = "#FFFFFF"
 
     # Data
     data_dir: str = "fitness/data"

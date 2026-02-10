@@ -22,6 +22,20 @@ NASA_APOD_URL = "https://api.nasa.gov/planetary/apod"
 NASA_NEO_URL = "https://api.nasa.gov/neo/rest/v1/feed"
 
 
+class NeoObject(BaseModel):
+    """Individual Near-Earth Object with approach data."""
+
+    name: str
+    estimated_diameter_km_min: float = 0.0
+    estimated_diameter_km_max: float = 0.0
+    is_potentially_hazardous: bool = False
+    miss_distance_km: float = 0.0
+    miss_distance_lunar: float = 0.0
+    relative_velocity_km_s: float = 0.0
+    close_approach_epoch: int = 0
+    absolute_magnitude: float = 0.0
+
+
 class AstrometricsBriefing(BaseModel):
     """Astrometrics briefing data model."""
 
@@ -31,6 +45,7 @@ class AstrometricsBriefing(BaseModel):
     apod_explanation: str = ""
     neo_count: int = 0
     neo_closest: str = ""
+    neo_objects: list[NeoObject] = []
     stardate: str = ""
     generated_at: str = ""
 
@@ -109,6 +124,45 @@ class AstrometricsService:
                         )
         return neo_count, closest_name
 
+    @staticmethod
+    def _parse_neo_objects(neo_data: dict) -> list[NeoObject]:
+        """Extract full NEO list from NASA feed data."""
+        objects: list[NeoObject] = []
+        for _date_key, items in neo_data.get("near_earth_objects", {}).items():
+            for obj in items:
+                diameter = obj.get("estimated_diameter", {}).get("kilometers", {})
+                approach = (
+                    obj.get("close_approach_data", [{}])[0]
+                    if obj.get("close_approach_data")
+                    else {}
+                )
+                miss = approach.get("miss_distance", {})
+                vel = approach.get("relative_velocity", {})
+                objects.append(
+                    NeoObject(
+                        name=obj.get("name", "Unknown"),
+                        estimated_diameter_km_min=float(
+                            diameter.get("estimated_diameter_min", 0)
+                        ),
+                        estimated_diameter_km_max=float(
+                            diameter.get("estimated_diameter_max", 0)
+                        ),
+                        is_potentially_hazardous=obj.get(
+                            "is_potentially_hazardous_asteroid", False
+                        ),
+                        miss_distance_km=float(miss.get("kilometers", 0)),
+                        miss_distance_lunar=float(miss.get("lunar", 0)),
+                        relative_velocity_km_s=float(
+                            vel.get("kilometers_per_second", 0)
+                        ),
+                        close_approach_epoch=int(
+                            approach.get("epoch_date_close_approach", 0)
+                        ),
+                        absolute_magnitude=float(obj.get("absolute_magnitude_h", 0)),
+                    )
+                )
+        return objects
+
     async def get_briefing(self, force_refresh: bool = False) -> AstrometricsBriefing:
         """Get astrometrics briefing, using cache when available."""
         if not force_refresh:
@@ -120,6 +174,7 @@ class AstrometricsService:
         apod = {}
         neo_count = 0
         neo_closest = "Data unavailable"
+        neo_objects: list[NeoObject] = []
 
         try:
             apod = await self._fetch_apod()
@@ -129,6 +184,7 @@ class AstrometricsService:
         try:
             neo_data = await self._fetch_neo()
             neo_count, neo_closest = self._parse_closest_neo(neo_data)
+            neo_objects = self._parse_neo_objects(neo_data)
         except Exception:
             logger.warning("NEO fetch failed")
 
@@ -139,6 +195,7 @@ class AstrometricsService:
             apod_explanation=apod.get("explanation", ""),
             neo_count=neo_count,
             neo_closest=neo_closest,
+            neo_objects=neo_objects,
             stardate=compute_stardate(),
             generated_at=datetime.now(UTC).isoformat(),
         )
