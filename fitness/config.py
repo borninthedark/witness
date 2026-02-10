@@ -97,6 +97,8 @@ class Settings(BaseSettings):
 
     # External API Keys
     nist_api_key: str | None = None  # NIST NVD API key for CVE data
+    anthropic_api_key: str | None = None  # Anthropic API key for AI features
+    nasa_api_key: str | None = None  # NASA API key (DEMO_KEY works for low traffic)
 
     # Email configuration
     email_enabled: bool = True
