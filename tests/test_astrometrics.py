@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -21,7 +21,6 @@ class TestAstrometricsBriefing:
         b = AstrometricsBriefing()
         assert b.apod_title == ""
         assert b.neo_count == 0
-        assert b.briefing_narrative == ""
 
     def test_round_trip(self):
         """Briefing should serialize and deserialize cleanly."""
@@ -96,8 +95,6 @@ class TestAstrometricsService:
         """get_briefing returns cached data when available."""
         svc = AstrometricsService()
 
-        from datetime import datetime
-
         cached = AstrometricsBriefing(
             apod_title="Cached APOD",
             stardate="101500.0",
@@ -110,16 +107,6 @@ class TestAstrometricsService:
         with patch("fitness.services.astrometrics.CACHE_PATH", cache_file):
             result = await svc.get_briefing()
             assert result.apod_title == "Cached APOD"
-
-    @pytest.mark.asyncio
-    async def test_narrative_no_api_key(self):
-        """Narrative falls back gracefully without API key."""
-        svc = AstrometricsService()
-        with patch("fitness.services.astrometrics.settings") as mock_settings:
-            mock_settings.anthropic_api_key = None
-            svc._anthropic_client = None
-            result = await svc._generate_narrative({}, 0, "None")
-        assert "unavailable" in result.lower()
 
 
 # ── Route tests (auth required) ────────────────────────────────

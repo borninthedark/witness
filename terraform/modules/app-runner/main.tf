@@ -219,7 +219,6 @@ module "app_runner" {
             ADMIN_USERNAME   = var.admin_username
             ADMIN_PASSWORD   = var.admin_password
           },
-          var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {},
           var.nasa_api_key != "" ? { NASA_API_KEY = var.nasa_api_key } : {},
         )
       }

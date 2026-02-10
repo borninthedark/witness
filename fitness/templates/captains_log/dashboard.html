@@ -4,23 +4,8 @@
 {% block admin_content %}
 <section class="hero mb-3">
   <h2>Captain's Log</h2>
-  <p>AI-generated project status entries in the voice of Captain Picard.</p>
+  <p>Project status entries.</p>
 </section>
-
-<div style="margin-bottom: 1.5rem; display: flex; justify-content: flex-end;">
-  {% if has_api_key %}
-  <form method="post" action="/admin/log/generate" id="generate-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit" class="btn btn-primary" id="generate-btn" onclick="this.disabled=true; this.textContent='Generating...';">
-      Generate New Entry
-    </button>
-  </form>
-  {% else %}
-  <span class="text-muted" style="font-size: 0.9rem; color: #9999cc;">
-    Set ANTHROPIC_API_KEY to enable AI generation
-  </span>
-  {% endif %}
-</div>
 
 {% if entries %}
 <div class="log-entries">
@@ -44,13 +29,7 @@
 <div class="empty-state card" style="text-align: center; padding: 3rem;">
   <div style="font-size: 3rem; margin-bottom: 1rem;">&#x1F4D6;</div>
   <h3 style="color: #ff9900; margin-bottom: 0.5rem;">No Log Entries Yet</h3>
-  <p style="color: #9999cc;">
-    {% if has_api_key %}
-    Generate your first Captain's Log entry using the button above.
-    {% else %}
-    Configure your Anthropic API key to begin generating entries.
-    {% endif %}
-  </p>
+  <p style="color: #9999cc;">Log entries will appear here once created.</p>
 </div>
 {% endif %}
 {% endblock %}
@@ -122,26 +101,6 @@
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 600;
-}
-
-.btn-primary {
-  background: #ff9900;
-  color: #1a1a2e;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.btn-primary:hover {
-  opacity: 0.85;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>
 {% endblock %}

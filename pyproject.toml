@@ -47,7 +47,6 @@ dependencies = [
   "pygments==2.18.0",
   "python-frontmatter==1.1.0",
   "python-slugify==8.0.4",
-  "anthropic>=0.52.0",
 ]
 
 [dependency-groups]

@@ -114,6 +114,8 @@ depend on:
 - ECR repository with lifecycle policies, image scanning, and KMS encryption
 - Secrets Manager for application secrets (secret key, database URL, admin
   credentials) with KMS encryption
+- Optional `NASA_API_KEY` environment variable for Astrometrics lab (falls
+  back to NASA DEMO_KEY when unset)
 - App Runner service with VPC connector for private subnet access
 - Auto-scaling with configurable min/max instances and concurrency thresholds
 - IAM access and instance roles with least-privilege policies

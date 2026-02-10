@@ -63,13 +63,6 @@ variable "admin_password" {
   sensitive   = true
 }
 
-variable "anthropic_api_key" {
-  description = "Anthropic API key for AI features (Captain's Log, Astrometrics)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "nasa_api_key" {
   description = "NASA API key (optional — DEMO_KEY used when empty)"
   type        = string
