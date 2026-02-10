@@ -20,6 +20,9 @@ SECRET_KEY=your-secret-key-for-jwt-signing
 
 # Database
 DATABASE_URL=sqlite:///./data/fitness.db
+
+# Astrometrics (optional — NASA DEMO_KEY used when unset)
+NASA_API_KEY=
 ```
 
 **Important Security Notes:**
@@ -63,9 +66,11 @@ After login, users land on a centralized dashboard at `/admin` with navigation c
 - **Operational Status** — System metrics, Bokeh charts, response times, error rates, and deployment info
 - **Certification Management** — Add, update, deprecate, and manage professional certifications and PDF files
 - **Tactical** — CVE advisories, severity breakdowns, and security intelligence from NIST NVD
+- **Captain's Log** — TNG-styled project status entries with stardates, backed by the blog infrastructure
+- **Astrometrics** — NASA Astronomy Picture of the Day (APOD) and Near-Earth Object (NEO) close-approach data
 
 Every admin page includes:
-- **Navigation bar** with links to Dashboard, Operational Status, Certifications, and Tactical
+- **Navigation bar** with links to Dashboard, Operational Status, Certifications, Tactical, Captain's Log, and Astrometrics
 - **Active page indicator** (highlighted nav link)
 - **User badge** showing the logged-in user's email
 - **Sign out button** on every page
@@ -159,6 +164,10 @@ The following routes require admin authentication:
 | `/admin/tactical/dashboard` | CVE advisories and security intelligence |
 | `/admin/tactical/advisories` | Advisory data API (JSON) |
 | `/admin/tactical/stats` | Advisory statistics API (JSON) |
+| `/admin/log` | Captain's Log dashboard (entry list) |
+| `/admin/log/entry/{slug}` | Individual Captain's Log entry view |
+| `/admin/astrometrics` | Astrometrics lab (NASA APOD + NEO data) |
+| `/admin/astrometrics/refresh` | Force-refresh cached NASA data (POST) |
 | `/admin/login` | Login page (public) |
 
 ## Security Best Practices

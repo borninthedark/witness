@@ -4,6 +4,7 @@
 {% extends "admin_base.html" %}
 {% block title %}Certifications - Admin - Captain's Fitness Log{% endblock %}
 {% block admin_content %}
+<div id="save-toast" class="save-toast" aria-live="polite"></div>
 <div class="card mb-3">
   <h3 class="text-accent">Add New Certification</h3>
   <form hx-post="/admin/certs" hx-target="#rows" hx-swap="beforeend" enctype="multipart/form-data" class="admin-form" action="/admin/certs">
@@ -240,5 +241,62 @@
 .btn-danger:hover {
   background-color: #b30000;
 }
+
+/* Save toast notification */
+.save-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 4px;
+  background-color: #00cc66;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(-0.5rem);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+
+.save-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
 </style>
+
+<script>
+(function () {
+  var toast = document.getElementById('save-toast');
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('visible');
+    setTimeout(function () { toast.classList.remove('visible'); }, 2000);
+  }
+
+  /* Check for flash message that survived a page reload (HX-Refresh) */
+  var flash = sessionStorage.getItem('certFlash');
+  if (flash) {
+    sessionStorage.removeItem('certFlash');
+    showToast(flash);
+  }
+
+  /* Before HTMX requests that trigger HX-Refresh, stash the flash */
+  document.body.addEventListener('htmx:configRequest', function (e) {
+    var el = e.detail.elt;
+    if (el.closest('.status-select, .visibility-toggle, form[hx-delete]')) {
+      sessionStorage.setItem('certFlash', 'Changes saved');
+    }
+  });
+
+  /* After a successful add-cert swap (no page reload), show toast directly */
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target && e.detail.target.id === 'rows') {
+      showToast('Certification added');
+    }
+  });
+})();
+</script>
 {% endblock %}
