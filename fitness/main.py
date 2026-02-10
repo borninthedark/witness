@@ -37,9 +37,10 @@ from fitness.observability.metrics import MetricsMiddleware, metrics_response
 from fitness.observability.tracing import configure_tracing
 from fitness.routers.admin import router as admin_router
 from fitness.routers.api import router as api_router
+from fitness.routers.astrometrics import router as astrometrics_router
 
-# Blog/Captain's Log deprecated — re-enable when content is ready
-# from fitness.routers.blog import router as blog_router
+# Blog/Captain's Log — revived via AI-generated entries
+from fitness.routers.captains_log import router as captains_log_router
 from fitness.routers.contact import router as contact_router
 from fitness.routers.reports import router as reports_router
 from fitness.routers.security_dashboard import router as security_router
@@ -214,7 +215,10 @@ CSP_DIRECTIVES_STRICT = [
     "base-uri 'none'",
     "frame-ancestors 'self'",
     "object-src 'self'",  # CRITICAL: Allow PDFs to be embedded/downloaded
-    "img-src 'self' data: https://www.credly.com https://cdn.credly.com",
+    (
+        "img-src 'self' data: https://www.credly.com "
+        "https://cdn.credly.com https://apod.nasa.gov"
+    ),
     "font-src 'self' https://fonts.gstatic.com",
     "style-src 'self' https://fonts.googleapis.com https://cdn.bokeh.org",
     (
@@ -224,7 +228,8 @@ CSP_DIRECTIVES_STRICT = [
     (
         "frame-src 'self' https://www.google.com/recaptcha/ "
         "https://recaptcha.google.com/recaptcha/ "
-        "https://www.credly.com https://formspree.io"
+        "https://www.credly.com https://formspree.io "
+        "https://www.youtube.com https://player.vimeo.com"
     ),
     "connect-src 'self' https://formspree.io",
     "form-action 'self'",
@@ -235,7 +240,10 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     "base-uri 'none'",
     "frame-ancestors 'self'",
     "object-src 'self'",  # CRITICAL: Allow PDFs to be embedded/downloaded
-    "img-src 'self' data: https://www.credly.com https://cdn.credly.com",
+    (
+        "img-src 'self' data: https://www.credly.com "
+        "https://cdn.credly.com https://apod.nasa.gov"
+    ),
     ("font-src 'self' data: https://fonts.gstatic.com " "https://cdn.credly.com"),
     (
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com "
@@ -252,7 +260,8 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     (
         "frame-src 'self' https://www.google.com/recaptcha/ "
         "https://recaptcha.google.com/recaptcha/ "
-        "https://www.credly.com"
+        "https://www.credly.com "
+        "https://www.youtube.com https://player.vimeo.com"
     ),
     "connect-src 'self' https://formspree.io",
     "form-action 'self'",
@@ -504,7 +513,8 @@ app.include_router(reports_router)
 app.include_router(api_router)
 app.include_router(admin_router)
 app.include_router(contact_router)
-# app.include_router(blog_router)  # deprecated
+app.include_router(captains_log_router)
+app.include_router(astrometrics_router)
 app.include_router(security_router)
 app.include_router(status_router)
 # Auth

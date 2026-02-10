@@ -26,6 +26,7 @@ class Category(str, Enum):
     SECURITY = "security"
     PERSONAL = "personal"
     EXPLORATION = "exploration"
+    CAPTAINS_LOG = "captains_log"
 
 
 class BlogEntryBase(BaseModel):
