@@ -39,7 +39,7 @@ jobs:
         environment: [dev, prod]
     defaults:
       run:
-        working-directory: terraform/${{ matrix.environment }}
+        working-directory: terraform/aws/${{ matrix.environment }}
 
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
         id: checkov
         uses: bridgecrewio/checkov-action@v12
         with:
-          directory: terraform/${{ matrix.environment }}
+          directory: terraform/aws/${{ matrix.environment }}
           framework: terraform
           output_format: cli,sarif
           output_file_path: console,checkov-${{ matrix.environment }}.sarif
@@ -80,7 +80,7 @@ jobs:
         id: tfsec
         run: |
           cd "${{ github.workspace }}"
-          tfsec terraform/${{ matrix.environment }} --format sarif --out tfsec-${{ matrix.environment }}.sarif || true
+          tfsec terraform/aws/${{ matrix.environment }} --format sarif --out tfsec-${{ matrix.environment }}.sarif || true
         continue-on-error: true
 
       - name: Upload tfsec SARIF
@@ -95,7 +95,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
-          scan-ref: terraform/${{ matrix.environment }}
+          scan-ref: terraform/aws/${{ matrix.environment }}
           format: 'sarif'
           output: 'trivy-${{ matrix.environment }}.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
@@ -142,8 +142,8 @@ jobs:
       - name: Check for test files
         id: check-tests
         run: |
-          if ls terraform/dev/*.tftest.hcl 2>/dev/null || \
-             ls terraform/dev/tests/*.tftest.hcl 2>/dev/null; then
+          if ls terraform/aws/dev/*.tftest.hcl 2>/dev/null || \
+             ls terraform/aws/dev/tests/*.tftest.hcl 2>/dev/null; then
             echo "has_tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_tests=false" >> "$GITHUB_OUTPUT"
@@ -151,12 +151,12 @@ jobs:
 
       - name: Terraform Init
         if: steps.check-tests.outputs.has_tests == 'true'
-        working-directory: terraform/dev
+        working-directory: terraform/aws/dev
         run: terraform init -backend=false
 
       - name: Run Terraform Tests
         if: steps.check-tests.outputs.has_tests == 'true'
-        working-directory: terraform/dev
+        working-directory: terraform/aws/dev
         run: terraform test -no-color
         continue-on-error: true
 
@@ -167,7 +167,7 @@ jobs:
             echo "## Worf - Terraform Tests"
             echo ""
             if [ "${{ steps.check-tests.outputs.has_tests }}" = "true" ]; then
-              echo "Tests executed from \`terraform/dev\`"
+              echo "Tests executed from \`terraform/aws/dev\`"
             else
               echo "No test files found (*.tftest.hcl)"
             fi

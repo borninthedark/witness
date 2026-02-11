@@ -61,171 +61,47 @@
   </div>
 </div>
 
-<!-- 3D NEO Star Chart -->
-<div class="card neo-chart-card" style="margin-top: 1.5rem; padding: 1.5rem;">
-  <h3 class="card-heading">NEO Star Chart</h3>
-  <p style="color: #9999cc; font-size: 0.85rem; margin-bottom: 1rem;">
-    3D visualization of today's Near-Earth Objects. Drag to rotate, scroll to zoom.
-    <span style="color: #ff4444;">Red</span> = potentially hazardous,
-    <span style="color: #00cccc;">Cyan</span> = safe.
-  </p>
-  <div id="neo-chart" style="width: 100%; height: 500px; border-radius: 6px; overflow: hidden; background: #0a0a1a;"></div>
+<!-- Summary Cards -->
+<div class="summary-grid" style="margin-top: 1.5rem;">
+  <!-- Space Weather Card -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 class="card-heading">Space Weather</h3>
+    {% if space_weather %}
+    <div class="neo-stats">
+      {% set latest_kp = space_weather | selectattr("report_type", "equalto", "geomagnetic") | list | last %}
+      {% set latest_sw = space_weather | selectattr("report_type", "equalto", "solar_wind") | list | last %}
+      {% if latest_kp %}
+      <div class="neo-stat">
+        <span class="neo-stat-value">{{ "%.1f"|format(latest_kp.kp_index) }}</span>
+        <span class="neo-stat-label">Kp Index</span>
+      </div>
+      {% endif %}
+      {% if latest_sw %}
+      <div class="neo-stat">
+        <span class="neo-stat-value">{{ "%.0f"|format(latest_sw.solar_wind_speed) }}</span>
+        <span class="neo-stat-label">Solar Wind (km/s)</span>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <p style="color: #666699;">No space weather data available.</p>
+    {% endif %}
+  </div>
+
+  <!-- Satellite Tracking Card -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 class="card-heading">Satellite Tracking</h3>
+    <div class="neo-stats">
+      <div class="neo-stat">
+        <span class="neo-stat-value">{{ satellite_count }}</span>
+        <span class="neo-stat-label">Active Satellites</span>
+      </div>
+    </div>
+    <a href="/admin/stargazing" style="display: inline-block; margin-top: 1rem; color: #ff9900; text-decoration: none; font-size: 0.9rem;">
+      View Stargazing Dashboard &rarr;
+    </a>
+  </div>
 </div>
-
-<script type="module">
-import * as THREE from 'https://unpkg.com/three@0.162.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.162.0/examples/jsm/controls/OrbitControls.js';
-
-const neoData = {{ neo_objects_json | safe }};
-const container = document.getElementById('neo-chart');
-if (container && neoData.length > 0) {
-  const width = container.clientWidth;
-  const height = container.clientHeight;
-
-  // Scene
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0a1a);
-
-  // Camera
-  const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 10000);
-  camera.position.set(80, 60, 80);
-
-  // Renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(width, height);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  container.appendChild(renderer.domElement);
-
-  // Controls
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.minDistance = 10;
-  controls.maxDistance = 500;
-
-  // Grid (Starfleet style — cyan lines on dark background)
-  const gridHelper = new THREE.GridHelper(200, 20, 0x004444, 0x002222);
-  scene.add(gridHelper);
-
-  // Ambient light
-  scene.add(new THREE.AmbientLight(0x333355, 1.0));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(50, 80, 50);
-  scene.add(dirLight);
-
-  // Earth at origin
-  const earthGeo = new THREE.SphereGeometry(3, 32, 32);
-  const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x2266aa,
-    emissive: 0x112244,
-    shininess: 30,
-  });
-  const earth = new THREE.Mesh(earthGeo, earthMat);
-  scene.add(earth);
-
-  // Earth label
-  const earthLabel = makeLabel('EARTH', '#66aaff');
-  earthLabel.position.set(0, 5, 0);
-  scene.add(earthLabel);
-
-  // Distance range for log-scale mapping
-  const distances = neoData.map(n => n.miss_distance_km).filter(d => d > 0);
-  const minDist = Math.min(...distances);
-  const maxDist = Math.max(...distances);
-
-  // Place NEOs
-  neoData.forEach((neo, i) => {
-    const dist = neo.miss_distance_km;
-    if (dist <= 0) return;
-
-    // Log-scale radial distance (10–90 range in scene units)
-    const logMin = Math.log10(Math.max(minDist, 1));
-    const logMax = Math.log10(Math.max(maxDist, 2));
-    const logDist = Math.log10(Math.max(dist, 1));
-    const t = logMax > logMin ? (logDist - logMin) / (logMax - logMin) : 0.5;
-    const radius = 10 + t * 80;
-
-    // Distribute on sphere with golden-angle spiral
-    const phi = Math.acos(1 - 2 * (i + 0.5) / neoData.length);
-    const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-    const x = radius * Math.sin(phi) * Math.cos(theta);
-    const y = radius * Math.cos(phi);
-    const z = radius * Math.sin(phi) * Math.sin(theta);
-
-    // Size: log-scale diameter, clamped 0.5–4
-    const diam = neo.estimated_diameter_km_max || 0.1;
-    const size = Math.max(0.5, Math.min(4, 0.5 + Math.log10(Math.max(diam, 0.001)) * 1.2));
-
-    // Color
-    const color = neo.is_potentially_hazardous ? 0xff4444 : 0x00cccc;
-    const emissive = neo.is_potentially_hazardous ? 0x441111 : 0x003333;
-
-    const geo = new THREE.SphereGeometry(size, 16, 16);
-    const mat = new THREE.MeshPhongMaterial({ color, emissive, shininess: 20 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x, y, z);
-    scene.add(mesh);
-
-    // Line from origin to NEO
-    const lineGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(x, y, z),
-    ]);
-    const lineMat = new THREE.LineBasicMaterial({
-      color: neo.is_potentially_hazardous ? 0x442222 : 0x003333,
-      transparent: true,
-      opacity: 0.3,
-    });
-    scene.add(new THREE.Line(lineGeo, lineMat));
-
-    // Label
-    const distStr = dist >= 1e6
-      ? (dist / 1e6).toFixed(1) + 'M km'
-      : (dist / 1e3).toFixed(0) + 'K km';
-    const label = makeLabel(neo.name + '\n' + distStr,
-      neo.is_potentially_hazardous ? '#ff6666' : '#66dddd');
-    label.position.set(x, y + size + 1.5, z);
-    scene.add(label);
-  });
-
-  // Animation loop
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-
-  // Resize handler
-  window.addEventListener('resize', () => {
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-  });
-}
-
-function makeLabel(text, color) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = 256;
-  canvas.height = 64;
-  ctx.font = '14px monospace';
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  const lines = text.split('\n');
-  lines.forEach((line, i) => {
-    ctx.fillText(line, 128, 20 + i * 18);
-  });
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(12, 3, 1);
-  return sprite;
-}
-</script>
 {% endblock %}
 
 {% block admin_head_extra %}
@@ -324,13 +200,15 @@ function makeLabel(text, color) {
   cursor: not-allowed;
 }
 
-.neo-chart-card {
-  background: rgba(10, 10, 26, 0.8);
-  border: 1px solid rgba(0, 204, 204, 0.2);
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
 }
 
 @media (max-width: 768px) {
-  .astro-grid {
+  .astro-grid,
+  .summary-grid {
     grid-template-columns: 1fr;
   }
 }

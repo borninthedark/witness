@@ -93,6 +93,9 @@ fitness/data/*.pdf
 .trivyignore
 .terraform
 terraform/bootstrap/*.tfstate*
-terraform/bootstrap/bootstrap.tfvars
+terraform/aws/bootstrap/*.tfstate*
+terraform/aws/bootstrap/bootstrap.tfvars
 terraform/modules/codepipeline/
+terraform/aws/modules/codepipeline/
+.build/
 docs/private/

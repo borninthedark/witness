@@ -163,8 +163,75 @@ class AstrometricsService:
                 )
         return objects
 
+    def _read_from_dynamo(self) -> AstrometricsBriefing | None:
+        """Read briefing data from DynamoDB data store."""
+        try:
+            from fitness.services.data_store import data_store_service
+
+            apod_items = data_store_service.get_latest("NASA_APOD", limit=1)
+            neo_items = data_store_service.get_latest("NASA_NEO", limit=20)
+
+            if not apod_items:
+                return None
+
+            apod_payload = apod_items[0].get("payload", {})
+            neo_objects = []
+            for item in neo_items:
+                p = item.get("payload", {})
+                neo_objects.append(
+                    NeoObject(
+                        name=p.get("name", "Unknown"),
+                        estimated_diameter_km_min=float(
+                            p.get("estimated_diameter_km_min", 0)
+                        ),
+                        estimated_diameter_km_max=float(
+                            p.get("estimated_diameter_km_max", 0)
+                        ),
+                        is_potentially_hazardous=p.get(
+                            "is_potentially_hazardous", False
+                        ),
+                        miss_distance_km=float(p.get("miss_distance_km", 0)),
+                        miss_distance_lunar=float(p.get("miss_distance_lunar", 0)),
+                        relative_velocity_km_s=float(
+                            p.get("relative_velocity_km_s", 0)
+                        ),
+                        absolute_magnitude=float(p.get("absolute_magnitude", 0)),
+                    )
+                )
+
+            # Find closest NEO
+            closest_name = "None detected"
+            closest_dist = float("inf")
+            for neo in neo_objects:
+                if neo.miss_distance_km < closest_dist:
+                    closest_dist = neo.miss_distance_km
+                    closest_name = f"{neo.name} ({closest_dist:,.0f} km)"
+
+            return AstrometricsBriefing(
+                apod_title=apod_payload.get("title", "Unavailable"),
+                apod_url=apod_payload.get("url", ""),
+                apod_media_type=apod_payload.get("media_type", "image"),
+                apod_explanation=apod_payload.get("explanation", ""),
+                neo_count=len(neo_objects),
+                neo_closest=closest_name,
+                neo_objects=neo_objects,
+                stardate=compute_stardate(),
+                generated_at=apod_items[0].get(
+                    "timestamp", datetime.now(UTC).isoformat()
+                ),
+            )
+        except Exception:
+            logger.warning("DynamoDB read failed, falling back to API")
+            return None
+
     async def get_briefing(self, force_refresh: bool = False) -> AstrometricsBriefing:
-        """Get astrometrics briefing, using cache when available."""
+        """Get astrometrics briefing, using DynamoDB → cache → API fallback."""
+        # DynamoDB-first path
+        if settings.use_data_store and not force_refresh:
+            dynamo_briefing = self._read_from_dynamo()
+            if dynamo_briefing:
+                return dynamo_briefing
+
         if not force_refresh:
             cached = self._read_cache()
             if cached:

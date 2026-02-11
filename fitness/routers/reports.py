@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from fitness.security import limiter
 from fitness.services.report_status import (
     SUMMARY_DIR,
     collect_precommit_statuses,
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.get("/", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def reports_index(
     request: Request, section: str = Query("operations", alias="section")
 ) -> HTMLResponse:
@@ -49,17 +51,20 @@ async def reports_index(
 
 
 @router.get("/operations", include_in_schema=False)
-async def reports_operations() -> RedirectResponse:
+@limiter.limit("30/minute")
+async def reports_operations(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/reports/?section=operations", status_code=307)
 
 
 @router.get("/security", include_in_schema=False)
-async def reports_security() -> RedirectResponse:
+@limiter.limit("30/minute")
+async def reports_security(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/reports/?section=security", status_code=307)
 
 
 @router.get("/files/{path:path}", response_class=FileResponse)
-async def reports_file(path: str):
+@limiter.limit("30/minute")
+async def reports_file(request: Request, path: str):
     summary_root = SUMMARY_DIR.resolve()
     target = (SUMMARY_DIR / path).resolve()
     try:

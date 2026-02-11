@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DNS_MODULE = PROJECT_ROOT / "terraform" / "modules" / "dns" / "main.tf"
+DNS_MODULE = PROJECT_ROOT / "terraform" / "aws" / "modules" / "dns" / "main.tf"
 
 # Matches: resource "aws_route53_record" "name" { ... }
 _RESOURCE_BLOCK_RE = re.compile(

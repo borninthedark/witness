@@ -14,7 +14,7 @@ from fitness.auth import current_active_user
 from fitness.database import get_db
 from fitness.models.blog import BlogEntry
 from fitness.schemas.blog import Category
-from fitness.security import issue_csrf_token, set_csrf_cookie
+from fitness.security import issue_csrf_token, limiter, set_csrf_cookie
 from fitness.services.blog_service import blog_service
 from fitness.utils.assets import asset_url
 
@@ -28,6 +28,7 @@ templates.env.globals["asset_url"] = asset_url
 
 
 @router.get("", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def log_dashboard(
     request: Request,
     db: Session = Depends(get_db),
@@ -63,6 +64,7 @@ async def log_dashboard(
 
 
 @router.get("/entry/{slug}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def log_entry_view(
     request: Request,
     slug: str,

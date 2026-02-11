@@ -70,6 +70,43 @@ jobs:
           uv run ruff format --check . || echo "::warning::Formatting issues"
 
   # ══════════════════════════════════════════════════════════════════════════
+  # Python Security (SAST + Dependency Audit)
+  # ══════════════════════════════════════════════════════════════════════════
+  security:
+    name: Security
+    needs: [lint, python]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --frozen --group security
+
+      - name: Bandit (SAST)
+        run: uv run bandit -r fitness/ -c pyproject.toml -f json -o bandit-report.json || true
+
+      - name: Bandit summary
+        if: always()
+        run: uv run bandit -r fitness/ -c pyproject.toml || echo "::warning::Bandit found issues"
+
+      - name: pip-audit (dependency vulnerabilities)
+        run: uv run pip-audit --require-hashes --no-deps -r <(uv pip compile pyproject.toml --no-header) || echo "::warning::pip-audit found vulnerabilities"
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  # ══════════════════════════════════════════════════════════════════════════
   # Test
   # ══════════════════════════════════════════════════════════════════════════
   test:

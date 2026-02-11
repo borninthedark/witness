@@ -1,0 +1,318 @@
+{% extends "admin_base.html" %}
+{% block title %}Stargazing - Admin{% endblock %}
+
+{% block admin_content %}
+<section class="hero mb-3">
+  <h2>Stargazing</h2>
+  <p>Sky conditions for {{ conditions.location.city }}, {{ conditions.location.region }} ({{ conditions.location.country }})</p>
+</section>
+
+<!-- Stargazing Score -->
+<div class="card score-card">
+  <div class="score-ring" style="--score: {{ conditions.stargazing_score }};">
+    <span class="score-value">{{ conditions.stargazing_score|int }}</span>
+  </div>
+  <div class="score-meta">
+    <h3 class="card-heading">Stargazing Score</h3>
+    <p class="score-summary">{{ conditions.summary }}</p>
+  </div>
+</div>
+
+<div class="sky-grid">
+  <!-- Aurora Card -->
+  <div class="card sky-card">
+    <h3 class="card-heading">Aurora</h3>
+    <div class="sky-stat">
+      <span class="sky-stat-value {% if conditions.aurora_visible %}aurora-active{% endif %}">
+        {{ (conditions.aurora_probability * 100)|int }}%
+      </span>
+      <span class="sky-stat-label">Probability</span>
+    </div>
+    {% if conditions.aurora_visible %}
+    <p class="aurora-alert">Aurora activity possible tonight!</p>
+    {% else %}
+    <p style="color: #666699; font-size: 0.85rem; margin-top: 0.5rem;">Not visible at this latitude.</p>
+    {% endif %}
+  </div>
+
+  <!-- Moon Card -->
+  <div class="card sky-card">
+    <h3 class="card-heading">Moon</h3>
+    <div class="sky-stat">
+      <span class="sky-stat-value">{{ conditions.moon_illumination_pct|int }}%</span>
+      <span class="sky-stat-label">Illumination</span>
+    </div>
+    <p style="color: #9999cc; font-size: 0.9rem; margin-top: 0.5rem; text-transform: capitalize;">
+      {{ conditions.moon_phase|replace("_", " ") }}
+    </p>
+  </div>
+
+  <!-- Weather Card -->
+  <div class="card sky-card">
+    <h3 class="card-heading">Weather</h3>
+    <div class="sky-stats-row">
+      <div class="sky-stat">
+        <span class="sky-stat-value">{{ conditions.cloud_cover_pct }}%</span>
+        <span class="sky-stat-label">Cloud Cover</span>
+      </div>
+      <div class="sky-stat">
+        <span class="sky-stat-value">{{ "%.1f"|format(conditions.visibility_km) }}</span>
+        <span class="sky-stat-label">Visibility (km)</span>
+      </div>
+    </div>
+    <div class="sky-stats-row" style="margin-top: 1rem;">
+      <div class="sky-stat">
+        <span class="sky-stat-value">{{ "%.1f"|format(conditions.temperature_c) }}&deg;</span>
+        <span class="sky-stat-label">Temperature (C)</span>
+      </div>
+      <div class="sky-stat">
+        <span class="sky-stat-value">{{ conditions.humidity_pct }}%</span>
+        <span class="sky-stat-label">Humidity</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Air Quality Card -->
+  <div class="card sky-card">
+    <h3 class="card-heading">Air Quality</h3>
+    <div class="sky-stat">
+      <span class="sky-stat-value aqi-{{ conditions.air_quality_index }}">{{ conditions.air_quality_label }}</span>
+      <span class="sky-stat-label">WHO Index: {{ conditions.air_quality_index }}/5</span>
+    </div>
+    <div class="sky-stats-row" style="margin-top: 1rem;">
+      <div class="sky-stat">
+        <span class="sky-stat-value" style="font-size: 1.5rem;">{{ "%.1f"|format(conditions.pm25) }}</span>
+        <span class="sky-stat-label">PM2.5</span>
+      </div>
+      <div class="sky-stat">
+        <span class="sky-stat-value" style="font-size: 1.5rem;">{{ "%.1f"|format(conditions.pm10) }}</span>
+        <span class="sky-stat-label">PM10</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Light Pollution Card -->
+  <div class="card sky-card">
+    <h3 class="card-heading">Light Pollution</h3>
+    <div class="sky-stat">
+      <span class="sky-stat-value">{{ conditions.bortle_class }}</span>
+      <span class="sky-stat-label">Bortle Class (1-9)</span>
+    </div>
+    <div class="bortle-bar">
+      {% for i in range(1, 10) %}
+      <div class="bortle-segment {% if i <= conditions.bortle_class %}bortle-filled{% endif %}" title="Class {{ i }}"></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Wind Card -->
+  <div class="card sky-card">
+    <h3 class="card-heading">Wind</h3>
+    <div class="sky-stat">
+      <span class="sky-stat-value">{{ "%.1f"|format(conditions.wind_speed_mps) }}</span>
+      <span class="sky-stat-label">Speed (m/s)</span>
+    </div>
+  </div>
+</div>
+
+<!-- Satellite Passes -->
+{% if conditions.visible_satellites %}
+<div class="card" style="margin-top: 1.5rem; padding: 1.5rem;">
+  <h3 class="card-heading">Satellite Passes (Next 6 Hours)</h3>
+  <table class="sat-table">
+    <thead>
+      <tr>
+        <th>Satellite</th>
+        <th>Rise</th>
+        <th>Set</th>
+        <th>Max Elevation</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sat in conditions.visible_satellites %}
+      <tr>
+        <td>{{ sat.name }}</td>
+        <td>{{ sat.rise_time }}</td>
+        <td>{{ sat.set_time }}</td>
+        <td>{{ sat.max_elevation_deg }}&deg;</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block admin_head_extra %}
+<style>
+.score-card {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.score-ring {
+  --size: 100px;
+  --score: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(
+    #ff9900 calc(var(--score) * 1%),
+    rgba(255, 153, 0, 0.15) calc(var(--score) * 1%)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.score-ring::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: #1a1a2e;
+}
+
+.score-value {
+  position: relative;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ff9900;
+}
+
+.score-meta {
+  flex: 1;
+}
+
+.score-summary {
+  color: #9999cc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-top: 0.5rem;
+}
+
+.sky-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.sky-card {
+  padding: 1.5rem;
+}
+
+.card-heading {
+  color: #ff9900;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 1rem 0;
+}
+
+.sky-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sky-stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ccccff;
+  line-height: 1;
+}
+
+.sky-stat-label {
+  color: #9999cc;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sky-stats-row {
+  display: flex;
+  gap: 2rem;
+}
+
+.aurora-active {
+  color: #00ff88 !important;
+}
+
+.aurora-alert {
+  color: #00ff88;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.aqi-1 { color: #00cc66; }
+.aqi-2 { color: #99cc00; }
+.aqi-3 { color: #ffcc00; }
+.aqi-4 { color: #ff6600; }
+.aqi-5 { color: #ff0033; }
+
+.bortle-bar {
+  display: flex;
+  gap: 3px;
+  margin-top: 1rem;
+}
+
+.bortle-segment {
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(153, 153, 204, 0.15);
+}
+
+.bortle-filled {
+  background: #ff9900;
+}
+
+.sat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.sat-table th {
+  text-align: left;
+  color: #ff9900;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid rgba(153, 153, 204, 0.2);
+}
+
+.sat-table td {
+  padding: 0.5rem 1rem;
+  color: #ccccdd;
+  border-bottom: 1px solid rgba(153, 153, 204, 0.08);
+}
+
+.sat-table tr:hover td {
+  background: rgba(255, 153, 0, 0.05);
+}
+
+@media (max-width: 768px) {
+  .sky-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .sky-stats-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+</style>
+{% endblock %}

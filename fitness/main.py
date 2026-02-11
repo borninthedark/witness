@@ -7,6 +7,8 @@ from __future__ import annotations
 import hashlib
 import io
 import secrets
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -44,8 +46,14 @@ from fitness.routers.captains_log import router as captains_log_router
 from fitness.routers.contact import router as contact_router
 from fitness.routers.reports import router as reports_router
 from fitness.routers.security_dashboard import router as security_router
+from fitness.routers.stargazing import router as stargazing_router
 from fitness.routers.status import router as status_router
 from fitness.routers.ui import router as ui_router
+
+# RAG / AI query (conditional — requires Azure AI config)
+if settings.enable_rag:
+    from fitness.routers.ai_query import router as ai_query_router
+
 from fitness.schemas.user import UserCreate, UserRead, UserUpdate
 from fitness.security import limiter
 from fitness.staticfiles import CachedStaticFiles
@@ -252,7 +260,7 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     (
         "script-src 'self' 'unsafe-inline' "
         "https://www.google.com/recaptcha/ "
-        "https://www.gstatic.com/recaptcha/ https://unpkg.com "
+        "https://www.gstatic.com/recaptcha/ "
         "https://cdn.tailwindcss.com https://cdn.credly.com "
         "https://cdn.bokeh.org "
         "https://formspree.io"
@@ -348,6 +356,33 @@ app = FastAPI(
     redoc_url=None if IS_PROD else "/redoc",
     openapi_url=None if IS_PROD else "/openapi.json",
 )
+# ==========================================
+# Login brute-force protection (5 attempts / 60s per IP)
+# ==========================================
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_WINDOW = 60  # seconds
+_LOGIN_MAX = 5
+
+
+@app.middleware("http")
+async def login_rate_limit(request: Request, call_next):
+    """Tight rate limit on POST /auth/jwt/login to prevent brute-force."""
+    if request.method == "POST" and request.url.path == "/auth/jwt/login":
+        ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        # Evict stale entries
+        _login_attempts[ip] = [
+            t for t in _login_attempts[ip] if now - t < _LOGIN_WINDOW
+        ]
+        if len(_login_attempts[ip]) >= _LOGIN_MAX:
+            return JSONResponse(
+                {"detail": "Too many login attempts. Please retry shortly."},
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        _login_attempts[ip].append(now)
+    return await call_next(request)
+
+
 # Order: compression → rate-limit/metrics → security → correlation id
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SlowAPIMiddleware)
@@ -515,8 +550,11 @@ app.include_router(admin_router)
 app.include_router(contact_router)
 app.include_router(captains_log_router)
 app.include_router(astrometrics_router)
+app.include_router(stargazing_router)
 app.include_router(security_router)
 app.include_router(status_router)
+if settings.enable_rag:
+    app.include_router(ai_query_router)
 # Auth
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/auth/jwt", tags=["auth"]

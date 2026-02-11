@@ -66,6 +66,7 @@ def _render_with_csrf(
 
 
 @router.get("/", response_class=HTMLResponse)
+@limiter.limit("60/minute")
 def home(request: Request, db: Session = Depends(get_db)):
     try:
         # Count only visible certifications for public display
@@ -91,6 +92,7 @@ def home(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/certs", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def certs(request: Request, db: Session = Depends(get_db)):
     try:
         # Only query visible certifications for public display
@@ -140,6 +142,7 @@ def certs(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/certs/{slug}/pdf", name="cert_pdf_view")
+@limiter.limit("30/minute")
 def cert_pdf(slug: str, request: Request, db: Session = Depends(get_db)):
     """
     Serve PDF directly with proper headers for inline viewing.
@@ -212,6 +215,7 @@ def cert_pdf(slug: str, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/certs/{slug}/viewer", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def cert_pdf_viewer(slug: str, request: Request, db: Session = Depends(get_db)):
     """
     Optional: HTML page with embedded PDF viewer.
@@ -247,6 +251,7 @@ def cert_pdf_viewer(slug: str, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/resume/pdf", name="resume_pdf_view")
+@limiter.limit("30/minute")
 def resume_pdf(request: Request, db: Session = Depends(get_db)):
     """
     Serve the resume PDF directly with proper headers for inline viewing.
@@ -302,6 +307,7 @@ def resume_pdf(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/resume", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def resume_page(request: Request):
     """
     Serve a page with a PDF viewer for the resume, or offer the resume for download.
@@ -320,7 +326,8 @@ def resume_page(request: Request):
 
 
 @router.get("/resume/go", include_in_schema=False)
-def resume_shortcut_redirect():
+@limiter.limit("30/minute")
+def resume_shortcut_redirect(request: Request):
     """
     Human- and QR-friendly shortcut to the inline resume PDF.
     """
@@ -440,6 +447,7 @@ def _deliver_contact_message(form_obj: ContactForm) -> None:
 
 
 @router.get("/v/{slug}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def verify_cert(slug: str, request: Request, db: Session = Depends(get_db)):
     try:
         cert = db.query(Certification).filter(Certification.slug == slug).first()
@@ -472,6 +480,7 @@ def verify_cert(slug: str, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/v/{slug}/go", include_in_schema=False)
+@limiter.limit("30/minute")
 def verify_cert_redirect(
     slug: str,
     request: Request,
