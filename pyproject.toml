@@ -47,6 +47,11 @@ dependencies = [
   "pygments==2.18.0",
   "python-frontmatter==1.1.0",
   "python-slugify==8.0.4",
+  "boto3>=1.38.0",
+  "openai>=1.40.0",
+  "azure-search-documents>=11.6.0",
+  "sgp4>=2.23",
+  "ephem>=4.1.6",
 ]
 
 [dependency-groups]

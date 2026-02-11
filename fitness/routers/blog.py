@@ -15,6 +15,7 @@ from fitness.auth import current_active_user
 from fitness.database import get_db
 from fitness.models.blog import BlogEntry
 from fitness.schemas.blog import Category, LogStatus
+from fitness.security import limiter
 from fitness.services.blog_service import blog_service
 from fitness.utils.assets import asset_url
 
@@ -25,6 +26,7 @@ templates.env.globals["asset_url"] = asset_url
 
 
 @router.get("/", response_class=HTMLResponse, name="log_index")
+@limiter.limit("30/minute")
 async def log_index(
     request: Request,
     category: str | None = Query(None),
@@ -86,6 +88,7 @@ async def log_index(
 
 
 @router.get("/entry/{slug}", response_class=HTMLResponse, name="log_entry")
+@limiter.limit("30/minute")
 async def log_entry(
     request: Request,
     slug: str,
@@ -136,6 +139,7 @@ async def log_entry(
 
 
 @router.get("/search", response_class=HTMLResponse, name="log_search")
+@limiter.limit("20/minute")
 async def log_search(
     request: Request,
     q: str = Query(..., min_length=1),
@@ -175,6 +179,7 @@ async def log_search(
 
 
 @router.get("/category/{category}", response_class=HTMLResponse, name="log_by_category")
+@limiter.limit("30/minute")
 async def log_by_category(
     request: Request,
     category: str,

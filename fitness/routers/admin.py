@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
@@ -12,12 +13,24 @@ from fitness.auth import current_active_user
 from fitness.config import settings
 from fitness.database import get_db
 from fitness.models.certification import Certification
-from fitness.security import issue_csrf_token, set_csrf_cookie, validate_csrf
+from fitness.security import issue_csrf_token, limiter, set_csrf_cookie, validate_csrf
 from fitness.services.open_badges import OpenBadgesError, fetch_open_badges_assertion
 from fitness.services.storage import LocalStorage
 from fitness.staticfiles import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+
+def _validate_slug(slug: str) -> str:
+    """Validate slug is safe for use in file paths (no traversal)."""
+    if not _SLUG_RE.match(slug):
+        raise HTTPException(
+            status_code=400,
+            detail="Slug must be 1-64 lowercase alphanumeric characters or hyphens.",
+        )
+    return slug
 
 
 def hash_file(path: Path) -> str:
@@ -37,6 +50,7 @@ def hash_file(path: Path) -> str:
 
 
 @router.get("/", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def admin_dashboard(
     request: Request,
     user=Depends(current_active_user),
@@ -57,6 +71,7 @@ def admin_dashboard(
 
 
 @router.get("/login", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def login_page(request: Request):
     """Display admin login page.
 
@@ -82,6 +97,7 @@ def login_page(request: Request):
 
 
 @router.get("/certs", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 def admin_certs(
     request: Request,
     db: Session = Depends(get_db),
@@ -120,6 +136,7 @@ def admin_certs(
 
 
 @router.post("/certs", response_class=HTMLResponse)
+@limiter.limit("10/minute")
 async def admin_add_cert(
     request: Request,
     file: UploadFile,
@@ -161,6 +178,15 @@ async def admin_add_cert(
         HTTPException: 400 if Open Badges validation fails
     """
     validate_csrf(request, csrf_token)
+    _validate_slug(slug)
+
+    # Enforce 10 MB upload limit
+    _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="PDF must be under 10 MB.")
+    await file.seek(0)
+
     if assertion_url and settings.enable_open_badges:
         try:
             await fetch_open_badges_assertion(assertion_url)
@@ -203,6 +229,7 @@ async def admin_add_cert(
 
 
 @router.post("/badges/preview", response_class=HTMLResponse)
+@limiter.limit("10/minute")
 async def badge_preview(
     request: Request,
     assertion_url: str = Form(...),
@@ -244,6 +271,7 @@ async def badge_preview(
 
 
 @router.post("/certs/{cert_id}/status", response_class=HTMLResponse)
+@limiter.limit("20/minute")
 def update_cert_status(
     cert_id: int,
     request: Request,
@@ -288,6 +316,7 @@ def update_cert_status(
 
 
 @router.post("/certs/{cert_id}/visibility", response_class=HTMLResponse)
+@limiter.limit("20/minute")
 def toggle_cert_visibility(
     cert_id: int,
     request: Request,
@@ -324,6 +353,7 @@ def toggle_cert_visibility(
 
 
 @router.delete("/certs/{cert_id}", response_class=HTMLResponse)
+@limiter.limit("10/minute")
 def delete_cert(
     cert_id: int,
     request: Request,
