@@ -95,17 +95,10 @@ extend-exclude = '''
 
 [tool.pytest.ini_options]
 addopts = [
-  "-v",
+  "-ra",
+  "-q",
   "--tb=short",
   "--strict-markers",
-  "--cov=fitness",
-  "--cov-branch",
-  "--cov-report=term-missing:skip-covered",
-  "--cov-report=html",
-  "--cov-report=json",
-  "--cov-report=xml",
-  "--junitxml=junit.xml",
-  "-o", "junit_family=legacy",
 ]
 testpaths = [
   "tests",

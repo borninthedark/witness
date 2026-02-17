@@ -126,12 +126,18 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Run tests
+      - name: Pytest with coverage
         env:
           DATABASE_URL: sqlite:////tmp/test.db
-        run: uv run pytest
+        run: |
+          uv run pytest tests/ -v --tb=short \
+            --cov=fitness --cov-branch \
+            --cov-report=term \
+            --cov-report=xml:coverage.xml \
+            --junitxml=junit.xml
 
       - name: Upload coverage reports to Codecov
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
