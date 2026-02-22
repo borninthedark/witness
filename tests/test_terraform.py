@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DNS_MODULE = PROJECT_ROOT / "terraform" / "modules" / "dns" / "main.tf"
+DNS_MODULE = PROJECT_ROOT / "terraform" / "aws" / "modules" / "dns" / "main.tf"
 
 # Matches: resource "aws_route53_record" "name" { ... }
 _RESOURCE_BLOCK_RE = re.compile(
@@ -82,4 +82,239 @@ def test_txt_records_have_single_value():
         not violations
     ), "TXT records must not combine multiple values:\n" + "\n".join(
         f"  - {v}" for v in violations
+    )
+
+
+# ================================================================
+# Module path constants
+# ================================================================
+
+MEDIA_MODULE = PROJECT_ROOT / "terraform" / "aws" / "modules" / "media" / "main.tf"
+APP_RUNNER_MODULE = (
+    PROJECT_ROOT / "terraform" / "aws" / "modules" / "app-runner" / "main.tf"
+)
+BOOTSTRAP_MODULE = PROJECT_ROOT / "terraform" / "aws" / "bootstrap" / "main.tf"
+
+
+# ================================================================
+# Media Module — S3 + CloudFront Security Tests
+# ================================================================
+
+
+def test_media_s3_bucket_blocks_public_access():
+    """Media S3 bucket must block all public access.
+
+    CloudFront OAC is the sole reader; no direct public access should
+    be possible. All four public-access-block settings must be true.
+    """
+    assert MEDIA_MODULE.exists(), f"Media module not found at {MEDIA_MODULE}"
+    content = MEDIA_MODULE.read_text()
+
+    for setting in (
+        "block_public_acls",
+        "block_public_policy",
+        "ignore_public_acls",
+        "restrict_public_buckets",
+    ):
+        pattern = rf"{setting}\s*=\s*true"
+        assert re.search(pattern, content), (
+            f"Media S3 bucket missing '{setting} = true' — "
+            f"all public access must be blocked"
+        )
+
+
+def test_media_cloudfront_uses_oac():
+    """Media module must use CloudFront Origin Access Control (OAC).
+
+    OAC replaces the legacy OAI and provides sigv4-based access to S3,
+    preventing direct bucket access from the internet.
+    """
+    assert MEDIA_MODULE.exists(), f"Media module not found at {MEDIA_MODULE}"
+    content = MEDIA_MODULE.read_text()
+
+    assert re.search(r'resource\s+"aws_cloudfront_origin_access_control"', content), (
+        "Media module must define an aws_cloudfront_origin_access_control resource "
+        "to secure S3 origin access"
+    )
+
+
+def test_media_s3_policy_denies_delete():
+    """Media S3 bucket policy must include a Deny for s3:DeleteObject.
+
+    Media is append-mostly; deletion should be handled via lifecycle
+    rules or admin console, not application-level API calls.
+    """
+    assert MEDIA_MODULE.exists(), f"Media module not found at {MEDIA_MODULE}"
+    content = MEDIA_MODULE.read_text()
+
+    # The bucket policy should contain both a Deny effect and s3:DeleteObject action
+    # HCL keys inside jsonencode() may or may not be quoted
+    has_deny = re.search(r'"?Effect"?\s*=\s*"Deny"', content)
+    has_delete_object = re.search(r'"?Action"?\s*=\s*"s3:DeleteObject"', content)
+
+    assert has_deny and has_delete_object, (
+        "Media S3 bucket policy must contain a Deny statement for s3:DeleteObject "
+        "to prevent accidental or unauthorized media deletion"
+    )
+
+
+def test_media_cloudfront_https_only():
+    """All CloudFront cache behaviors must redirect HTTP to HTTPS.
+
+    Serving media over plain HTTP exposes content to interception.
+    Every viewer_protocol_policy must be 'redirect-to-https'.
+    """
+    assert MEDIA_MODULE.exists(), f"Media module not found at {MEDIA_MODULE}"
+    content = MEDIA_MODULE.read_text()
+
+    policies = re.findall(r'viewer_protocol_policy\s*=\s*"([^"]+)"', content)
+    assert (
+        len(policies) > 0
+    ), "No viewer_protocol_policy found in CloudFront distribution"
+    for policy in policies:
+        assert policy == "redirect-to-https", (
+            f"CloudFront viewer_protocol_policy is '{policy}' — "
+            f"must be 'redirect-to-https'"
+        )
+
+
+def test_media_cloudfront_tls_minimum():
+    """CloudFront must enforce at least TLSv1.2.
+
+    Older TLS versions have known vulnerabilities; the minimum
+    protocol version must contain 'TLSv1.2'.
+    """
+    assert MEDIA_MODULE.exists(), f"Media module not found at {MEDIA_MODULE}"
+    content = MEDIA_MODULE.read_text()
+
+    match = re.search(r'minimum_protocol_version\s*=\s*"([^"]+)"', content)
+    assert match, "No minimum_protocol_version found in CloudFront viewer_certificate"
+    assert "TLSv1.2" in match.group(1), (
+        f"minimum_protocol_version is '{match.group(1)}' — "
+        f"must contain 'TLSv1.2' or higher"
+    )
+
+
+# ================================================================
+# App Runner Module — Egress + S3 Policy Tests
+# ================================================================
+
+
+def test_apprunner_egress_no_unrestricted():
+    """App Runner security group must not allow unrestricted egress.
+
+    Using protocol = "-1" (all traffic) in egress rules bypasses the
+    principle of least privilege. Only HTTPS (443/tcp) and DNS
+    (53/udp, 53/tcp) should be permitted.
+    """
+    assert (
+        APP_RUNNER_MODULE.exists()
+    ), f"App Runner module not found at {APP_RUNNER_MODULE}"
+    content = APP_RUNNER_MODULE.read_text()
+
+    # Look for protocol = "-1" inside security group egress blocks
+    assert not re.search(r'protocol\s*=\s*"-1"', content), (
+        'App Runner security group has protocol = "-1" (all traffic) in egress — '
+        "egress must be restricted to HTTPS (443/tcp) and DNS (53/udp+tcp) only"
+    )
+
+
+def test_apprunner_media_s3_policy_no_delete():
+    """App Runner S3 media policy must not grant s3:DeleteObject.
+
+    The application should only upload (PutObject) and read (GetObject)
+    media. Deletion is restricted to lifecycle rules and admin console.
+    """
+    assert (
+        APP_RUNNER_MODULE.exists()
+    ), f"App Runner module not found at {APP_RUNNER_MODULE}"
+    content = APP_RUNNER_MODULE.read_text()
+
+    # Extract the apprunner_media_s3 policy block
+    match = re.search(
+        r'resource\s+"aws_iam_role_policy"\s+"apprunner_media_s3"\s*\{',
+        content,
+    )
+    assert match, "apprunner_media_s3 IAM policy not found in app-runner module"
+
+    # Extract the full block
+    start = match.end()
+    depth = 1
+    pos = start
+    while pos < len(content) and depth > 0:
+        if content[pos] == "{":
+            depth += 1
+        elif content[pos] == "}":
+            depth -= 1
+        pos += 1
+    policy_block = content[start:pos]
+
+    assert "s3:DeleteObject" not in policy_block, (
+        "App Runner media S3 policy contains s3:DeleteObject — "
+        "only PutObject and GetObject should be permitted"
+    )
+
+
+# ================================================================
+# Bootstrap Module — KMS + S3 Scoping Tests
+# ================================================================
+
+
+def test_bootstrap_s3_scoped_to_project_prefix():
+    """Bootstrap S3 policy must scope resources to the project prefix.
+
+    Using bare '*' as a resource ARN would grant access to ALL S3
+    buckets in the account. The policy must use '${var.project}-*'
+    to limit scope to project-owned buckets only.
+    """
+    assert (
+        BOOTSTRAP_MODULE.exists()
+    ), f"Bootstrap module not found at {BOOTSTRAP_MODULE}"
+    content = BOOTSTRAP_MODULE.read_text()
+
+    # Find the S3Buckets statement in tfc_governance policy
+    match = re.search(
+        r'"S3Buckets".*?Resource\s*=\s*\[(.*?)\]',
+        content,
+        re.DOTALL,
+    )
+    assert match, "S3Buckets statement not found in bootstrap module"
+
+    resource_block = match.group(1)
+    assert "${var.project}-" in resource_block, (
+        "Bootstrap S3 policy Resource must use '${var.project}-*' prefix — "
+        "found unscoped resource ARN"
+    )
+    # Ensure there is no bare wildcard resource (just "arn:aws:s3:::*")
+    bare_wildcard = re.findall(r'"arn:aws:s3:::\*"', resource_block)
+    assert len(bare_wildcard) == 0, (
+        "Bootstrap S3 policy has bare wildcard 'arn:aws:s3:::*' resource — "
+        "must be scoped to '${var.project}-*'"
+    )
+
+
+def test_bootstrap_kms_has_viaservice_condition():
+    """Bootstrap KMS encryption policy must include kms:ViaService condition.
+
+    Data-plane KMS operations (Encrypt, Decrypt, GenerateDataKey) should
+    only be allowed when invoked via specific AWS services, preventing
+    direct KMS API abuse.
+    """
+    assert (
+        BOOTSTRAP_MODULE.exists()
+    ), f"Bootstrap module not found at {BOOTSTRAP_MODULE}"
+    content = BOOTSTRAP_MODULE.read_text()
+
+    # Find the KMSEncryption statement
+    match = re.search(
+        r'"KMSEncryption".*?Condition\s*=\s*\{(.*?)\}\s*\}',
+        content,
+        re.DOTALL,
+    )
+    assert match, "KMSEncryption statement with Condition not found in bootstrap module"
+
+    condition_block = match.group(1)
+    assert "kms:ViaService" in condition_block, (
+        "Bootstrap KMS encryption policy missing 'kms:ViaService' condition — "
+        "data-plane operations must be scoped to specific AWS services"
     )

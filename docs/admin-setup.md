@@ -67,10 +67,11 @@ After login, users land on a centralized dashboard at `/admin` with navigation c
 - **Certification Management** — Add, update, deprecate, and manage professional certifications and PDF files
 - **Tactical** — CVE advisories, severity breakdowns, and security intelligence from NIST NVD
 - **Captain's Log** — TNG-styled project status entries with stardates, backed by the blog infrastructure
+- **Media Management** — Upload videos and images to S3, served via CloudFront CDN with MIME type and file size validation
 - **Astrometrics** — NASA Astronomy Picture of the Day (APOD) and Near-Earth Object (NEO) close-approach data
 
 Every admin page includes:
-- **Navigation bar** with links to Dashboard, Operational Status, Certifications, Tactical, Captain's Log, and Astrometrics
+- **Navigation bar** with links to Dashboard, Operational Status, Certifications, Media, Tactical, Captain's Log, and Astrometrics
 - **Active page indicator** (highlighted nav link)
 - **User badge** showing the logged-in user's email
 - **Sign out button** on every page
@@ -166,6 +167,8 @@ The following routes require admin authentication:
 | `/admin/tactical/stats` | Advisory statistics API (JSON) |
 | `/admin/log` | Captain's Log dashboard (entry list) |
 | `/admin/log/entry/{slug}` | Individual Captain's Log entry view |
+| `/admin/media` | Media management dashboard (GET) |
+| `/admin/media` | Media upload endpoint (POST) |
 | `/admin/astrometrics` | Astrometrics lab (NASA APOD + NEO data) |
 | `/admin/astrometrics/refresh` | Force-refresh cached NASA data (POST) |
 | `/admin/login` | Login page (public) |

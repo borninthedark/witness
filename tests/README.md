@@ -4,9 +4,9 @@ This document describes the test suite structure, coverage goals, and testing pr
 
 ## Overview
 
-**Current Coverage:** 62.77% (target: 80%+)
+**Current Coverage:** 71%+ (floor: 71%, target: 80%+)
 **Test Framework:** pytest with coverage plugins
-**Test Count:** ~35 tests (expanding)
+**Test Count:** 257 tests (39 skipped)
 
 ## Test Structure
 
@@ -17,7 +17,12 @@ tests/
 ├── test_constants.py            # Certification metadata tests
 ├── test_dry.py                  # Code duplication enforcement
 ├── test_integration.py          # End-to-end integration tests
+├── test_media.py                # S3 storage, media upload, CDN asset_url, CSP tests
+├── test_middleware.py           # Security middleware header tests
+├── test_schemas.py              # Pydantic schema validation tests
+├── test_security_hardening.py   # Rate limiting, input validation, SSRF prevention
 ├── test_smoke.py                # Basic smoke tests
+├── test_utils.py                # Asset URL cache-busting, YAML loader tests
 ├── test_app_client.py           # API client tests
 ├── test_report_status.py        # Report status service tests
 ├── security/                    # Security module tests
@@ -151,20 +156,30 @@ Certification metadata integrity:
 - ✅ Services (pdf_resume.py): 14.72% → 90.48%
 - ✅ Routers (ui.py): 31.95% → 59.02%
 
-### Phase 3: Core Coverage (📋 Next)
+### Phase 2.5: Coverage Floor + TDD Gap Tests (✅ Complete)
 
-**Target: 80% coverage** | **Estimated Effort: 16-22 hours**
+**Coverage floor:** `fail_under = 71` enforced in `pyproject.toml` and CI (`--cov-fail-under=71`)
+
+New test files covering previously untested modules:
+
+- ✅ `test_utils.py` — asset_url cache-busting, YAML loader
+- ✅ `test_middleware.py` — Security headers (CSP, HSTS, X-Frame-Options, nosniff, COOP/CORP)
+- ✅ `test_schemas.py` — Pydantic schemas (certification, contact, open badges, blog)
+- ✅ `test_media.py` — S3MediaStorage, media upload route, CDN-aware asset_url, CSP extensions
+- ✅ `test_security_hardening.py` — Rate limiting, input validation, SSRF prevention
+
+### Phase 3: Core Coverage — 80% (📋 Next)
 
 Breaking into sub-phases for incremental progress:
 
-#### Phase 3A: Quick Win - Security Middleware (2-3 hours) → ~65%
+#### Phase 3A: Quick Win - Security Middleware → ~65%
 
 - **fitness/middleware/security.py**: 77.22% → 90%
   - Security headers (CSP, HSTS, X-Frame-Options)
   - Request/response middleware behavior
   - Error scenarios
 
-#### Phase 3B: Admin Router (4-6 hours) → ~70%
+#### Phase 3B: Admin Router → ~70%
 
 - **fitness/routers/admin.py**: 39.18% → 80%
   - Admin authentication/authorization
@@ -173,7 +188,7 @@ Breaking into sub-phases for incremental progress:
   - File upload handling
   - **Why critical:** Security-sensitive admin operations
 
-#### Phase 3C: Storage & Badge Services (7-9 hours) → ~78%
+#### Phase 3C: Storage & Badge Services → ~78%
 
 - **fitness/services/storage.py**: 39.13% → 80%
   - Azure Blob storage operations
@@ -186,7 +201,7 @@ Breaking into sub-phases for incremental progress:
   - Cryptographic signing
   - Verification endpoint logic
 
-#### Phase 3D: Model Layer (3-4 hours) → ~82%
+#### Phase 3D: Model Layer → ~82%
 
 - **fitness/models/certification.py**: New tests
   - ORM model behavior
@@ -202,9 +217,7 @@ Breaking into sub-phases for incremental progress:
 - ✅ No module below 60% (unless explicitly exempted)
 - ✅ All admin and storage operations tested
 
-### Phase 4A: Coverage Completion (📋 Future)
-
-**Target: 90% coverage** | **Estimated Effort: 8-10 hours**
+### Phase 4A: Coverage Completion — 90% (📋 Future)
 
 Remaining untested/undertested modules:
 - **fitness/routers/api.py** - API endpoints
@@ -230,28 +243,28 @@ These are **optional enhancements** - adopt selectively based on project needs:
 
 #### Priority 1: Mutation Testing (Recommended)
 
-**Tool:** mutmut==2.4.0 | **Effort:** 2-3 hours setup + 1 hour per module
+**Tool:** mutmut==2.4.0
 - **Purpose:** Find weak tests that pass even when code is broken
 - **Where:** All modules after reaching 80%+ coverage
 - **Value:** Improves test quality, not just coverage percentage
 
 #### Priority 2: Contract Testing (High Value)
 
-**Tool:** schemathesis==3.26.0 | **Effort:** 3-4 hours
+**Tool:** schemathesis==3.26.0
 - **Purpose:** Auto-generate tests from OpenAPI schema
 - **Where:** fitness/routers/api.py
 - **Value:** Prevents API regressions and schema drift
 
 #### Priority 3: Property-Based Testing (Selective)
 
-**Tool:** hypothesis==6.92.0 | **Effort:** 4-6 hours
+**Tool:** hypothesis==6.92.0
 - **Where:** fitness/security/csrf.py (timing attack resistance)
 - **Where:** fitness/services/open_badges.py (JSON-LD invariants)
 - **Value:** Tests with random inputs to find unexpected bugs
 
 #### Priority 4: Performance Regression Tests (As-Needed)
 
-**Tool:** pytest-benchmark==4.0.0 | **Effort:** 3-4 hours
+**Tool:** pytest-benchmark==4.0.0
 - **Where:** Performance-critical paths only
   - PDF generation (fitness/services/pdf_resume.py)
   - Database queries (certification listing)

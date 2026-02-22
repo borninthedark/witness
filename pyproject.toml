@@ -47,6 +47,11 @@ dependencies = [
   "pygments==2.18.0",
   "python-frontmatter==1.1.0",
   "python-slugify==8.0.4",
+  "boto3>=1.38.0",
+  "openai>=1.40.0",
+  "azure-search-documents>=11.6.0",
+  "sgp4>=2.23",
+  "ephem>=4.1.6",
 ]
 
 [dependency-groups]
@@ -90,17 +95,10 @@ extend-exclude = '''
 
 [tool.pytest.ini_options]
 addopts = [
-  "-v",
+  "-ra",
+  "-q",
   "--tb=short",
   "--strict-markers",
-  "--cov=fitness",
-  "--cov-branch",
-  "--cov-report=term-missing:skip-covered",
-  "--cov-report=html",
-  "--cov-report=json",
-  "--cov-report=xml",
-  "--junitxml=junit.xml",
-  "-o", "junit_family=legacy",
 ]
 testpaths = [
   "tests",
@@ -121,6 +119,7 @@ branch = true
 parallel = true
 
 [tool.coverage.report]
+fail_under = 71
 precision = 2
 show_missing = true
 skip_covered = false

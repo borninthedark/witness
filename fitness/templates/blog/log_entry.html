@@ -42,6 +42,14 @@
         {% endif %}
     </header>
 
+    {% if entry.media_url %}
+    <div class="entry-media">
+        <video controls preload="metadata" playsinline style="width:100%;max-width:800px;">
+            <source src="{{ entry.media_url }}" type="video/mp4">
+        </video>
+    </div>
+    {% endif %}
+
     <article class="entry-content">
         {{ entry.content_html | safe }}
     </article>

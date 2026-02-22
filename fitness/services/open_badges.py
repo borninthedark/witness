@@ -1,15 +1,38 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import re
+import socket
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 
 class OpenBadgesError(RuntimeError):
     """Raised when the supplied URL cannot be validated as an Open Badges assertion."""
+
+
+def _validate_url_safe(url: str) -> None:
+    """Reject URLs that could cause SSRF (private IPs, non-HTTPS, etc.)."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise OpenBadgesError("Only HTTPS assertion URLs are allowed.")
+    hostname = parsed.hostname
+    if not hostname:
+        raise OpenBadgesError("Invalid assertion URL.")
+    try:
+        resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC)
+        for _, _, _, _, sockaddr in resolved:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                raise OpenBadgesError(
+                    "Assertion URL must not resolve to a private address."
+                )
+    except socket.gaierror as exc:
+        raise OpenBadgesError(f"Cannot resolve hostname: {hostname}") from exc
 
 
 @dataclass(slots=True)
@@ -39,6 +62,7 @@ async def fetch_open_badges_assertion(url: str) -> BadgePreview:
     """Fetches an Open Badges assertion payload and resolves related resources."""
     if not url:
         raise OpenBadgesError("An assertion URL is required.")
+    _validate_url_safe(url)
 
     assertion = await _fetch_json(url)
     if not _looks_like_assertion(assertion):
@@ -83,7 +107,7 @@ async def _fetch_json(url: str) -> dict[str, Any]:
     headers = {"Accept": "application/ld+json, application/json;q=0.9"}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(url, headers=headers, follow_redirects=True)
+            response = await client.get(url, headers=headers, follow_redirects=False)
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise OpenBadgesError(
@@ -103,6 +127,7 @@ async def _maybe_follow(payload: dict[str, Any], key: str) -> Any:
     if isinstance(value, dict):
         return value
     if isinstance(value, str) and value.startswith("http"):
+        _validate_url_safe(value)
         return await _fetch_json(value)
     return value
 

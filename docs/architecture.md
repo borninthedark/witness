@@ -22,7 +22,9 @@ graph TD
     classDef external fill:#fff,stroke:#232F3E,color:#232F3E
 
     USER(("Internet")):::external --> R53["Route 53<br/>*.princetonstrong.com"]:::edge
-    R53 --> WAF["WAFv2<br/>3 rule groups"]:::security --> AR["App Runner"]:::compute
+    R53 --> CF["CloudFront<br/>media.princetonstrong.com"]:::edge
+    CF -->|"/media/*"| S3M["S3 Media<br/>Bucket"]:::storage
+    CF -->|"default + /static/*"| WAF["WAFv2<br/>3 rule groups"]:::security --> AR["App Runner"]:::compute
     GH["GitHub Actions<br/>La Forge"]:::external -->|push| ECR["ECR"]:::compute -->|deploy| AR
 
     AR --> VC["VPC Connector"]:::network
@@ -32,6 +34,7 @@ graph TD
         PS --- EP["VPC Endpoints<br/>S3 GW + ECR, Logs,<br/>Secrets (prod)"]:::network
     end
 
+    AR -.->|upload| S3M
     AR -.->|secrets| SM["Secrets Manager"]:::security
     SM -.->|decrypt| KMS["KMS CMK"]:::security
     AR -.->|traces| XRAY["X-Ray"]:::observe
@@ -58,11 +61,12 @@ graph TD
 
 ```text
 terraform/
-├── bootstrap/             # OIDC provider, IAM roles (3 policies), Route 53 domain
+├── bootstrap/             # OIDC provider, IAM roles (4 policies), Route 53 domain
 ├── modules/
 │   ├── networking/        # VPC, subnets, NAT, IGW, VPC endpoints
 │   ├── security/          # KMS, CloudTrail, Config, GuardDuty, Security Hub, SNS, Budgets
 │   ├── app-runner/        # ECR, Secrets Manager, App Runner, WAFv2, X-Ray
+│   ├── media/             # S3 media bucket, CloudFront (dual-origin), OAC, ACM, Route 53
 │   ├── dns/               # Route 53 records, App Runner custom domain
 │   ├── observability/     # CloudWatch log groups, dashboards, alarms
 │   └── codepipeline/      # CodePipeline, CodeBuild, S3 artifacts
@@ -79,10 +83,11 @@ depend on:
 
 - **OIDC Identity Provider** for HCP Terraform dynamic provider credentials
   (short-lived STS tokens, no static keys)
-- **IAM Role + 3 Policies** scoped to the services used by dev/prod workspaces:
+- **IAM Role + 4 Policies** scoped to the services used by dev/prod workspaces:
   - **Core** — VPC, App Runner, ECR, KMS, Secrets Manager, CloudWatch, Route 53, STS
-  - **Governance** — CloudTrail, S3, Config, CodePipeline, CodeBuild, CodeStar, IAM
-  - **Well-Architected** — VPC Endpoints, SNS, WAFv2, GuardDuty, Security Hub, Budgets, X-Ray
+  - **Governance** — CloudTrail, S3 (project-prefixed ARNs), Config, CodePipeline, CodeBuild, CodeStar, IAM
+  - **Well-Architected** — VPC Endpoints, SNS, WAFv2, GuardDuty, Security Hub, Budgets, X-Ray, CloudFront, ACM
+  - **Serverless** — Lambda, DynamoDB, EventBridge Scheduler
 - **Route 53 Domain Registration** for `princetonstrong.com` via
   `aws_route53domains_domain` (auto-creates the hosted zone, auto-renew
   enabled, WHOIS privacy on)
@@ -125,6 +130,26 @@ depend on:
   - `AWSManagedRulesSQLiRuleSet` — SQL injection
 - **X-Ray tracing** via App Runner observability configuration
 
+### Media Module
+
+The media module provides CDN-served storage for tutorial videos and images:
+
+- **S3 Media Bucket** — `${project}-${environment}-media`, SSE-S3 encryption,
+  all public access blocked, versioning enabled, STANDARD_IA transition at 90 days
+- **CloudFront Distribution** (dual-origin):
+  - Origin 1 (S3): media bucket with OAC (SigV4, always sign), path `/media/*`
+  - Origin 2 (App Runner): existing app for `/static/*` (HTTPS only)
+  - Default behavior: App Runner (dynamic HTML, no cache)
+- **Cache Behaviors**:
+  - `/media/*` → S3, 1-day default TTL, 1-year max, no cookies/headers forwarded
+  - `/static/*` → App Runner, 1-hour default, query strings forwarded for cache-busting
+- **ACM Certificate** — `media.princetonstrong.com`, DNS-validated via Route 53
+- **Route 53 A Record** — alias to CloudFront distribution
+- **S3 Bucket Policy** — `s3:GetObject` for CloudFront OAC only (SourceArn condition),
+  deny `s3:DeleteObject` for non-root principals
+- **App Runner S3 Policy** — Least-privilege: `PutObject`/`GetObject` scoped to exact
+  bucket ARN, no `DeleteObject` permission
+
 ### DNS Module
 
 - Receives the hosted zone ID from the parent environment (zone is auto-created
@@ -156,7 +181,7 @@ depend on:
 | `terraform-aws-modules/app-runner/aws` | 1.2.2 | App Runner service, IAM, VPC connector, auto-scaling |
 | `terraform-aws-modules/vpc/aws` | 6.6.0 | VPC, subnets, NAT, IGW, route tables |
 | `terraform-aws-modules/kms/aws` | 4.2.0 | KMS keys for encryption at rest |
-| `terraform-aws-modules/s3-bucket/aws` | 5.10.0 | Artifact and log buckets |
+| `terraform-aws-modules/s3-bucket/aws` | 5.10.0 | Media storage, artifact and log buckets |
 | `terraform-aws-modules/ecr/aws` | 3.2.0 | ECR repository with lifecycle and scanning |
 | `terraform-aws-modules/cloudwatch/aws` | 5.7.2 | Log groups, dashboards, metric alarms |
 
@@ -167,7 +192,7 @@ depend on:
 | Control | Implementation |
 |---------|----------------|
 | Encryption at rest | KMS CMK for all storage (ECR, Secrets Manager, S3, CloudWatch) |
-| Encryption in transit | TLS via App Runner + ACM, HTTPS-only custom domains |
+| Encryption in transit | TLS via App Runner + ACM + CloudFront, HTTPS-only, TLSv1.2_2021 |
 | Identity | OIDC dynamic credentials, least-privilege IAM, no static keys |
 | Detection | GuardDuty threat detection, CloudTrail audit, Security Hub (prod) |
 | Protection | WAFv2 managed rules (OWASP, SQLi, bad inputs), S3 deny-delete |
@@ -186,6 +211,7 @@ depend on:
 
 | Control | Implementation |
 |---------|----------------|
+| CDN | CloudFront dual-origin for media (S3) and static assets (App Runner) |
 | Tracing | X-Ray observability configuration on App Runner |
 | Monitoring | CloudWatch dashboards (requests, latency, CPU/memory) |
 | Alerting | Metric alarms with SNS delivery |
@@ -224,16 +250,16 @@ graph LR
     end
 
     PUSH --> DATA & WORF
-    DATA --> LF --> GATE
-    WORF --> GATE
+    DATA & WORF --> LF --> GATE
     LF -.->|on success| RIKER["Riker<br/>release"]:::post
     LF -.->|on success| TROI["Troi<br/>docs"]:::post
     PICARD -.->|on failure| TASHA["Tasha<br/>rollback"]:::security
 ```
 
 Linting and formatting (Terraform fmt/validate/tflint, Python black/ruff/mypy,
-shellcheck, yamllint, markdownlint) run exclusively in pre-commit hooks. CI
-focuses on tests, security scanning, and deployment.
+shellcheck, yamllint, markdownlint) run in pre-commit hooks. CI also enforces
+Ruff lint (hard-fail), Terraform fmt/validate (shift-left before Checkov),
+Checkov (hard-fail), and a 61% coverage floor.
 
 ## Environment Differences
 
@@ -253,6 +279,7 @@ focuses on tests, security scanning, and deployment.
 | Min instances | 1 | 2 |
 | Max instances | 3 | 5 |
 | Auto-deploy on ECR push | Yes | No |
+| Media CDN (`enable_media`) | Disabled | Disabled |
 | Error alarm threshold | 10 | 5 |
 | Latency alarm threshold | 5000ms | 3000ms |
 

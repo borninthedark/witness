@@ -7,6 +7,8 @@ from __future__ import annotations
 import hashlib
 import io
 import secrets
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -44,8 +46,14 @@ from fitness.routers.captains_log import router as captains_log_router
 from fitness.routers.contact import router as contact_router
 from fitness.routers.reports import router as reports_router
 from fitness.routers.security_dashboard import router as security_router
+from fitness.routers.stargazing import router as stargazing_router
 from fitness.routers.status import router as status_router
 from fitness.routers.ui import router as ui_router
+
+# RAG / AI query (conditional — requires Azure AI config)
+if settings.enable_rag:
+    from fitness.routers.ai_query import router as ai_query_router
+
 from fitness.schemas.user import UserCreate, UserRead, UserUpdate
 from fitness.security import limiter
 from fitness.staticfiles import CachedStaticFiles
@@ -244,7 +252,7 @@ CSP_DIRECTIVES_TRANSITIONAL = [
         "img-src 'self' data: https://www.credly.com "
         "https://cdn.credly.com https://apod.nasa.gov"
     ),
-    ("font-src 'self' data: https://fonts.gstatic.com " "https://cdn.credly.com"),
+    ("font-src 'self' data: https://fonts.gstatic.com https://cdn.credly.com"),
     (
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com "
         "https://cdn.bokeh.org"
@@ -252,7 +260,7 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     (
         "script-src 'self' 'unsafe-inline' "
         "https://www.google.com/recaptcha/ "
-        "https://www.gstatic.com/recaptcha/ https://unpkg.com "
+        "https://www.gstatic.com/recaptcha/ "
         "https://cdn.tailwindcss.com https://cdn.credly.com "
         "https://cdn.bokeh.org "
         "https://formspree.io"
@@ -268,6 +276,46 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     "upgrade-insecure-requests",
 ]
 CSP_DIRECTIVES = CSP_DIRECTIVES_STRICT if IS_PROD else CSP_DIRECTIVES_TRANSITIONAL
+
+
+def _build_cdn_csp_extensions(cdn_domain: str) -> dict[str, str]:
+    """Build CSP directive extensions for a CDN domain."""
+    if not cdn_domain:
+        return {}
+    origin = f"https://{cdn_domain}"
+    return {
+        "img-src": origin,
+        "script-src": origin,
+        "style-src": origin,
+        "font-src": origin,
+        "media-src": f"'self' {origin}",
+    }
+
+
+def _apply_cdn_csp(directives: list[str], cdn_domain: str) -> list[str]:
+    """Extend CSP directives with CDN origins if configured."""
+    extensions = _build_cdn_csp_extensions(cdn_domain)
+    if not extensions:
+        return directives
+
+    result = []
+    extended_keys: set[str] = set()
+    for d in directives:
+        key = d.split()[0]  # e.g. "img-src"
+        if key in extensions:
+            d = f"{d} {extensions[key]}"
+            extended_keys.add(key)
+        result.append(d)
+
+    # Add any directives not already present (e.g. media-src)
+    for key, value in extensions.items():
+        if key not in extended_keys:
+            result.append(f"{key} {value}")
+
+    return result
+
+
+CSP_DIRECTIVES = _apply_cdn_csp(CSP_DIRECTIVES, settings.media_cdn_domain)
 
 
 # ==========================================
@@ -348,6 +396,33 @@ app = FastAPI(
     redoc_url=None if IS_PROD else "/redoc",
     openapi_url=None if IS_PROD else "/openapi.json",
 )
+# ==========================================
+# Login brute-force protection (5 attempts / 60s per IP)
+# ==========================================
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_WINDOW = 60  # seconds
+_LOGIN_MAX = 5
+
+
+@app.middleware("http")
+async def login_rate_limit(request: Request, call_next):
+    """Tight rate limit on POST /auth/jwt/login to prevent brute-force."""
+    if request.method == "POST" and request.url.path == "/auth/jwt/login":
+        ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        # Evict stale entries
+        _login_attempts[ip] = [
+            t for t in _login_attempts[ip] if now - t < _LOGIN_WINDOW
+        ]
+        if len(_login_attempts[ip]) >= _LOGIN_MAX:
+            return JSONResponse(
+                {"detail": "Too many login attempts. Please retry shortly."},
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        _login_attempts[ip].append(now)
+    return await call_next(request)
+
+
 # Order: compression → rate-limit/metrics → security → correlation id
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SlowAPIMiddleware)
@@ -515,8 +590,11 @@ app.include_router(admin_router)
 app.include_router(contact_router)
 app.include_router(captains_log_router)
 app.include_router(astrometrics_router)
+app.include_router(stargazing_router)
 app.include_router(security_router)
 app.include_router(status_router)
+if settings.enable_rag:
+    app.include_router(ai_query_router)
 # Auth
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/auth/jwt", tags=["auth"]

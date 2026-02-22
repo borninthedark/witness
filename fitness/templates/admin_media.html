@@ -1,0 +1,85 @@
+{% extends "admin_base.html" %}
+
+{% block admin_content %}
+<div class="admin-panel">
+    <h2>Media Management</h2>
+
+    {% if not media_configured %}
+    <div class="alert alert-warning">
+        <p>Media storage is not configured. Set <code>MEDIA_BUCKET_NAME</code> and <code>MEDIA_CDN_DOMAIN</code> environment variables to enable uploads.</p>
+    </div>
+    {% else %}
+    <form hx-post="/admin/media" hx-target="#upload-result" hx-swap="innerHTML"
+          enctype="multipart/form-data" class="upload-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+            <label for="slug">Slug (URL-safe identifier)</label>
+            <input type="text" id="slug" name="slug" required
+                   pattern="[a-z0-9][a-z0-9-]{0,63}"
+                   placeholder="e.g. terraform-tutorial-01">
+        </div>
+
+        <div class="form-group">
+            <label for="file">File (video or image, max 200 MB)</label>
+            <input type="file" id="file" name="file" required
+                   accept="video/mp4,video/webm,image/jpeg,image/png,image/webp,image/gif">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+
+    <div id="upload-result"></div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block admin_head_extra %}
+<style>
+.upload-form {
+    max-width: 600px;
+    margin: 1.5rem 0;
+}
+
+.upload-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.upload-form label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+    color: #9999cc;
+}
+
+.upload-form input[type="text"],
+.upload-form input[type="file"] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #1a1a2e;
+    color: #eee;
+}
+
+.upload-result {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    border-radius: 6px;
+}
+
+.upload-result code {
+    word-break: break-all;
+}
+
+.alert-warning {
+    padding: 1rem;
+    background: rgba(255, 153, 0, 0.1);
+    border: 1px solid rgba(255, 153, 0, 0.3);
+    border-radius: 6px;
+    color: #ff9900;
+}
+</style>
+{% endblock %}

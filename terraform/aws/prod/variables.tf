@@ -1,0 +1,268 @@
+# ================================================================
+# Production Environment Variables
+# ================================================================
+
+# ================================================================
+# Project
+# ================================================================
+
+variable "project" {
+  description = "Project name"
+  type        = string
+  default     = "witness"
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "prod"
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "tags" {
+  description = "Additional resource tags"
+  type        = map(string)
+  default     = {}
+}
+
+# ================================================================
+# DNS
+# ================================================================
+
+variable "domain_name" {
+  description = "Root domain name for custom domain"
+  type        = string
+  default     = "princetonstrong.com"
+}
+
+variable "hosted_zone_id" {
+  description = "Route 53 hosted zone ID (from bootstrap domain registration)"
+  type        = string
+}
+
+# ================================================================
+# Networking
+# ================================================================
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "azs" {
+  description = "Availability zones"
+  type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
+}
+
+variable "private_subnets" {
+  description = "Private subnet CIDRs"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+variable "public_subnets" {
+  description = "Public subnet CIDRs"
+  type        = list(string)
+  default     = ["10.0.101.0/24", "10.0.102.0/24"]
+}
+
+# ================================================================
+# App Runner
+# ================================================================
+
+variable "image_tag" {
+  description = "Container image tag"
+  type        = string
+  default     = "latest"
+}
+
+variable "container_port" {
+  description = "Port the container listens on"
+  type        = number
+  default     = 8000
+}
+
+variable "log_level" {
+  description = "Application log level"
+  type        = string
+  default     = "INFO"
+}
+
+variable "secret_key" {
+  description = "Application secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "database_url" {
+  description = "Database connection URL"
+  type        = string
+  default     = "sqlite:////app/data/fitness.db"
+}
+
+variable "admin_username" {
+  description = "Admin console username"
+  type        = string
+  default     = "admin"
+}
+
+variable "admin_password" {
+  description = "Admin console password"
+  type        = string
+  sensitive   = true
+}
+
+variable "nasa_api_key" {
+  description = "NASA API key (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "instance_cpu" {
+  description = "App Runner instance CPU"
+  type        = string
+  default     = "1024"
+}
+
+variable "instance_memory" {
+  description = "App Runner instance memory"
+  type        = string
+  default     = "2048"
+}
+
+variable "auto_deploy" {
+  description = "Auto deploy on ECR push"
+  type        = bool
+  default     = false
+}
+
+variable "min_size" {
+  description = "Minimum instances"
+  type        = number
+  default     = 2
+}
+
+variable "max_size" {
+  description = "Maximum instances"
+  type        = number
+  default     = 5
+}
+
+variable "max_concurrency" {
+  description = "Max concurrent requests per instance"
+  type        = number
+  default     = 100
+}
+
+# ================================================================
+# Notifications / Budget
+# ================================================================
+
+variable "alarm_email" {
+  description = "Email for alarm notifications"
+  type        = string
+  default     = null
+}
+
+variable "monthly_budget_limit" {
+  description = "Monthly budget limit in USD (0 to disable)"
+  type        = number
+  default     = 100
+}
+
+# ================================================================
+# Observability
+# ================================================================
+
+variable "log_retention_days" {
+  description = "Log retention in days"
+  type        = number
+  default     = 90
+}
+
+# ================================================================
+# Data Ingest
+# ================================================================
+
+variable "enable_data_ingest" {
+  description = "Enable data ingestion pipeline (DynamoDB + Lambda)"
+  type        = bool
+  default     = false
+}
+
+variable "nist_api_key" {
+  description = "NIST NVD API key (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "enable_embed_sync" {
+  description = "Enable DynamoDB Streams → Azure AI Search embedding sync"
+  type        = bool
+  default     = false
+}
+
+variable "azure_openai_endpoint" {
+  description = "Azure OpenAI endpoint for embedding pipeline"
+  type        = string
+  default     = ""
+}
+
+variable "azure_openai_key" {
+  description = "Azure OpenAI API key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "azure_search_endpoint" {
+  description = "Azure AI Search endpoint"
+  type        = string
+  default     = ""
+}
+
+variable "azure_search_key" {
+  description = "Azure AI Search admin key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# ================================================================
+# Media CDN
+# ================================================================
+
+variable "enable_media" {
+  description = "Enable media CDN (S3 + CloudFront)"
+  type        = bool
+  default     = false
+}
+
+# ================================================================
+# CodePipeline (optional)
+# ================================================================
+
+variable "enable_codepipeline" {
+  description = "Enable CodePipeline for TF validation"
+  type        = bool
+  default     = false
+}
+
+variable "repository_id" {
+  description = "GitHub repository (owner/repo)"
+  type        = string
+  default     = ""
+}
+
+variable "codestar_connection_arn" {
+  description = "CodeStar connection ARN"
+  type        = string
+  default     = ""
+}

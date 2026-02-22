@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -95,9 +96,27 @@ class Settings(BaseSettings):
     # Features
     enable_open_badges: bool = False
 
+    # Data Store (DynamoDB)
+    use_data_store: bool = False
+    dynamodb_table_name: str = ""
+    aws_region: str = "us-east-1"
+
+    # Azure AI Services
+    azure_openai_endpoint: str | None = None
+    azure_openai_key: str | None = None
+    azure_search_endpoint: str | None = None
+    azure_search_key: str | None = None
+    enable_rag: bool = False
+
+    # Media CDN
+    media_bucket_name: str = ""
+    media_cdn_domain: str = ""  # e.g. media.princetonstrong.com
+    media_upload_max_mb: int = 200
+
     # External API Keys
     nist_api_key: str | None = None  # NIST NVD API key for CVE data
     nasa_api_key: str | None = None  # NASA API key (DEMO_KEY works for low traffic)
+    openweathermap_api_key: str | None = None  # OWM free tier (1000 calls/day)
 
     # Email configuration
     email_enabled: bool = True
@@ -169,6 +188,25 @@ class Settings(BaseSettings):
             return [item.strip() for item in raw.split(",") if item.strip()]
         return []
 
+    _INSECURE_DEFAULTS = {
+        "secret_key": "dev-secret",
+        "admin_password": "change-me",
+        "csrf_secret": "dev-csrf-secret-change-me",
+    }
+
+    @model_validator(mode="after")
+    def reject_default_secrets_in_production(self) -> Settings:
+        """Refuse to start in production with insecure default secrets."""
+        if self.environment != "production":
+            return self
+        for field_name, default_val in self._INSECURE_DEFAULTS.items():
+            if getattr(self, field_name) == default_val:
+                raise ValueError(
+                    f"{field_name} must not use the default value in production. "
+                    f"Set the {field_name.upper()} environment variable."
+                )
+        return self
+
     @property
     def is_production(self) -> bool:
         """Return True when running in production."""
@@ -196,3 +234,20 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Emit startup warnings for insecure defaults in non-production
+_INSECURE_DEFAULTS_CHECK = {
+    "secret_key": "dev-secret",
+    "admin_password": "change-me",
+    "csrf_secret": "dev-csrf-secret-change-me",
+}
+if settings.environment != "production":
+    _logger = logging.getLogger(__name__)
+    for _field, _default in _INSECURE_DEFAULTS_CHECK.items():
+        if getattr(settings, _field) == _default:
+            _logger.warning(
+                "SECURITY: %s is using the default value. "
+                "Set %s env var before deploying.",
+                _field,
+                _field.upper(),
+            )

@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from fitness.auth import current_active_user
 from fitness.config import settings
 from fitness.models.security import AdvisorySource, SeverityLevel
+from fitness.security import limiter
 from fitness.services.cve_aggregator import CVEAggregator
 from fitness.utils.assets import asset_url
 
@@ -25,6 +26,7 @@ aggregator = CVEAggregator(nist_api_key=settings.nist_api_key)
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def security_dashboard(request: Request, user=Depends(current_active_user)):
     """Main security dashboard page.
 
@@ -46,6 +48,7 @@ async def security_dashboard(request: Request, user=Depends(current_active_user)
 
 
 @router.get("/advisories", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def get_advisories(
     request: Request,
     severity: str | None = Query(None),
@@ -89,6 +92,7 @@ async def get_advisories(
 
 
 @router.get("/advisory/{cve_id}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def get_advisory_detail(request: Request, cve_id: str):
     """Get detailed view of a single CVE (for modal display).
 
@@ -112,6 +116,7 @@ async def get_advisory_detail(request: Request, cve_id: str):
 
 
 @router.get("/stats", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def get_stats_widget(request: Request, days: int = Query(30, ge=1, le=365)):
     """HTMX endpoint - returns stats widget HTML.
 
@@ -129,6 +134,7 @@ async def get_stats_widget(request: Request, days: int = Query(30, ge=1, le=365)
 
 
 @router.get("/top-advisories", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def get_top_advisories(
     request: Request,
     severity: str = Query(...),

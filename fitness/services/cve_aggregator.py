@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from fitness.config import settings
 from fitness.models.security import (
     AdvisorySource,
     AdvisoryStats,
@@ -13,6 +15,8 @@ from fitness.models.security import (
     SeverityLevel,
 )
 from fitness.services.nist_client import NISTClient
+
+logger = logging.getLogger(__name__)
 
 
 class CVEAggregator:
@@ -25,6 +29,51 @@ class CVEAggregator:
             nist_api_key: NIST NVD API key (optional)
         """
         self.nist_client = NISTClient(api_key=nist_api_key)
+
+    def _fetch_from_dynamo(
+        self, days: int = 30, severity: SeverityLevel | None = None
+    ) -> list[SecurityAdvisory] | None:
+        """Read CVE data from DynamoDB data store."""
+        try:
+            from fitness.services.data_store import data_store_service
+
+            start = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            items = data_store_service.query_by_type("cve", start=start, limit=200)
+            if not items:
+                return None
+
+            advisories = []
+            for item in items:
+                p = item.get("payload", {})
+                sev_str = p.get("severity", "UNKNOWN").upper()
+                try:
+                    sev = SeverityLevel(sev_str)
+                except ValueError:
+                    sev = SeverityLevel.LOW
+
+                if severity and sev != severity:
+                    continue
+
+                advisories.append(
+                    SecurityAdvisory(
+                        cve_id=p.get("cve_id", ""),
+                        title=p.get("cve_id", ""),
+                        description=p.get("description", ""),
+                        severity=sev,
+                        cvss_score=float(p.get("cvss_score", 0)),
+                        published_date=datetime.fromisoformat(
+                            p.get(
+                                "published_date", datetime.now(timezone.utc).isoformat()
+                            )
+                        ),
+                        source=AdvisorySource.NIST,
+                        url=p.get("references", [""])[0] if p.get("references") else "",
+                    )
+                )
+            return advisories
+        except Exception:
+            logger.warning("DynamoDB CVE read failed, falling back to API")
+            return None
 
     async def fetch_all_advisories(
         self,
@@ -42,6 +91,13 @@ class CVEAggregator:
         Returns:
             List of SecurityAdvisory objects
         """
+        # DynamoDB-first path
+        if settings.use_data_store:
+            dynamo_results = self._fetch_from_dynamo(days, severity)
+            if dynamo_results is not None:
+                dynamo_results.sort(key=lambda x: x.published_date, reverse=True)
+                return dynamo_results
+
         tasks = []
 
         # Fetch from NIST only
