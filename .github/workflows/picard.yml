@@ -54,7 +54,7 @@ jobs:
   # ══════════════════════════════════════════════════════════════════════════
   laforge:
     name: La Forge - Build
-    needs: [data]
+    needs: [data, worf]
     uses: ./.github/workflows/laforge.yml
     secrets: inherit
 

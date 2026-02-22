@@ -155,6 +155,7 @@ class TestRateLimitDecorators:
             "fitness/routers/blog.py",
             "fitness/routers/security_dashboard.py",
         ],
+        ids=lambda p: p.split("/")[-1].replace(".py", ""),
     )
     def test_all_routes_have_rate_limit(self, module_path):
         """Every @router.<method> function must also have @limiter.limit()."""

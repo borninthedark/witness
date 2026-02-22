@@ -119,8 +119,7 @@ class AstrometricsService:
                     if dist_km < closest_distance:
                         closest_distance = dist_km
                         closest_name = (
-                            f"{obj.get('name', 'Unknown')} "
-                            f"({closest_distance:,.0f} km)"
+                            f"{obj.get('name', 'Unknown')} ({closest_distance:,.0f} km)"
                         )
         return neo_count, closest_name
 

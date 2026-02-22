@@ -146,6 +146,28 @@ variable "dynamodb_table_arn" {
 }
 
 # ================================================================
+# Media CDN (S3 upload)
+# ================================================================
+
+variable "media_bucket_name" {
+  description = "S3 media bucket name (empty = disabled)"
+  type        = string
+  default     = ""
+}
+
+variable "media_bucket_arn" {
+  description = "S3 media bucket ARN (for IAM policy)"
+  type        = string
+  default     = ""
+}
+
+variable "media_cdn_domain" {
+  description = "CloudFront CDN domain (e.g. media.princetonstrong.com)"
+  type        = string
+  default     = ""
+}
+
+# ================================================================
 # WAF / Observability
 # ================================================================
 

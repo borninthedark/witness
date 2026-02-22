@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     azure_search_key: str | None = None
     enable_rag: bool = False
 
+    # Media CDN
+    media_bucket_name: str = ""
+    media_cdn_domain: str = ""  # e.g. media.princetonstrong.com
+    media_upload_max_mb: int = 200
+
     # External API Keys
     nist_api_key: str | None = None  # NIST NVD API key for CVE data
     nasa_api_key: str | None = None  # NASA API key (DEMO_KEY works for low traffic)

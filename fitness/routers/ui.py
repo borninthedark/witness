@@ -175,7 +175,7 @@ def cert_pdf(slug: str, request: Request, db: Session = Depends(get_db)):
             "Accept-Ranges": "bytes",
             # Minimal CSP to allow PDF viewing
             "Content-Security-Policy": (
-                "default-src 'none'; object-src 'self'; " "frame-ancestors 'self'"
+                "default-src 'none'; object-src 'self'; frame-ancestors 'self'"
             ),
         }
         return FileResponse(
@@ -198,7 +198,7 @@ def cert_pdf(slug: str, request: Request, db: Session = Depends(get_db)):
                 "X-Content-Type-Options": "nosniff",
                 "Cache-Control": "public, max-age=3600",
                 "Content-Security-Policy": (
-                    "default-src 'none'; object-src 'self'; " "frame-ancestors 'self'"
+                    "default-src 'none'; object-src 'self'; frame-ancestors 'self'"
                 ),
             }
             return Response(

@@ -15,7 +15,7 @@ from fitness.database import get_db
 from fitness.models.certification import Certification
 from fitness.security import issue_csrf_token, limiter, set_csrf_cookie, validate_csrf
 from fitness.services.open_badges import OpenBadgesError, fetch_open_badges_assertion
-from fitness.services.storage import LocalStorage
+from fitness.services.storage import LocalStorage, S3MediaStorage
 from fitness.staticfiles import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -49,6 +49,21 @@ def hash_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
+def _admin_page(request: Request, template: str, user, admin_page: str, **extra):
+    """Render an admin page with CSRF token and cookie."""
+    csrf_token = issue_csrf_token(request)
+    ctx = {
+        "request": request,
+        "user": user,
+        "csrf_token": csrf_token,
+        "admin_page": admin_page,
+        **extra,
+    }
+    response = templates.TemplateResponse(template, ctx)
+    set_csrf_cookie(response, csrf_token)
+    return response
+
+
 @router.get("/", response_class=HTMLResponse)
 @limiter.limit("30/minute")
 def admin_dashboard(
@@ -56,18 +71,7 @@ def admin_dashboard(
     user=Depends(current_active_user),
 ):
     """Admin dashboard landing page with navigation to sub-panels."""
-    csrf_token = issue_csrf_token(request)
-    response = templates.TemplateResponse(
-        "admin_dashboard.html",
-        {
-            "request": request,
-            "user": user,
-            "csrf_token": csrf_token,
-            "admin_page": "dashboard",
-        },
-    )
-    set_csrf_cookie(response, csrf_token)
-    return response
+    return _admin_page(request, "admin_dashboard.html", user, "dashboard")
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -396,3 +400,88 @@ def delete_cert(
 
     # Return empty response - HTMX will remove the row
     return HTMLResponse("")
+
+
+# ================================================================
+# Media Management (CDN upload)
+# ================================================================
+
+_MEDIA_MIME_ALLOWLIST = {
+    "video/mp4",
+    "video/webm",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
+
+@router.get("/media", response_class=HTMLResponse)
+@limiter.limit("30/minute")
+def media_dashboard(
+    request: Request,
+    user=Depends(current_active_user),
+):
+    """Media management dashboard."""
+    return _admin_page(
+        request,
+        "admin_media.html",
+        user,
+        "media",
+        media_configured=bool(settings.media_bucket_name),
+    )
+
+
+@router.post("/media", response_class=HTMLResponse)
+@limiter.limit("5/minute")
+async def upload_media(
+    request: Request,
+    file: UploadFile,
+    slug: str = Form(...),
+    csrf_token: str = Form(...),
+    user=Depends(current_active_user),
+):
+    """Upload media file to S3 via CDN."""
+    validate_csrf(request, csrf_token)
+    _validate_slug(slug)
+
+    if not settings.media_bucket_name:
+        raise HTTPException(status_code=503, detail="Media storage not configured.")
+
+    # MIME type check
+    content_type = file.content_type or ""
+    if content_type not in _MEDIA_MIME_ALLOWLIST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {content_type}. "
+            f"Allowed: {', '.join(sorted(_MEDIA_MIME_ALLOWLIST))}",
+        )
+
+    # Size check
+    max_bytes = settings.media_upload_max_mb * 1024 * 1024
+    content = await file.read()
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File must be under {settings.media_upload_max_mb} MB.",
+        )
+    await file.seek(0)
+
+    # Determine extension from original filename
+    ext = Path(file.filename or "file").suffix.lower() or ".bin"
+    media_filename = f"{slug}{ext}"
+
+    storage = S3MediaStorage(
+        bucket_name=settings.media_bucket_name,
+        cdn_base_url=f"https://{settings.media_cdn_domain}",
+        region=settings.aws_region,
+    )
+    url = await storage.save(file.file, media_filename)
+
+    return HTMLResponse(
+        f"<div class='upload-result'>"
+        f"<p>Uploaded: <a href='{html.escape(url)}' target='_blank'>"
+        f"{html.escape(media_filename)}</a></p>"
+        f"<code>{html.escape(url)}</code>"
+        f"</div>"
+    )

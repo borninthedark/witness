@@ -93,6 +93,7 @@ These have defaults in `variables.tf` and only need to be set if overriding.
 | `admin_username` | `admin` | `admin` | Admin console username |
 | `vpc_cidr` | `10.0.0.0/16` | `10.0.0.0/16` | VPC CIDR block |
 | `enable_codepipeline` | `false` | `false` | Enable CodePipeline module |
+| `enable_media` | `false` | `false` | Enable Media CDN module (S3 + CloudFront) |
 | `monthly_budget_limit` | — | `100` | Monthly budget alert threshold (prod only) |
 
 ## GitHub Actions Secrets

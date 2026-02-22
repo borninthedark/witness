@@ -171,25 +171,21 @@ resource "aws_iam_policy" "tfc_core" {
       },
 
       # ----------------------------------------------------------
-      # KMS
+      # KMS — management operations (no data-plane condition)
       # ----------------------------------------------------------
       {
-        Sid    = "KMS"
+        Sid    = "KMSManagement"
         Effect = "Allow"
         Action = [
           "kms:CreateAlias",
           "kms:CreateKey",
           "kms:CreateGrant",
           "kms:DeleteAlias",
-          "kms:Decrypt",
           "kms:Describe*",
           "kms:EnableKeyRotation",
-          "kms:Encrypt",
-          "kms:GenerateDataKey*",
           "kms:Get*",
           "kms:List*",
           "kms:PutKeyPolicy",
-          "kms:ReEncrypt*",
           "kms:ScheduleKeyDeletion",
           "kms:TagResource",
           "kms:UntagResource",
@@ -197,6 +193,31 @@ resource "aws_iam_policy" "tfc_core" {
           "kms:UpdateKeyDescription",
         ]
         Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # KMS — data-plane encryption (ViaService scoped)
+      # ----------------------------------------------------------
+      {
+        Sid    = "KMSEncryption"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:ReEncrypt*",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = [
+              "secretsmanager.${var.aws_region}.amazonaws.com",
+              "s3.${var.aws_region}.amazonaws.com",
+              "logs.${var.aws_region}.amazonaws.com",
+              "dynamodb.${var.aws_region}.amazonaws.com",
+            ]
+          }
+        }
       },
 
       # ----------------------------------------------------------
@@ -325,10 +346,14 @@ resource "aws_iam_policy" "tfc_governance" {
       },
 
       # ----------------------------------------------------------
-      # S3 (CloudTrail bucket, pipeline artifacts)
+      # S3 (CloudTrail bucket, pipeline artifacts, media)
+      # Scoped to arn:aws:s3:::witness-* — only buckets prefixed
+      # with the project name can be created/modified/deleted.
+      # Prevents accidental or malicious operations on unrelated
+      # buckets in the account.
       # ----------------------------------------------------------
       {
-        Sid    = "S3"
+        Sid    = "S3Buckets"
         Effect = "Allow"
         Action = [
           "s3:CreateBucket",
@@ -350,8 +375,13 @@ resource "aws_iam_policy" "tfc_governance" {
           "s3:PutBucketAcl",
           "s3:PutBucketOwnershipControls",
           "s3:GetBucketOwnershipControls",
+          "s3:PutBucketCors",
+          "s3:GetBucketCors",
         ]
-        Resource = "*"
+        Resource = [
+          "arn:aws:s3:::${var.project}-*",
+          "arn:aws:s3:::${var.project}-*/*",
+        ]
       },
 
       # ----------------------------------------------------------
@@ -611,6 +641,53 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
           "xray:PutTelemetryRecords",
           "xray:GetSamplingRules",
           "xray:GetSamplingTargets",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # CloudFront (media CDN)
+      # ----------------------------------------------------------
+      {
+        Sid    = "CloudFront"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateDistribution",
+          "cloudfront:DeleteDistribution",
+          "cloudfront:GetDistribution",
+          "cloudfront:UpdateDistribution",
+          "cloudfront:CreateOriginAccessControl",
+          "cloudfront:DeleteOriginAccessControl",
+          "cloudfront:GetOriginAccessControl",
+          "cloudfront:UpdateOriginAccessControl",
+          "cloudfront:ListDistributions",
+          "cloudfront:ListOriginAccessControls",
+          "cloudfront:GetCachePolicy",
+          "cloudfront:ListCachePolicies",
+          "cloudfront:GetResponseHeadersPolicy",
+          "cloudfront:ListResponseHeadersPolicies",
+          "cloudfront:TagResource",
+          "cloudfront:UntagResource",
+          "cloudfront:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # ACM (CDN certificates)
+      # ----------------------------------------------------------
+      {
+        Sid    = "ACM"
+        Effect = "Allow"
+        Action = [
+          "acm:RequestCertificate",
+          "acm:DeleteCertificate",
+          "acm:DescribeCertificate",
+          "acm:ListCertificates",
+          "acm:ListTagsForCertificate",
+          "acm:AddTagsToCertificate",
+          "acm:RemoveTagsFromCertificate",
+          "acm:GetCertificate",
         ]
         Resource = "*"
       },

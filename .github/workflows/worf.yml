@@ -51,6 +51,13 @@ jobs:
       - name: Terraform Init
         run: terraform init -backend=false
 
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: ${{ github.workspace }}/terraform/aws/${{ matrix.environment }}
+
+      - name: Terraform Validate
+        run: terraform validate
+
       - name: Checkov Security Scan
         id: checkov
         uses: bridgecrewio/checkov-action@v12
@@ -59,9 +66,8 @@ jobs:
           framework: terraform
           output_format: cli,sarif
           output_file_path: console,checkov-${{ matrix.environment }}.sarif
-          soft_fail: true
+          soft_fail: false
           skip_check: CKV_AWS_144,CKV_AWS_145,CKV2_AWS_62
-        continue-on-error: true
 
       - name: Upload Checkov SARIF
         if: always()

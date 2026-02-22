@@ -66,8 +66,8 @@ jobs:
 
       - name: Ruff lint & format
         run: |
-          uv run ruff check . || echo "::warning::Ruff found issues"
-          uv run ruff format --check . || echo "::warning::Formatting issues"
+          uv run ruff check .
+          uv run ruff format --check .
 
   # ══════════════════════════════════════════════════════════════════════════
   # Python Security (SAST + Dependency Audit)
@@ -134,6 +134,7 @@ jobs:
             --cov=fitness --cov-branch \
             --cov-report=term \
             --cov-report=xml:coverage.xml \
+            --cov-fail-under=71 \
             --junitxml=junit.xml
 
       - name: Upload coverage reports to Codecov

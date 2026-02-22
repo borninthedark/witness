@@ -119,6 +119,7 @@ branch = true
 parallel = true
 
 [tool.coverage.report]
+fail_under = 71
 precision = 2
 show_missing = true
 skip_covered = false

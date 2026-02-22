@@ -62,9 +62,10 @@ def generate_readme(root: Path) -> str:
 [![Terraform](https://img.shields.io/badge/Terraform-HCP-7B42BC?logo=terraform&logoColor=white)](https://app.terraform.io/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-A production FastAPI application deployed on AWS App Runner, serving as a professional resume
-and certification verification platform with a Star Trek LCARS-inspired interface. Infrastructure
-is fully managed through Terraform on HCP Terraform with VCS-driven workflows.
+A production FastAPI application deployed on AWS App Runner with CloudFront CDN, serving as a
+professional resume and certification verification platform with a Star Trek LCARS-inspired
+interface. Infrastructure is fully managed through Terraform on HCP Terraform with VCS-driven
+workflows.
 
 **[View the live site](https://engage.princetonstrong.com)**
 
@@ -94,6 +95,7 @@ custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config
 - **Digital Resume** -- PDF generated at container build time from YAML data via ReportLab
 - **Certification Verification** -- SHA-256 hash validation with QR codes
 - **Contact Portal** -- reCAPTCHA v2 + Formspree, honeypot, CSRF double-submit cookie
+- **Media CDN** -- S3 media uploads served via CloudFront with OAC, dual-origin (S3 + App Runner)
 - **Security Posture** -- WAFv2, GuardDuty, Security Hub, Config rules, X-Ray tracing
 
 ## Technology Stack
@@ -108,7 +110,7 @@ custom domains, CloudTrail audit logging, GuardDuty threat detection, and Config
 | **Security** | slowapi, CSRF, CSP/HSTS, Bandit, Trivy, Checkov |
 | **Packaging** | [uv](https://docs.astral.sh/uv/) (lockfile), setuptools build backend |
 | **Container** | Python 3.13-slim, multi-stage uv install, non-root user |
-| **Cloud** | AWS App Runner, ECR, VPC, Route 53, WAFv2, KMS, Secrets Manager |
+| **Cloud** | AWS App Runner, CloudFront, S3, ECR, VPC, Route 53, WAFv2, KMS, Secrets Manager |
 | **IaC** | Terraform with HCP Terraform (VCS-driven), Checkov + tfsec |
 
 ## AWS Architecture
@@ -124,7 +126,9 @@ graph TD
     classDef external fill:#fff,stroke:#232F3E,color:#232F3E
 
     USER(("Internet")):::external --> R53["Route 53"]:::edge
-    R53 --> WAF["WAFv2"]:::security --> AR["App Runner"]:::compute
+    R53 --> CF["CloudFront<br/>CDN"]:::edge
+    CF -->|/media/*| S3M["S3 Media<br/>Bucket"]:::storage
+    CF -->|default + /static/*| WAF["WAFv2"]:::security --> AR["App Runner"]:::compute
     GH["GitHub Actions"]:::external -->|push| ECR["ECR"]:::compute -->|deploy| AR
 
     AR --> VC["VPC Connector"]:::network
@@ -134,6 +138,7 @@ graph TD
         PS --- EP["S3 GW + Interface<br/>Endpoints"]:::network
     end
 
+    AR -.->|upload| S3M
     AR -.->|secrets| SM["Secrets Manager"]:::security
     SM -.->|decrypt| KMS["KMS CMK"]:::security
 
@@ -171,7 +176,8 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram and traffi
 | [X-Ray](https://docs.aws.amazon.com/xray/) | Distributed tracing | [Developer Guide](https://docs.aws.amazon.com/xray/latest/devguide/) |
 | [SNS](https://docs.aws.amazon.com/sns/) | Alarm notifications, budget alerts | [Developer Guide](https://docs.aws.amazon.com/sns/latest/dg/) |
 | [Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) | Cost alerts | [User Guide](https://docs.aws.amazon.com/cost-management/latest/userguide/) |
-| [S3](https://docs.aws.amazon.com/s3/) | CloudTrail logs, pipeline artifacts | [User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/) |
+| [CloudFront](https://docs.aws.amazon.com/cloudfront/) | CDN for media (S3 origin) and static assets (App Runner origin) | [Developer Guide](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/) |
+| [S3](https://docs.aws.amazon.com/s3/) | Media storage, CloudTrail logs, pipeline artifacts | [User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/) |
 
 ## Terraform Structure
 
@@ -187,7 +193,7 @@ graph LR
     subgraph Bootstrap
         direction TB
         OIDC["OIDC"]:::boot
-        IAM["IAM x3"]:::boot
+        IAM["IAM x4"]:::boot
         R53Z["Route 53"]:::boot
     end
 
@@ -199,6 +205,8 @@ graph LR
     APP -->|service ARN| DNS["dns"]:::mod
     SEC -->|KMS, SNS| OBS["observability"]:::mod
     APP -->|service name| OBS
+    NET -->|hosted zone| MED["media"]:::mod
+    MED -->|bucket ARN, CDN| APP
 ```
 
 | Module | Key Resources |
@@ -207,6 +215,7 @@ graph LR
 | **security** | KMS CMK, CloudTrail, Config + managed rules, GuardDuty, Security Hub (prod), SNS alarm topic, budget alerts |
 | **app-runner** | ECR repo, Secrets Manager, App Runner service + VPC connector, WAFv2 (3 rule groups), X-Ray group |
 | **dns** | Route 53 A/CNAME/TXT/MX records, App Runner custom domain + ACM validation, ProtonMail SPF/DKIM/MX |
+| **media** | S3 media bucket, CloudFront distribution (dual-origin with OAC), ACM certificate, Route 53 alias |
 | **observability** | CloudWatch log groups, metric alarms (5xx, latency, CPU), dashboard, SNS integration |
 
 ### Well-Architected Alignment
@@ -217,7 +226,7 @@ The infrastructure follows [AWS Well-Architected Framework](https://docs.aws.ama
 - **Reliability:** Multi-AZ VPC, App Runner auto-scaling, health checks, auto-rollback
 - **Cost Optimization:** Budget alerts, VPC interface endpoints only in prod, S3 gateway endpoint
 - **Operational Excellence:** SNS alarm routing, CloudWatch dashboards, X-Ray tracing
-- **Performance:** App Runner auto-scaling, CloudWatch latency alarms
+- **Performance:** CloudFront CDN for media and static assets, App Runner auto-scaling, CloudWatch latency alarms
 
 ### 30-Day Cost Estimate
 
@@ -236,14 +245,15 @@ The infrastructure follows [AWS Well-Architected Framework](https://docs.aws.ama
 | **KMS** | $1 | $1 | 1 CMK per environment |
 | **CloudWatch** | ~$3 | ~$8 | Logs, 2 alarms, 1 dashboard, X-Ray traces |
 | **Route 53** | ~$1 | ~$1 | 1 hosted zone + queries (shared) |
-| **S3** | ~$1 | ~$2 | CloudTrail logs; IA transition at 90d, expire 365d |
+| **S3** | ~$1 | ~$2 | Media storage + CloudTrail logs; IA transition at 90d |
 | **ECR** | ~$1 | ~$1 | Lifecycle: keep 10 tagged, expire untagged at 7d |
 | **Secrets Manager** | $0.40 | $0.40 | 1 secret per environment |
+| **CloudFront** | ~$1 | ~$3 | 1 distribution per env; PriceClass_100 |
 | **SNS** | <$1 | <$1 | Alarm notifications |
-| | **~$84** | **~$255** | |
+| | **~$86** | **~$260** | |
 
-Estimated combined (both environments): **~$340/month**.
-Current spend (dev only): **~$84/month**.
+Estimated combined (both environments): **~$346/month**.
+Current spend (dev only): **~$86/month**.
 
 ## CI/CD Pipelines
 
@@ -271,8 +281,7 @@ graph LR
     end
 
     PUSH --> DATA & WORF
-    DATA --> LF --> GATE
-    WORF --> GATE
+    DATA & WORF --> LF --> GATE
     LF -.->|on success| RIKER["Riker<br/>release"]:::post
     LF -.->|on success| TROI["Troi<br/>docs"]:::post
     PICARD -.->|on failure| TASHA["Tasha<br/>rollback"]:::security
@@ -320,6 +329,7 @@ graph LR
 - Centralized dashboard at `/admin` with navigation to all admin sections
 - **Operational Status** -- Bokeh charts (RPS, latency, error rate), deployment info, status badges
 - **Certification Management** -- Add/deprecate/delete certs, PDF upload, SHA-256 hashing, Open Badges validation
+- **Media Management** -- Upload videos/images to S3, served via CloudFront CDN with MIME and size validation
 - JWT cookie auth with CSRF protection, user badge and sign-out on every page
 
 ### Security Posture
@@ -367,6 +377,8 @@ Key environment variables (see [docs/variables.md](docs/variables.md) for full r
 | `ENVIRONMENT` | `development` or `production` |
 | `ENABLE_TRACING` | OpenTelemetry X-Ray tracing |
 | `FORMSPREE_ID` | Contact form endpoint |
+| `MEDIA_BUCKET_NAME` | S3 bucket for media uploads (optional) |
+| `MEDIA_CDN_DOMAIN` | CloudFront CDN domain for media/static assets (optional) |
 
 ## Development
 
@@ -397,7 +409,7 @@ uv run pytest -n auto          # parallel execution
 uv run pytest --cov-report=html  # HTML coverage report
 ```
 
-Test structure: `tests/security/`, `tests/routers/`, `tests/test_integration.py`, `tests/test_smoke.py`.
+Test structure: `tests/security/`, `tests/routers/`, `tests/test_media.py`, `tests/test_schemas.py`, `tests/test_middleware.py`, `tests/test_utils.py`, `tests/test_integration.py`, `tests/test_smoke.py`. Coverage floor enforced at 71% (`fail_under` in pyproject.toml and CI).
 
 Coverage is reported to [Codecov](https://codecov.io/github/{REPO}) on every CI run via `codecov/codecov-action@v5`.
 Configuration lives in `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.coverage.*]`) and `codecov.yml`.
@@ -420,6 +432,7 @@ Configuration lives in `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.cov
 - **Audit:** CloudTrail API logging, Config compliance rules
 - **Detection:** GuardDuty threat detection, Security Hub (prod)
 - **Supply Chain:** Cosign image signing, Trivy + Checkov scanning
+- **CDN:** CloudFront with OAC for S3 media, HTTPS-only, TLSv1.2_2021
 - **Application:** CSRF, rate limiting, CSP/HSTS, honeypot, reCAPTCHA
 
 ## Documentation

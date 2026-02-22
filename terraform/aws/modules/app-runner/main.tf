@@ -185,6 +185,41 @@ resource "aws_iam_role_policy" "apprunner_dynamodb" {
 }
 
 # ================================================================
+# App Runner IAM - S3 Media Upload (conditional)
+# ================================================================
+
+# Least-privilege S3 policy for App Runner media uploads:
+# - PutObject + GetObject scoped to exact bucket ARN (object-level)
+# - ListBucket scoped to exact bucket ARN (bucket-level)
+# - No DeleteObject — media deletion handled via lifecycle/admin console only
+# - No wildcard resources — prevents lateral access to other S3 buckets
+resource "aws_iam_role_policy" "apprunner_media_s3" {
+  count = var.media_bucket_arn != "" ? 1 : 0
+
+  name = "media-s3-upload"
+  role = aws_iam_role.apprunner_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+        ]
+        Resource = ["${var.media_bucket_arn}/*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = [var.media_bucket_arn]
+      },
+    ]
+  })
+}
+
+# ================================================================
 # App Runner VPC Connector
 # ================================================================
 
@@ -206,11 +241,27 @@ resource "aws_security_group" "apprunner" {
   vpc_id      = var.vpc_id
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound"
+    description = "HTTPS to AWS services and external APIs"
+  }
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "DNS resolution"
+  }
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "DNS resolution (TCP fallback)"
   }
 
   tags = merge(var.tags, {
@@ -252,6 +303,10 @@ module "app_runner" {
           var.dynamodb_table_name != "" ? {
             USE_DATA_STORE      = "true"
             DYNAMODB_TABLE_NAME = var.dynamodb_table_name
+          } : {},
+          var.media_bucket_name != "" ? {
+            MEDIA_BUCKET_NAME = var.media_bucket_name
+            MEDIA_CDN_DOMAIN  = var.media_cdn_domain
           } : {},
         )
       }

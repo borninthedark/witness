@@ -252,7 +252,7 @@ CSP_DIRECTIVES_TRANSITIONAL = [
         "img-src 'self' data: https://www.credly.com "
         "https://cdn.credly.com https://apod.nasa.gov"
     ),
-    ("font-src 'self' data: https://fonts.gstatic.com " "https://cdn.credly.com"),
+    ("font-src 'self' data: https://fonts.gstatic.com https://cdn.credly.com"),
     (
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com "
         "https://cdn.bokeh.org"
@@ -276,6 +276,46 @@ CSP_DIRECTIVES_TRANSITIONAL = [
     "upgrade-insecure-requests",
 ]
 CSP_DIRECTIVES = CSP_DIRECTIVES_STRICT if IS_PROD else CSP_DIRECTIVES_TRANSITIONAL
+
+
+def _build_cdn_csp_extensions(cdn_domain: str) -> dict[str, str]:
+    """Build CSP directive extensions for a CDN domain."""
+    if not cdn_domain:
+        return {}
+    origin = f"https://{cdn_domain}"
+    return {
+        "img-src": origin,
+        "script-src": origin,
+        "style-src": origin,
+        "font-src": origin,
+        "media-src": f"'self' {origin}",
+    }
+
+
+def _apply_cdn_csp(directives: list[str], cdn_domain: str) -> list[str]:
+    """Extend CSP directives with CDN origins if configured."""
+    extensions = _build_cdn_csp_extensions(cdn_domain)
+    if not extensions:
+        return directives
+
+    result = []
+    extended_keys: set[str] = set()
+    for d in directives:
+        key = d.split()[0]  # e.g. "img-src"
+        if key in extensions:
+            d = f"{d} {extensions[key]}"
+            extended_keys.add(key)
+        result.append(d)
+
+    # Add any directives not already present (e.g. media-src)
+    for key, value in extensions.items():
+        if key not in extended_keys:
+            result.append(f"{key} {value}")
+
+    return result
+
+
+CSP_DIRECTIVES = _apply_cdn_csp(CSP_DIRECTIVES, settings.media_cdn_domain)
 
 
 # ==========================================

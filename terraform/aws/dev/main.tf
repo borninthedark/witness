@@ -105,6 +105,10 @@ module "app_runner" {
   dynamodb_table_name = var.enable_data_ingest ? module.data_ingest[0].dynamodb_table_name : ""
   dynamodb_table_arn  = var.enable_data_ingest ? module.data_ingest[0].dynamodb_table_arn : ""
 
+  media_bucket_name = var.enable_media ? module.media[0].media_bucket_name : ""
+  media_bucket_arn  = var.enable_media ? module.media[0].media_bucket_arn : ""
+  media_cdn_domain  = var.enable_media ? module.media[0].media_cdn_domain : ""
+
   enable_waf  = true
   enable_xray = true
 
@@ -142,6 +146,23 @@ module "observability" {
   error_threshold      = 10
   latency_threshold_ms = 5000
   alarm_sns_topic_arn  = module.security.sns_topic_arn
+
+  tags = var.tags
+}
+
+# ================================================================
+# Media CDN (S3 + CloudFront)
+# ================================================================
+
+module "media" {
+  source = "../modules/media"
+  count  = var.enable_media ? 1 : 0
+
+  project        = var.project
+  environment    = var.environment
+  domain_name    = var.domain_name
+  hosted_zone_id = var.hosted_zone_id
+  app_runner_url = replace(module.app_runner.service_url, "https://", "")
 
   tags = var.tags
 }

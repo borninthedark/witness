@@ -146,7 +146,7 @@ class RagService:
                     {
                         "role": "user",
                         "content": (
-                            f"Context:\n{context_block}\n\n" f"Question: {question}"
+                            f"Context:\n{context_block}\n\nQuestion: {question}"
                         ),
                     },
                 ],
