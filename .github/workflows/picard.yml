@@ -20,6 +20,8 @@ on:
       - 'uv.lock'
       - 'container/**'
       - '.github/workflows/**'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -44,16 +46,18 @@ jobs:
   data:
     name: Data - CI
     uses: ./.github/workflows/data.yml
+    secrets: inherit
 
   worf:
     name: Worf - Security
     uses: ./.github/workflows/worf.yml
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Stage 2: Build (after CI passes)
+  # Stage 2: Build (push to main only — no ECR push on PRs)
   # ══════════════════════════════════════════════════════════════════════════
   laforge:
     name: La Forge - Build
+    if: github.event_name == 'push'
     needs: [data, worf]
     uses: ./.github/workflows/laforge.yml
     secrets: inherit
@@ -65,7 +69,7 @@ jobs:
     name: VCS Gate
     needs: [data, worf, laforge]
     runs-on: ubuntu-latest
-    if: always() && !failure()
+    if: always() && !contains(needs.*.result, 'failure')
     steps:
       - name: Gate Summary
         run: |
