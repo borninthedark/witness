@@ -21,7 +21,7 @@ variable "kms_deletion_window" {
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
-  default     = 30
+  default     = 365
 }
 
 variable "enable_config" {

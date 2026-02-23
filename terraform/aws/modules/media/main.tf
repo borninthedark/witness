@@ -158,6 +158,183 @@ resource "aws_cloudfront_origin_access_control" "s3" {
 }
 
 # ================================================================
+# CloudFront Access Log Bucket
+# ================================================================
+
+resource "aws_s3_bucket" "cdn_logs" {
+  #checkov:skip=CKV_AWS_18:This IS the log destination bucket — logging it creates circular dependency
+  bucket = "${var.project}-${var.environment}-cdn-logs"
+
+  tags = var.tags
+}
+
+resource "aws_s3_bucket_ownership_controls" "cdn_logs" {
+  #checkov:skip=CKV2_AWS_65:ACL required for CloudFront standard logging (log-delivery-write)
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "cdn_logs" {
+  depends_on = [aws_s3_bucket_ownership_controls.cdn_logs]
+
+  bucket = aws_s3_bucket.cdn_logs.id
+  acl    = "log-delivery-write"
+}
+
+resource "aws_s3_bucket_public_access_block" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+
+    expiration {
+      days = 90
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
+# ================================================================
+# CloudFront Response Headers Policy (security headers)
+# ================================================================
+
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name = "${var.project}-${var.environment}-security-headers"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+
+    xss_protection {
+      mode_block = true
+      protection = true
+      override   = true
+    }
+  }
+}
+
+# ================================================================
+# CloudFront WAFv2 Web ACL (CLOUDFRONT scope — us-east-1)
+# ================================================================
+
+resource "aws_wafv2_web_acl" "cdn" {
+  name  = "${var.project}-${var.environment}-cdn-waf"
+  scope = "CLOUDFRONT"
+
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "aws-common-rules"
+    priority = 1
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-${var.environment}-cdn-common"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "aws-known-bad-inputs"
+    priority = 2
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-${var.environment}-cdn-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.project}-${var.environment}-cdn-waf"
+    sampled_requests_enabled   = true
+  }
+
+  tags = var.tags
+}
+
+# ================================================================
 # CloudFront Distribution (dual-origin: S3 media + App Runner)
 # ================================================================
 
@@ -166,9 +343,10 @@ resource "aws_cloudfront_distribution" "main" {
   is_ipv6_enabled     = true
   http_version        = "http2and3"
   comment             = "${var.project}-${var.environment} media CDN"
-  default_root_object = ""
+  default_root_object = "index.html"
   price_class         = "PriceClass_100"
   aliases             = [local.cdn_domain]
+  web_acl_id          = aws_wafv2_web_acl.cdn.arn
 
   # Origin 1: S3 media bucket (OAC)
   origin {
@@ -190,13 +368,20 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
+  logging_config {
+    include_cookies = false
+    bucket          = aws_s3_bucket.cdn_logs.bucket_domain_name
+    prefix          = "cloudfront/"
+  }
+
   # Default behavior → App Runner (dynamic HTML, no cache)
   default_cache_behavior {
-    target_origin_id       = "app-runner"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
+    target_origin_id           = "app-runner"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     forwarded_values {
       query_string = true
@@ -214,12 +399,13 @@ resource "aws_cloudfront_distribution" "main" {
 
   # /media/* → S3 (long cache, immutable media)
   ordered_cache_behavior {
-    path_pattern           = "/media/*"
-    target_origin_id       = "s3-media"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
+    path_pattern               = "/media/*"
+    target_origin_id           = "s3-media"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     forwarded_values {
       query_string = false
@@ -236,12 +422,13 @@ resource "aws_cloudfront_distribution" "main" {
 
   # /static/* → App Runner (cache-busted assets)
   ordered_cache_behavior {
-    path_pattern           = "/static/*"
-    target_origin_id       = "app-runner"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
+    path_pattern               = "/static/*"
+    target_origin_id           = "app-runner"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     forwarded_values {
       query_string = true # cache-busting ?v=
@@ -265,13 +452,31 @@ resource "aws_cloudfront_distribution" "main" {
 
   restrictions {
     geo_restriction {
-      restriction_type = "none"
+      restriction_type = "whitelist"
+      locations        = ["US", "PR", "VI", "GU", "AS", "MP", "CA", "GB", "IE", "DE", "FR"]
     }
   }
 
   tags = merge(var.tags, {
     Name = "${var.project}-${var.environment}-media-cdn"
   })
+}
+
+# ================================================================
+# CDN WAF Logging
+# ================================================================
+
+resource "aws_cloudwatch_log_group" "cdn_waf" {
+  name              = "aws-waf-logs-${var.project}-${var.environment}-cdn"
+  retention_in_days = 365
+  kms_key_id        = var.kms_key_arn
+
+  tags = var.tags
+}
+
+resource "aws_wafv2_web_acl_logging_configuration" "cdn" {
+  log_destination_configs = [aws_cloudwatch_log_group.cdn_waf.arn]
+  resource_arn            = aws_wafv2_web_acl.cdn.arn
 }
 
 # ================================================================

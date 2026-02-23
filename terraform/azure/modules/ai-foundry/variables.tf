@@ -23,6 +23,29 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "key_expiration_date" {
+  description = "Key Vault key expiration date (RFC 3339). Update annually."
+  type        = string
+}
+
+variable "subnet_id" {
+  description = "Subnet ID for private endpoints (null to skip)"
+  type        = string
+  default     = null
+}
+
+variable "vault_dns_zone_ids" {
+  description = "Private DNS zone IDs for Key Vault private endpoint"
+  type        = list(string)
+  default     = []
+}
+
+variable "blob_dns_zone_ids" {
+  description = "Private DNS zone IDs for Storage Blob private endpoint"
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)

@@ -111,6 +111,19 @@ resource "aws_dynamodb_table" "data_store" {
 }
 
 # ================================================================
+# SQS Dead Letter Queue (shared by all Lambda functions)
+# ================================================================
+
+resource "aws_sqs_queue" "lambda_dlq" {
+  name                              = "${local.function_prefix}-lambda-dlq"
+  message_retention_seconds         = 1209600 # 14 days
+  kms_master_key_id                 = var.kms_key_arn
+  kms_data_key_reuse_period_seconds = 300
+
+  tags = var.tags
+}
+
+# ================================================================
 # Lambda Execution Role (shared)
 # ================================================================
 
@@ -173,6 +186,41 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy" "lambda_xray" {
+  name = "xray-tracing"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+        ]
+        Resource = ["*"]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_dlq" {
+  name = "dlq-send"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = [aws_sqs_queue.lambda_dlq.arn]
+      }
+    ]
+  })
+}
+
 # ================================================================
 # CloudWatch Log Groups (one per function)
 # ================================================================
@@ -229,7 +277,18 @@ resource "aws_lambda_function" "ingest" {
   timeout          = each.value.timeout
   memory_size      = var.lambda_memory_mb
 
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
   layers = [aws_lambda_layer_version.shared.arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
 
   environment {
     variables = each.value.environment
@@ -301,6 +360,7 @@ resource "aws_scheduler_schedule" "ingest" {
   group_name = aws_scheduler_schedule_group.ingest.name
 
   schedule_expression = each.value.schedule
+  kms_key_arn         = var.kms_key_arn
 
   flexible_time_window {
     mode                      = "FLEXIBLE"
@@ -355,7 +415,18 @@ resource "aws_lambda_function" "embed_sync" {
   timeout          = 300
   memory_size      = var.lambda_memory_mb
 
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
   layers = [aws_lambda_layer_version.shared.arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
 
   environment {
     variables = {

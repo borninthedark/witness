@@ -29,3 +29,13 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# ================================================================
+# Security
+# ================================================================
+
+variable "key_expiration_date" {
+  description = "Key Vault key expiration date (RFC 3339). Update annually."
+  type        = string
+  default     = "2027-02-22T00:00:00Z"
+}

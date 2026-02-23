@@ -65,7 +65,9 @@ class StatusMetrics:
                     "status": (
                         "healthy"
                         if error_rate < 0.1
-                        else "warning" if error_rate < 1.0 else "degraded"
+                        else "warning"
+                        if error_rate < 1.0
+                        else "degraded"
                     ),
                 },
                 "throughput": {

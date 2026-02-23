@@ -26,7 +26,7 @@ variable "kms_key_arn" {
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
-  default     = 30
+  default     = 365
 }
 
 variable "error_threshold" {

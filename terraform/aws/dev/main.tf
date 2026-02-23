@@ -163,6 +163,7 @@ module "media" {
   domain_name    = var.domain_name
   hosted_zone_id = var.hosted_zone_id
   app_runner_url = replace(module.app_runner.service_url, "https://", "")
+  kms_key_arn    = module.security.kms_key_arn
 
   tags = var.tags
 }
@@ -185,7 +186,7 @@ module "data_ingest" {
   nist_schedule  = "rate(24 hours)"
   space_schedule = "rate(24 hours)"
 
-  enable_point_in_time_recovery = false
+  enable_point_in_time_recovery = true
   enable_embed_sync             = false
   log_retention_days            = var.log_retention_days
 

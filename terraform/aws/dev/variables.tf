@@ -184,7 +184,7 @@ variable "alarm_email" {
 variable "log_retention_days" {
   description = "Log retention in days"
   type        = number
-  default     = 30
+  default     = 365
 }
 
 # ================================================================

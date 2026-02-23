@@ -29,18 +29,11 @@ uv run pre-commit run --all-files      # run everything once
 | `detect-private-key` | Block accidental key commits |
 | `mixed-line-ending` | Normalize to LF line endings |
 
-### Python Formatting
-
-| Hook | Version | Config |
-|------|---------|--------|
-| [black](https://black.readthedocs.io/) | 26.1.0 | `--line-length=88` |
-| [isort](https://pycqa.github.io/isort/) | 5.13.2 | `--profile black` |
-
-### Python Linting
+### Python Formatting + Linting
 
 | Hook | Version | Notes |
 |------|---------|-------|
-| [flake8](https://flake8.pycqa.org/) | 7.0.0 | 88-char line length; E501 exempted for `tools/update_readme.py` (markdown template); D-series docstring rules ignored project-wide |
+| [ruff](https://docs.astral.sh/ruff/) | 0.14.4 | Lint (`--fix`) + format + import sorting; config in `pyproject.toml` |
 | [pylint](https://pylint.readthedocs.io/) | 3.2.6 | Errors only (`--errors-only`), config in `.pylintrc` |
 | [mypy](https://mypy.readthedocs.io/) | 1.8.0 | Type-checks `fitness/constants.py`; missing imports ignored |
 
@@ -65,6 +58,7 @@ uv run pre-commit run --all-files      # run everything once
 | `terraform_fmt` | Canonical formatting for all `.tf` files |
 | `terraform_validate` | Syntax validation (excludes `dev/`, `prod/`, `bootstrap/` roots) |
 | `terraform_tflint` | Naming conventions, deprecated interpolation, unused declarations |
+| `terraform_checkov` | Checkov security scan; config in `.checkov.yml` (shared with CI) |
 
 ### Custom Local Hooks
 
@@ -74,14 +68,14 @@ uv run pre-commit run --all-files      # run everything once
 | `security-reports` | All commits | Generate security audit reports via `tools/generate-security-reports.py` |
 | `check-dry` | Python files | DRY enforcement scoped to `fitness/` (functions-only mode) |
 | `update-readme` | `docs/**/*.md`, `tests/README.md`, `tools/update_readme.py`, `coverage.json` | Regenerate `README.md` from template |
+| `pytest` | Python files | Run test suite (no coverage, strict markers) |
 
 ## Design Decisions
 
-- **Shift left:** Lint, format, and security scan at commit time. CI runs integration
-  tests and deployment only, avoiding duplicate checks.
-- **E501 per-file-ignores:** `tools/update_readme.py` contains a markdown f-string
-  template with long table rows. Line length is enforced everywhere else via flake8
-  and black (88-char limit).
+- **Shift left:** Lint, format, security scan, and Checkov IaC analysis at commit time.
+  CI runs integration tests and deployment only, avoiding duplicate checks.
+- **Checkov shared config:** `.checkov.yml` is used by both the pre-commit hook and
+  GitHub Actions (`worf.yml`), keeping skip lists consistent across local and CI.
 - **DRY scoped to `fitness/`:** Test files have natural duplication (fixtures, assertions)
   that would trigger false positives. The `--path fitness` flag excludes tests.
 - **`unset VIRTUAL_ENV`:** Local hooks that invoke `uv run` unset this variable to
@@ -93,7 +87,7 @@ uv run pre-commit run --all-files      # run everything once
 
 | File | Purpose |
 |------|---------|
-| `.flake8` | Flake8 config (line length, ignores, per-file-ignores, complexity) |
+| `.checkov.yml` | Checkov skip list and framework config (shared with CI) |
 | `.pylintrc` | Pylint config |
 | `.markdownlint.yml` | Markdownlint rules |
-| `pyproject.toml` | Bandit config (`[tool.bandit]` section) |
+| `pyproject.toml` | Ruff and Bandit config (`[tool.ruff]`, `[tool.bandit]` sections) |

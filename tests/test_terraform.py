@@ -78,10 +78,9 @@ def test_txt_records_have_single_value():
                 f"(each TXT record must be a separate resource)"
             )
 
-    assert (
-        not violations
-    ), "TXT records must not combine multiple values:\n" + "\n".join(
-        f"  - {v}" for v in violations
+    assert not violations, (
+        "TXT records must not combine multiple values:\n"
+        + "\n".join(f"  - {v}" for v in violations)
     )
 
 
@@ -168,9 +167,9 @@ def test_media_cloudfront_https_only():
     content = MEDIA_MODULE.read_text()
 
     policies = re.findall(r'viewer_protocol_policy\s*=\s*"([^"]+)"', content)
-    assert (
-        len(policies) > 0
-    ), "No viewer_protocol_policy found in CloudFront distribution"
+    assert len(policies) > 0, (
+        "No viewer_protocol_policy found in CloudFront distribution"
+    )
     for policy in policies:
         assert policy == "redirect-to-https", (
             f"CloudFront viewer_protocol_policy is '{policy}' — "
@@ -207,9 +206,9 @@ def test_apprunner_egress_no_unrestricted():
     principle of least privilege. Only HTTPS (443/tcp) and DNS
     (53/udp, 53/tcp) should be permitted.
     """
-    assert (
-        APP_RUNNER_MODULE.exists()
-    ), f"App Runner module not found at {APP_RUNNER_MODULE}"
+    assert APP_RUNNER_MODULE.exists(), (
+        f"App Runner module not found at {APP_RUNNER_MODULE}"
+    )
     content = APP_RUNNER_MODULE.read_text()
 
     # Look for protocol = "-1" inside security group egress blocks
@@ -225,9 +224,9 @@ def test_apprunner_media_s3_policy_no_delete():
     The application should only upload (PutObject) and read (GetObject)
     media. Deletion is restricted to lifecycle rules and admin console.
     """
-    assert (
-        APP_RUNNER_MODULE.exists()
-    ), f"App Runner module not found at {APP_RUNNER_MODULE}"
+    assert APP_RUNNER_MODULE.exists(), (
+        f"App Runner module not found at {APP_RUNNER_MODULE}"
+    )
     content = APP_RUNNER_MODULE.read_text()
 
     # Extract the apprunner_media_s3 policy block
@@ -267,9 +266,9 @@ def test_bootstrap_s3_scoped_to_project_prefix():
     buckets in the account. The policy must use '${var.project}-*'
     to limit scope to project-owned buckets only.
     """
-    assert (
-        BOOTSTRAP_MODULE.exists()
-    ), f"Bootstrap module not found at {BOOTSTRAP_MODULE}"
+    assert BOOTSTRAP_MODULE.exists(), (
+        f"Bootstrap module not found at {BOOTSTRAP_MODULE}"
+    )
     content = BOOTSTRAP_MODULE.read_text()
 
     # Find the S3Buckets statement in tfc_governance policy
@@ -300,9 +299,9 @@ def test_bootstrap_kms_has_viaservice_condition():
     only be allowed when invoked via specific AWS services, preventing
     direct KMS API abuse.
     """
-    assert (
-        BOOTSTRAP_MODULE.exists()
-    ), f"Bootstrap module not found at {BOOTSTRAP_MODULE}"
+    assert BOOTSTRAP_MODULE.exists(), (
+        f"Bootstrap module not found at {BOOTSTRAP_MODULE}"
+    )
     content = BOOTSTRAP_MODULE.read_text()
 
     # Find the KMSEncryption statement

@@ -22,9 +22,15 @@ variable "kms_key_arn" {
 # ================================================================
 
 variable "enable_point_in_time_recovery" {
-  description = "Enable DynamoDB point-in-time recovery (recommended for prod)"
+  description = "Enable DynamoDB point-in-time recovery"
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "lambda_reserved_concurrency" {
+  description = "Reserved concurrent executions per Lambda function"
+  type        = number
+  default     = 5
 }
 
 # ================================================================
@@ -128,7 +134,7 @@ variable "azure_search_key" {
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
-  default     = 30
+  default     = 365
 }
 
 # ================================================================

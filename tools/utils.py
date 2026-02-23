@@ -101,14 +101,12 @@ def run_command(
         command_list = list(command)
 
     try:
-        result = (
-            subprocess.run(  # nosec B603 - commands constructed from trusted inputs
-                command_list,
-                capture_output=capture_output,
-                text=True,
-                check=check,
-                cwd=cwd,
-            )
+        result = subprocess.run(  # nosec B603 - commands constructed from trusted inputs
+            command_list,
+            capture_output=capture_output,
+            text=True,
+            check=check,
+            cwd=cwd,
         )
         return result
     except subprocess.CalledProcessError as e:

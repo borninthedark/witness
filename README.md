@@ -157,9 +157,9 @@ graph LR
 |--------|--------------|
 | **networking** | VPC (3 AZ), public/private subnets, NAT Gateway, S3 gateway endpoint, interface endpoints (prod) |
 | **security** | KMS CMK, CloudTrail, Config + managed rules, GuardDuty, Security Hub (prod), SNS alarm topic, budget alerts |
-| **app-runner** | ECR repo, Secrets Manager, App Runner service + VPC connector, WAFv2 (3 rule groups), X-Ray group |
+| **app-runner** | ECR repo, Secrets Manager + 45-day rotation Lambda, App Runner service + VPC connector, WAFv2 (3 rule groups), X-Ray group |
 | **dns** | Route 53 A/CNAME/TXT/MX records, App Runner custom domain + ACM validation, ProtonMail SPF/DKIM/MX |
-| **media** | S3 media bucket, CloudFront distribution (dual-origin with OAC), ACM certificate, Route 53 alias |
+| **media** | S3 media bucket, CloudFront distribution (dual-origin with OAC), WAFv2 + security headers, ACM certificate, Route 53 alias |
 | **observability** | CloudWatch log groups, metric alarms (5xx, latency, CPU), dashboard, SNS integration |
 
 ### Well-Architected Alignment
@@ -181,7 +181,7 @@ The infrastructure follows [AWS Well-Architected Framework](https://docs.aws.ama
 | **App Runner** | ~$28 | ~$112 | Provisioned instances: dev 1x 0.5 vCPU/1 GB, prod 2x 1 vCPU/2 GB |
 | **NAT Gateway** | ~$34 | ~$68 | $0.045/hr + data; dev 1x, prod 2x (per-AZ HA) |
 | **VPC Interface Endpoints** | $0 | ~$28 | Prod only: secretsmanager, ecr.api, ecr.dkr, logs |
-| **WAFv2** | ~$7 | ~$7 | 1 web ACL ($5) + 3 managed rule groups |
+| **WAFv2** | ~$7 | ~$14 | App Runner ACL + CDN ACL (when media enabled); 5 managed rule groups |
 | **GuardDuty** | ~$5 | ~$10 | Event-based pricing; S3 data events in prod |
 | **Security Hub** | $0 | ~$10 | Prod only |
 | **Config Rules** | $0 | ~$2 | Prod only: 4 managed rules |
@@ -191,13 +191,16 @@ The infrastructure follows [AWS Well-Architected Framework](https://docs.aws.ama
 | **Route 53** | ~$1 | ~$1 | 1 hosted zone + queries (shared) |
 | **S3** | ~$1 | ~$2 | Media storage + CloudTrail logs; IA transition at 90d |
 | **ECR** | ~$1 | ~$1 | Lifecycle: keep 10 tagged, expire untagged at 7d |
-| **Secrets Manager** | $0.40 | $0.40 | 1 secret per environment |
+| **Secrets Manager** | $0.40 | $0.40 | 1 secret + 45-day rotation Lambda (free tier) |
 | **CloudFront** | ~$1 | ~$3 | 1 distribution per env; PriceClass_100 |
+| **Lambda** | $0 | $0 | Rotation + ingest functions; well within free tier |
+| **DynamoDB** | $0 | <$1 | PAY_PER_REQUEST; data ingest (when enabled) |
+| **EventBridge** | $0 | $0 | Scheduler free tier; 3 ingest schedules (when enabled) |
 | **SNS** | <$1 | <$1 | Alarm notifications |
-| | **~$86** | **~$260** | |
+| | **~$86** | **~$267** | |
 
-Estimated combined (both environments): **~$346/month**.
-Current spend (dev only): **~$86/month**.
+Estimated combined (both environments): **~$353/month**.
+Current spend (dev only): **~$86/month** (media + data ingest disabled).
 
 ## CI/CD Pipelines
 
@@ -353,7 +356,7 @@ uv run pytest -n auto          # parallel execution
 uv run pytest --cov-report=html  # HTML coverage report
 ```
 
-Test structure: `tests/security/`, `tests/routers/`, `tests/test_media.py`, `tests/test_schemas.py`, `tests/test_middleware.py`, `tests/test_utils.py`, `tests/test_integration.py`, `tests/test_smoke.py`. Coverage floor enforced at 71% (`fail_under` in pyproject.toml and CI).
+Test structure: `tests/security/`, `tests/routers/`, `tests/test_media.py`, `tests/test_schemas.py`, `tests/test_middleware.py`, `tests/test_utils.py`, `tests/test_integration.py`, `tests/test_smoke.py`. Coverage floor enforced at 73% (`fail_under` in pyproject.toml and CI).
 
 Coverage is reported to [Codecov](https://codecov.io/github/borninthedark/witness) on every CI run via `codecov/codecov-action@v5`.
 Configuration lives in `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.coverage.*]`) and `codecov.yml`.

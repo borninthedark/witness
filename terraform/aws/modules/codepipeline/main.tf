@@ -112,6 +112,22 @@ resource "aws_iam_role_policy" "codebuild" {
   })
 }
 
+resource "aws_cloudwatch_log_group" "codebuild_validate" {
+  name              = "/aws/codebuild/${var.project}-${var.environment}-tf-validate"
+  retention_in_days = 365
+  kms_key_id        = var.kms_key_arn
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "codebuild_plan" {
+  name              = "/aws/codebuild/${var.project}-${var.environment}-tf-plan"
+  retention_in_days = 365
+  kms_key_id        = var.kms_key_arn
+
+  tags = var.tags
+}
+
 resource "aws_codebuild_project" "validate" {
   name          = "${var.project}-${var.environment}-tf-validate"
   description   = "Terraform validation for ${var.project} ${var.environment}"
@@ -137,6 +153,13 @@ resource "aws_codebuild_project" "validate" {
     environment_variable {
       name  = "ENVIRONMENT"
       value = var.environment
+    }
+  }
+
+  logs_config {
+    cloudwatch_logs {
+      group_name = aws_cloudwatch_log_group.codebuild_validate.name
+      status     = "ENABLED"
     }
   }
 
@@ -175,6 +198,13 @@ resource "aws_codebuild_project" "plan" {
     environment_variable {
       name  = "ENVIRONMENT"
       value = var.environment
+    }
+  }
+
+  logs_config {
+    cloudwatch_logs {
+      group_name = aws_cloudwatch_log_group.codebuild_plan.name
+      status     = "ENABLED"
     }
   }
 

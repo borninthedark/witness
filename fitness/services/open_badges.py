@@ -84,7 +84,8 @@ async def fetch_open_badges_assertion(url: str) -> BadgePreview:
     if isinstance(evidence, list):
         # typing note: evidence entries can be dicts or strings
         evidence_urls = [
-            str(item.get("id", item)) for item in evidence  # type: ignore[assignment]
+            str(item.get("id", item))
+            for item in evidence  # type: ignore[assignment]
         ]
     elif isinstance(evidence, str):
         evidence_urls = [evidence]

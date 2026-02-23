@@ -67,6 +67,9 @@ resource "aws_iam_role" "tfc" {
 # ================================================================
 
 resource "aws_iam_policy" "tfc_core" {
+  #checkov:skip=CKV_AWS_355:Terraform provisioning role — EC2/VPC and KMS resources use AWS-assigned IDs that cannot be predicted at policy creation time; constrained by OIDC workspace trust
+  #checkov:skip=CKV_AWS_290:Terraform provisioning role — VPC/KMS infrastructure creation requires write access to AWS-assigned resources; constrained by OIDC workspace trust
+  #checkov:skip=CKV_AWS_289:Terraform provisioning role — KMS key policy management requires * resource (AWS-assigned key IDs); constrained by OIDC workspace trust
   name        = "${var.project}-tfc-oidc-core"
   description = "Core infrastructure permissions for HCP Terraform OIDC workspaces"
 
@@ -74,7 +77,7 @@ resource "aws_iam_policy" "tfc_core" {
     Version = "2012-10-17"
     Statement = [
       # ----------------------------------------------------------
-      # EC2 / VPC
+      # EC2 / VPC — AWS-assigned IDs, cannot be resource-scoped
       # ----------------------------------------------------------
       {
         Sid    = "VPC"
@@ -126,13 +129,20 @@ resource "aws_iam_policy" "tfc_core" {
       # App Runner
       # ----------------------------------------------------------
       {
-        Sid    = "AppRunner"
+        Sid    = "AppRunnerRead"
+        Effect = "Allow"
+        Action = [
+          "apprunner:Describe*",
+          "apprunner:List*",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AppRunnerWrite"
         Effect = "Allow"
         Action = [
           "apprunner:Create*",
           "apprunner:Delete*",
-          "apprunner:Describe*",
-          "apprunner:List*",
           "apprunner:Update*",
           "apprunner:TagResource",
           "apprunner:UntagResource",
@@ -141,37 +151,42 @@ resource "aws_iam_policy" "tfc_core" {
           "apprunner:AssociateWebAcl",
           "apprunner:DisassociateWebAcl",
         ]
-        Resource = "*"
+        Resource = "arn:aws:apprunner:${var.aws_region}:*:*"
       },
 
       # ----------------------------------------------------------
-      # ECR
+      # ECR (scoped to project-prefixed repositories)
       # ----------------------------------------------------------
       {
-        Sid    = "ECR"
+        Sid    = "ECRRead"
+        Effect = "Allow"
+        Action = [
+          "ecr:Describe*",
+          "ecr:Get*",
+          "ecr:List*",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECRWrite"
         Effect = "Allow"
         Action = [
           "ecr:CreateRepository",
           "ecr:DeleteRepository",
-          "ecr:Describe*",
-          "ecr:Get*",
-          "ecr:List*",
           "ecr:SetRepositoryPolicy",
           "ecr:DeleteRepositoryPolicy",
           "ecr:PutLifecyclePolicy",
           "ecr:DeleteLifecyclePolicy",
-          "ecr:GetLifecyclePolicy",
-          "ecr:GetLifecyclePolicyPreview",
           "ecr:TagResource",
           "ecr:UntagResource",
           "ecr:PutImageScanningConfiguration",
           "ecr:PutImageTagMutability",
         ]
-        Resource = "*"
+        Resource = "arn:aws:ecr:${var.aws_region}:*:repository/${var.project}-*"
       },
 
       # ----------------------------------------------------------
-      # KMS — management operations (no data-plane condition)
+      # KMS — management (AWS-assigned key IDs, cannot scope)
       # ----------------------------------------------------------
       {
         Sid    = "KMSManagement"
@@ -221,17 +236,30 @@ resource "aws_iam_policy" "tfc_core" {
       },
 
       # ----------------------------------------------------------
-      # Secrets Manager
+      # Secrets Manager (scoped to project-prefixed secrets)
       # ----------------------------------------------------------
       {
-        Sid    = "SecretsManager"
+        Sid      = "SecretsManagerList"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:ListSecrets"]
+        Resource = "*"
+      },
+      {
+        Sid    = "SecretsManagerRead"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:GetResourcePolicy",
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}-*"
+      },
+      {
+        Sid    = "SecretsManagerWrite"
         Effect = "Allow"
         Action = [
           "secretsmanager:CreateSecret",
           "secretsmanager:DeleteSecret",
-          "secretsmanager:Describe*",
-          "secretsmanager:Get*",
-          "secretsmanager:List*",
           "secretsmanager:PutSecretValue",
           "secretsmanager:UpdateSecret",
           "secretsmanager:TagResource",
@@ -239,13 +267,14 @@ resource "aws_iam_policy" "tfc_core" {
           "secretsmanager:RestoreSecret",
           "secretsmanager:PutResourcePolicy",
           "secretsmanager:DeleteResourcePolicy",
-          "secretsmanager:GetResourcePolicy",
         ]
-        Resource = "*"
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}-*"
       },
 
       # ----------------------------------------------------------
       # CloudWatch Logs + Metrics + Dashboards + Alarms
+      # Log group names vary (/aws/apprunner/*, /aws/lambda/*)
+      # so cannot be project-scoped.
       # ----------------------------------------------------------
       {
         Sid    = "CloudWatch"
@@ -281,7 +310,7 @@ resource "aws_iam_policy" "tfc_core" {
       },
 
       # ----------------------------------------------------------
-      # Route 53 (DNS records + domain registration)
+      # Route 53 — AWS-assigned zone IDs, cannot be scoped
       # ----------------------------------------------------------
       {
         Sid    = "Route53"
@@ -317,6 +346,8 @@ resource "aws_iam_policy" "tfc_core" {
 }
 
 resource "aws_iam_policy" "tfc_governance" {
+  #checkov:skip=CKV_AWS_355:Terraform provisioning role — Config recorder and CodeStar connections use AWS-assigned IDs; constrained by OIDC workspace trust
+  #checkov:skip=CKV_AWS_290:Terraform provisioning role — Config and CodeStar write ops require * for AWS-singleton resources; constrained by OIDC workspace trust
   name        = "${var.project}-tfc-oidc-governance"
   description = "Governance and CI/CD permissions for HCP Terraform OIDC workspaces"
 
@@ -324,17 +355,24 @@ resource "aws_iam_policy" "tfc_governance" {
     Version = "2012-10-17"
     Statement = [
       # ----------------------------------------------------------
-      # CloudTrail
+      # CloudTrail (scoped to project-prefixed trails)
       # ----------------------------------------------------------
       {
-        Sid    = "CloudTrail"
+        Sid    = "CloudTrailRead"
+        Effect = "Allow"
+        Action = [
+          "cloudtrail:Describe*",
+          "cloudtrail:Get*",
+          "cloudtrail:List*",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CloudTrailWrite"
         Effect = "Allow"
         Action = [
           "cloudtrail:CreateTrail",
           "cloudtrail:DeleteTrail",
-          "cloudtrail:Describe*",
-          "cloudtrail:Get*",
-          "cloudtrail:List*",
           "cloudtrail:PutEventSelectors",
           "cloudtrail:StartLogging",
           "cloudtrail:StopLogging",
@@ -342,15 +380,11 @@ resource "aws_iam_policy" "tfc_governance" {
           "cloudtrail:AddTags",
           "cloudtrail:RemoveTags",
         ]
-        Resource = "*"
+        Resource = "arn:aws:cloudtrail:${var.aws_region}:*:trail/${var.project}-*"
       },
 
       # ----------------------------------------------------------
-      # S3 (CloudTrail bucket, pipeline artifacts, media)
-      # Scoped to arn:aws:s3:::witness-* — only buckets prefixed
-      # with the project name can be created/modified/deleted.
-      # Prevents accidental or malicious operations on unrelated
-      # buckets in the account.
+      # S3 (scoped to project-prefixed buckets)
       # ----------------------------------------------------------
       {
         Sid    = "S3Buckets"
@@ -385,7 +419,7 @@ resource "aws_iam_policy" "tfc_governance" {
       },
 
       # ----------------------------------------------------------
-      # AWS Config
+      # AWS Config — singleton recorder/channel, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "Config"
@@ -406,46 +440,60 @@ resource "aws_iam_policy" "tfc_governance" {
       },
 
       # ----------------------------------------------------------
-      # CodePipeline
+      # CodePipeline (scoped to project-prefixed pipelines)
       # ----------------------------------------------------------
       {
-        Sid    = "CodePipeline"
+        Sid    = "CodePipelineRead"
         Effect = "Allow"
         Action = [
-          "codepipeline:CreatePipeline",
-          "codepipeline:DeletePipeline",
           "codepipeline:GetPipeline",
           "codepipeline:GetPipelineState",
           "codepipeline:ListPipelines",
-          "codepipeline:UpdatePipeline",
-          "codepipeline:TagResource",
-          "codepipeline:UntagResource",
           "codepipeline:ListTagsForResource",
         ]
         Resource = "*"
       },
+      {
+        Sid    = "CodePipelineWrite"
+        Effect = "Allow"
+        Action = [
+          "codepipeline:CreatePipeline",
+          "codepipeline:DeletePipeline",
+          "codepipeline:UpdatePipeline",
+          "codepipeline:TagResource",
+          "codepipeline:UntagResource",
+        ]
+        Resource = "arn:aws:codepipeline:${var.aws_region}:*:${var.project}-*"
+      },
 
       # ----------------------------------------------------------
-      # CodeBuild
+      # CodeBuild (scoped to project-prefixed projects)
       # ----------------------------------------------------------
       {
-        Sid    = "CodeBuild"
+        Sid    = "CodeBuildRead"
+        Effect = "Allow"
+        Action = [
+          "codebuild:BatchGetProjects",
+          "codebuild:ListProjects",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CodeBuildWrite"
         Effect = "Allow"
         Action = [
           "codebuild:CreateProject",
           "codebuild:DeleteProject",
           "codebuild:UpdateProject",
-          "codebuild:BatchGetProjects",
-          "codebuild:ListProjects",
           "codebuild:CreateWebhook",
           "codebuild:DeleteWebhook",
           "codebuild:UpdateWebhook",
         ]
-        Resource = "*"
+        Resource = "arn:aws:codebuild:${var.aws_region}:*:project/${var.project}-*"
       },
 
       # ----------------------------------------------------------
-      # CodeStar Connections
+      # CodeStar Connections — AWS-assigned UUIDs, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "CodeStarConnections"
@@ -465,27 +513,37 @@ resource "aws_iam_policy" "tfc_governance" {
       },
 
       # ----------------------------------------------------------
-      # IAM (enumerated, no iam:*)
+      # IAM (scoped to project-prefixed roles/policies + SLRs)
       # ----------------------------------------------------------
       {
-        Sid    = "IAM"
+        Sid    = "IAMRead"
+        Effect = "Allow"
+        Action = [
+          "iam:GetRole",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListInstanceProfilesForRole",
+          "iam:ListPolicyVersions",
+          "iam:ListRoleTags",
+          "iam:GetServiceLinkedRoleDeletionStatus",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "IAMWrite"
         Effect = "Allow"
         Action = [
           "iam:CreateRole",
           "iam:DeleteRole",
-          "iam:GetRole",
-          "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies",
-          "iam:ListInstanceProfilesForRole",
           "iam:UpdateAssumeRolePolicy",
           "iam:PassRole",
           "iam:TagRole",
           "iam:UntagRole",
           "iam:CreatePolicy",
           "iam:DeletePolicy",
-          "iam:GetPolicy",
-          "iam:GetPolicyVersion",
-          "iam:ListPolicyVersions",
           "iam:CreatePolicyVersion",
           "iam:DeletePolicyVersion",
           "iam:TagPolicy",
@@ -494,19 +552,29 @@ resource "aws_iam_policy" "tfc_governance" {
           "iam:DetachRolePolicy",
           "iam:PutRolePolicy",
           "iam:DeleteRolePolicy",
-          "iam:GetRolePolicy",
+        ]
+        Resource = [
+          "arn:aws:iam::*:role/${var.project}-*",
+          "arn:aws:iam::*:policy/${var.project}-*",
+        ]
+      },
+      {
+        Sid    = "IAMServiceLinkedRoles"
+        Effect = "Allow"
+        Action = [
           "iam:CreateServiceLinkedRole",
           "iam:DeleteServiceLinkedRole",
-          "iam:GetServiceLinkedRoleDeletionStatus",
-          "iam:ListRoleTags",
         ]
-        Resource = "*"
+        Resource = "arn:aws:iam::*:role/aws-service-role/*"
       },
     ]
   })
 }
 
 resource "aws_iam_policy" "tfc_wellarchitected" {
+  #checkov:skip=CKV_AWS_355:Terraform provisioning role — VPC endpoints, WAF, GuardDuty, SecurityHub, CloudFront, and ACM use AWS-assigned IDs; constrained by OIDC workspace trust
+  #checkov:skip=CKV_AWS_290:Terraform provisioning role — security services require write access to AWS-assigned resources for initial provisioning; constrained by OIDC workspace trust
+  #checkov:skip=CKV_AWS_289:Terraform provisioning role — SNS/WAF resource association required for alarm routing and WAF attachment; constrained by OIDC workspace trust
   name        = "${var.project}-tfc-oidc-wellarchitected"
   description = "WAF/LZA security services for HCP Terraform OIDC workspaces"
 
@@ -514,7 +582,7 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
     Version = "2012-10-17"
     Statement = [
       # ----------------------------------------------------------
-      # VPC Endpoints
+      # VPC Endpoints — AWS-assigned IDs, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "VPCEndpoints"
@@ -530,29 +598,36 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
       },
 
       # ----------------------------------------------------------
-      # SNS (alarm notifications)
+      # SNS (scoped to project-prefixed topics)
       # ----------------------------------------------------------
       {
-        Sid    = "SNS"
+        Sid    = "SNSRead"
         Effect = "Allow"
         Action = [
-          "sns:CreateTopic",
-          "sns:DeleteTopic",
           "sns:GetTopicAttributes",
-          "sns:SetTopicAttributes",
           "sns:ListTopics",
-          "sns:Subscribe",
-          "sns:Unsubscribe",
           "sns:ListSubscriptionsByTopic",
-          "sns:TagResource",
-          "sns:UntagResource",
           "sns:ListTagsForResource",
         ]
         Resource = "*"
       },
+      {
+        Sid    = "SNSWrite"
+        Effect = "Allow"
+        Action = [
+          "sns:CreateTopic",
+          "sns:DeleteTopic",
+          "sns:SetTopicAttributes",
+          "sns:Subscribe",
+          "sns:Unsubscribe",
+          "sns:TagResource",
+          "sns:UntagResource",
+        ]
+        Resource = "arn:aws:sns:${var.aws_region}:*:${var.project}-*"
+      },
 
       # ----------------------------------------------------------
-      # WAFv2
+      # WAFv2 — AWS-assigned ACL IDs, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "WAFv2"
@@ -574,7 +649,7 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
       },
 
       # ----------------------------------------------------------
-      # GuardDuty
+      # GuardDuty — AWS-assigned detector IDs, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "GuardDuty"
@@ -593,7 +668,7 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
       },
 
       # ----------------------------------------------------------
-      # Security Hub
+      # Security Hub — account-level service, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "SecurityHub"
@@ -615,7 +690,7 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
       },
 
       # ----------------------------------------------------------
-      # Budgets
+      # Budgets — account-level service, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "Budgets"
@@ -646,7 +721,7 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
       },
 
       # ----------------------------------------------------------
-      # CloudFront (media CDN)
+      # CloudFront — AWS-assigned distribution IDs, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "CloudFront"
@@ -674,7 +749,7 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
       },
 
       # ----------------------------------------------------------
-      # ACM (CDN certificates)
+      # ACM — AWS-assigned certificate ARNs, cannot scope
       # ----------------------------------------------------------
       {
         Sid    = "ACM"
@@ -711,6 +786,7 @@ resource "aws_iam_role_policy_attachment" "tfc_wellarchitected" {
 }
 
 resource "aws_iam_policy" "tfc_serverless" {
+  #checkov:skip=CKV_AWS_355:Terraform provisioning role — Lambda/DynamoDB/Scheduler read (Get/List) actions require * for plan-phase state reads; write actions scoped to project prefix
   name        = "${var.project}-tfc-oidc-serverless"
   description = "Serverless (Lambda, DynamoDB, EventBridge) permissions for HCP Terraform OIDC"
 
@@ -718,84 +794,124 @@ resource "aws_iam_policy" "tfc_serverless" {
     Version = "2012-10-17"
     Statement = [
       # ----------------------------------------------------------
-      # Lambda
+      # Lambda — read-only (list/describe/get)
       # ----------------------------------------------------------
       {
-        Sid    = "Lambda"
+        Sid    = "LambdaRead"
         Effect = "Allow"
         Action = [
-          "lambda:CreateFunction",
-          "lambda:DeleteFunction",
           "lambda:GetFunction",
           "lambda:GetFunctionConfiguration",
-          "lambda:UpdateFunctionCode",
-          "lambda:UpdateFunctionConfiguration",
+          "lambda:GetLayerVersion",
+          "lambda:GetPolicy",
+          "lambda:GetEventSourceMapping",
           "lambda:ListFunctions",
           "lambda:ListVersionsByFunction",
-          "lambda:PublishLayerVersion",
-          "lambda:GetLayerVersion",
-          "lambda:DeleteLayerVersion",
           "lambda:ListLayers",
-          "lambda:AddPermission",
-          "lambda:RemovePermission",
-          "lambda:GetPolicy",
-          "lambda:TagResource",
-          "lambda:UntagResource",
           "lambda:ListTags",
-          "lambda:CreateEventSourceMapping",
-          "lambda:DeleteEventSourceMapping",
-          "lambda:GetEventSourceMapping",
-          "lambda:UpdateEventSourceMapping",
           "lambda:ListEventSourceMappings",
         ]
         Resource = "*"
       },
 
       # ----------------------------------------------------------
-      # DynamoDB
+      # Lambda — write (scoped to project prefix)
       # ----------------------------------------------------------
       {
-        Sid    = "DynamoDB"
+        Sid    = "LambdaWrite"
         Effect = "Allow"
         Action = [
-          "dynamodb:CreateTable",
-          "dynamodb:DeleteTable",
+          "lambda:CreateFunction",
+          "lambda:DeleteFunction",
+          "lambda:UpdateFunctionCode",
+          "lambda:UpdateFunctionConfiguration",
+          "lambda:PublishLayerVersion",
+          "lambda:DeleteLayerVersion",
+          "lambda:AddPermission",
+          "lambda:RemovePermission",
+          "lambda:TagResource",
+          "lambda:UntagResource",
+          "lambda:CreateEventSourceMapping",
+          "lambda:DeleteEventSourceMapping",
+          "lambda:UpdateEventSourceMapping",
+        ]
+        Resource = [
+          "arn:aws:lambda:${var.aws_region}:*:function:${var.project}-*",
+          "arn:aws:lambda:${var.aws_region}:*:layer:${var.project}-*",
+          "arn:aws:lambda:${var.aws_region}:*:event-source-mapping:*",
+        ]
+      },
+
+      # ----------------------------------------------------------
+      # DynamoDB — read-only
+      # ----------------------------------------------------------
+      {
+        Sid    = "DynamoDBRead"
+        Effect = "Allow"
+        Action = [
           "dynamodb:DescribeTable",
           "dynamodb:DescribeContinuousBackups",
           "dynamodb:DescribeTimeToLive",
+          "dynamodb:DescribeKinesisStreamingDestination",
           "dynamodb:ListTables",
           "dynamodb:ListTagsOfResource",
-          "dynamodb:UpdateTable",
-          "dynamodb:UpdateContinuousBackups",
-          "dynamodb:UpdateTimeToLive",
-          "dynamodb:TagResource",
-          "dynamodb:UntagResource",
-          "dynamodb:DescribeKinesisStreamingDestination",
         ]
         Resource = "*"
       },
 
       # ----------------------------------------------------------
-      # EventBridge Scheduler
+      # DynamoDB — write (scoped to project prefix)
       # ----------------------------------------------------------
       {
-        Sid    = "Scheduler"
+        Sid    = "DynamoDBWrite"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:CreateTable",
+          "dynamodb:DeleteTable",
+          "dynamodb:UpdateTable",
+          "dynamodb:UpdateContinuousBackups",
+          "dynamodb:UpdateTimeToLive",
+          "dynamodb:TagResource",
+          "dynamodb:UntagResource",
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:*:table/${var.project}-*"
+      },
+
+      # ----------------------------------------------------------
+      # EventBridge Scheduler — read-only
+      # ----------------------------------------------------------
+      {
+        Sid    = "SchedulerRead"
+        Effect = "Allow"
+        Action = [
+          "scheduler:GetSchedule",
+          "scheduler:GetScheduleGroup",
+          "scheduler:ListSchedules",
+          "scheduler:ListScheduleGroups",
+          "scheduler:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+
+      # ----------------------------------------------------------
+      # EventBridge Scheduler — write (scoped to project prefix)
+      # ----------------------------------------------------------
+      {
+        Sid    = "SchedulerWrite"
         Effect = "Allow"
         Action = [
           "scheduler:CreateSchedule",
           "scheduler:DeleteSchedule",
-          "scheduler:GetSchedule",
           "scheduler:UpdateSchedule",
-          "scheduler:ListSchedules",
           "scheduler:CreateScheduleGroup",
           "scheduler:DeleteScheduleGroup",
-          "scheduler:GetScheduleGroup",
-          "scheduler:ListScheduleGroups",
           "scheduler:TagResource",
           "scheduler:UntagResource",
-          "scheduler:ListTagsForResource",
         ]
-        Resource = "*"
+        Resource = [
+          "arn:aws:scheduler:${var.aws_region}:*:schedule/${var.project}-*/*",
+          "arn:aws:scheduler:${var.aws_region}:*:schedule-group/${var.project}-*",
+        ]
       },
     ]
   })

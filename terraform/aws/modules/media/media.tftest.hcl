@@ -91,6 +91,7 @@ run "bucket_name_follows_convention" {
     domain_name    = "princetonstrong.com"
     hosted_zone_id = "Z0123456789"
     app_runner_url = "abc123.us-east-1.awsapprunner.com"
+    kms_key_arn    = "arn:aws:kms:us-east-1:123456789012:key/mock-key-id"
   }
 
   assert {
@@ -108,6 +109,7 @@ run "cdn_domain_uses_media_prefix" {
     domain_name    = "princetonstrong.com"
     hosted_zone_id = "Z0123456789"
     app_runner_url = "abc123.us-east-1.awsapprunner.com"
+    kms_key_arn    = "arn:aws:kms:us-east-1:123456789012:key/mock-key-id"
   }
 
   assert {
@@ -125,6 +127,7 @@ run "acm_cert_matches_cdn_domain" {
     domain_name    = "princetonstrong.com"
     hosted_zone_id = "Z0123456789"
     app_runner_url = "abc123.us-east-1.awsapprunner.com"
+    kms_key_arn    = "arn:aws:kms:us-east-1:123456789012:key/mock-key-id"
   }
 
   assert {
@@ -147,6 +150,7 @@ run "cloudfront_oac_uses_sigv4" {
     domain_name    = "princetonstrong.com"
     hosted_zone_id = "Z0123456789"
     app_runner_url = "abc123.us-east-1.awsapprunner.com"
+    kms_key_arn    = "arn:aws:kms:us-east-1:123456789012:key/mock-key-id"
   }
 
   assert {
@@ -169,6 +173,7 @@ run "cloudfront_https_and_tls" {
     domain_name    = "princetonstrong.com"
     hosted_zone_id = "Z0123456789"
     app_runner_url = "abc123.us-east-1.awsapprunner.com"
+    kms_key_arn    = "arn:aws:kms:us-east-1:123456789012:key/mock-key-id"
   }
 
   assert {

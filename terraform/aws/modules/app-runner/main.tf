@@ -72,6 +72,159 @@ resource "aws_secretsmanager_secret_version" "app" {
     SECRET_KEY   = var.secret_key
     DATABASE_URL = var.database_url
   })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+# ================================================================
+# Secrets Manager Rotation Lambda
+# ================================================================
+
+data "archive_file" "rotate_secret" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../../../lambda/functions/rotate_secret"
+  output_path = "${path.module}/../../../../.build/lambda/rotate_secret.zip"
+}
+
+resource "aws_cloudwatch_log_group" "rotate_secret" {
+  name              = "/aws/lambda/${var.project}-${var.environment}-rotate-secret"
+  retention_in_days = 365
+  kms_key_id        = var.kms_key_arn
+
+  tags = var.tags
+}
+
+resource "aws_sqs_queue" "rotate_secret_dlq" {
+  name                              = "${var.project}-${var.environment}-rotate-secret-dlq"
+  message_retention_seconds         = 1209600
+  kms_master_key_id                 = var.kms_key_arn
+  kms_data_key_reuse_period_seconds = 300
+
+  tags = var.tags
+}
+
+resource "aws_iam_role" "rotate_secret" {
+  name = "${var.project}-${var.environment}-rotate-secret"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "rotate_secret_basic" {
+  role       = aws_iam_role.rotate_secret.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "rotate_secret" {
+  name = "secrets-rotation"
+  role = aws_iam_role.rotate_secret.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:UpdateSecretVersionStage",
+        ]
+        Resource = [aws_secretsmanager_secret.app.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetRandomPassword"]
+        Resource = ["*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+        ]
+        Resource = [var.kms_key_arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = [aws_sqs_queue.rotate_secret_dlq.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+        ]
+        Resource = ["*"]
+      },
+    ]
+  })
+}
+
+resource "aws_lambda_function" "rotate_secret" {
+  function_name = "${var.project}-${var.environment}-rotate-secret"
+  description   = "Rotate application secrets"
+  role          = aws_iam_role.rotate_secret.arn
+
+  filename         = data.archive_file.rotate_secret.output_path
+  source_code_hash = data.archive_file.rotate_secret.output_base64sha256
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.13"
+  architectures    = ["arm64"]
+  timeout          = 60
+
+  kms_key_arn                    = var.kms_key_arn
+  reserved_concurrent_executions = 1
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.rotate_secret_dlq.arn
+  }
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.rotate_secret]
+
+  tags = var.tags
+}
+
+resource "aws_lambda_permission" "secrets_manager" {
+  statement_id  = "AllowSecretsManagerInvocation"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.rotate_secret.function_name
+  principal     = "secretsmanager.amazonaws.com"
+  source_arn    = aws_secretsmanager_secret.app.arn
+}
+
+resource "aws_secretsmanager_secret_rotation" "app" {
+  secret_id           = aws_secretsmanager_secret.app.id
+  rotation_lambda_arn = aws_lambda_function.rotate_secret.arn
+
+  rotation_rules {
+    automatically_after_days = 45
+  }
 }
 
 # ================================================================
@@ -233,6 +386,7 @@ resource "aws_apprunner_vpc_connector" "main" {
   tags = var.tags
 }
 
+# checkov:skip=CKV2_AWS_5: SG attached to App Runner via VPC connector resource
 resource "aws_security_group" "apprunner" {
   count = length(var.private_subnet_ids) > 0 ? 1 : 0
 
@@ -474,4 +628,21 @@ resource "aws_wafv2_web_acl_association" "main" {
 
   resource_arn = module.app_runner.service_arn
   web_acl_arn  = aws_wafv2_web_acl.main[0].arn
+}
+
+resource "aws_cloudwatch_log_group" "waf" {
+  count = var.enable_waf ? 1 : 0
+
+  name              = "aws-waf-logs-${var.project}-${var.environment}"
+  retention_in_days = 365
+  kms_key_id        = var.kms_key_arn
+
+  tags = var.tags
+}
+
+resource "aws_wafv2_web_acl_logging_configuration" "main" {
+  count = var.enable_waf ? 1 : 0
+
+  log_destination_configs = [aws_cloudwatch_log_group.waf[0].arn]
+  resource_arn            = aws_wafv2_web_acl.main[0].arn
 }

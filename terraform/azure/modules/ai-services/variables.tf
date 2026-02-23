@@ -23,6 +23,27 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "key_vault_key_id" {
+  description = "Key Vault key versionless ID for CMK encryption"
+  type        = string
+}
+
+variable "managed_identity_id" {
+  description = "User-assigned managed identity ID for CMK access"
+  type        = string
+}
+
+variable "managed_identity_client_id" {
+  description = "User-assigned managed identity client ID for CMK access"
+  type        = string
+}
+
+variable "allowed_ip_ranges" {
+  description = "IP ranges allowed to access cognitive services (e.g., App Runner NAT Gateway IPs)"
+  type        = list(string)
+  default     = []
+}
+
 variable "language_sku" {
   description = "SKU for AI Language (TextAnalytics)"
   type        = string

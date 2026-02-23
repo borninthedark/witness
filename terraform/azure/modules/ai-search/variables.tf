@@ -23,6 +23,12 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "replica_count" {
+  description = "Search service replica count (>= 3 for index update SLA, >= 2 for query SLA)"
+  type        = number
+  default     = 3
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)

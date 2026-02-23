@@ -134,7 +134,7 @@ jobs:
             --cov=fitness --cov-branch \
             --cov-report=term \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=71 \
+            --cov-fail-under=73 \
             --junitxml=junit.xml
 
       - name: Upload coverage reports to Codecov

@@ -162,6 +162,7 @@ module "media" {
   domain_name    = var.domain_name
   hosted_zone_id = var.hosted_zone_id
   app_runner_url = replace(module.app_runner.service_url, "https://", "")
+  kms_key_arn    = module.security.kms_key_arn
 
   tags = var.tags
 }

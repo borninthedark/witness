@@ -1,0 +1,58 @@
+# Checkov configuration
+# https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+#
+# Shared by pre-commit hook and GitHub Actions (worf.yml).
+# Each skip has a justification — review periodically.
+#
+# Bootstrap IAM policy checks (CKV_AWS_286/288/289/290/355) are handled
+# via inline #checkov:skip on the specific policy resources in
+# terraform/aws/bootstrap/main.tf — NOT in this global skip list.
+
+framework:
+  - terraform
+
+compact: true
+quiet: true
+
+# ── Minimal skip list (architecturally impossible to remediate) ──────────────
+skip-check:
+  # ── S3 ────────────────────────────────────────────────────────────────────
+  - CKV_AWS_144  # Cross-region replication — single-region deployment
+  - CKV_AWS_145  # KMS encryption — SSE-S3 for CloudFront OAC (KMS incompatible)
+  - CKV2_AWS_62  # Event notifications — not applicable for artifact/media buckets
+
+  # ── Module sources ────────────────────────────────────────────────────────
+  - CKV_TF_1  # Commit hash pinning — version tags used (CKV_TF_2 passes)
+
+  # ── Lambda ────────────────────────────────────────────────────────────────
+  - CKV_AWS_117  # VPC — functions access only public APIs (NASA, NIST, NOAA)
+  - CKV_AWS_272  # Code signing — requires CI/CD pipeline changes (planned)
+
+  # ── CloudFront ────────────────────────────────────────────────────────────
+  - CKV_AWS_174  # Origin failover — no redundant origin available
+  - CKV_AWS_310  # Origin failover (duplicate of CKV_AWS_174)
+
+  # ── CloudWatch ────────────────────────────────────────────────────────────
+  - CKV_AWS_338  # Log retention — modules default to 365d; Checkov can't resolve variable chains
+
+  # ── AWS graph checks (false positives from module/count resolution) ──────
+  - CKV2_AWS_5   # Security group attached via App Runner VPC connector — graph can't trace
+  - CKV2_AWS_31  # WAF logging IS configured — graph can't resolve count-conditional resources
+  - CKV2_AWS_47  # WAF KnownBadInputsRuleSet includes Log4j — graph can't trace through modules
+
+  # ── AWS security services ────────────────────────────────────────────────
+  - CKV2_AWS_3   # GuardDuty org detector — single-account, no AWS Organization
+  - CKV2_AWS_45  # Config recorder IS enabled + all_supported — graph can't resolve through count
+
+  # ── Azure Key Vault ──────────────────────────────────────────────────────
+  - CKV_AZURE_189  # KV public_network_access — HCP Terraform needs data plane for key ops; mitigated by network_acls Deny + private endpoints
+
+  # ── Azure Storage ────────────────────────────────────────────────────────
+  - CKV_AZURE_43  # Storage naming rules — Checkov can't evaluate Terraform expressions; name IS 3-24 lowercase
+
+  # ── Azure AI Search ──────────────────────────────────────────────────────
+  - CKV_AZURE_124  # Search public_network_access — cross-cloud data plane from AWS App Runner requires public endpoint
+
+  # ── Azure graph checks (false positives from module resolution) ────
+  - CKV2_AZURE_22  # CMK IS configured on all cognitive accounts — graph can't trace customer_managed_key through modules
+  - CKV_AZURE_247  # outbound_network_access_restricted IS set on OpenAI — graph can't resolve through module calls
