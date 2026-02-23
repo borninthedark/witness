@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -71,7 +71,7 @@ def _make_advisory(
     days_ago: int = 0,
 ) -> SecurityAdvisory:
     """Build a SecurityAdvisory for aggregator tests."""
-    pub = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    pub = datetime.now(UTC) - timedelta(days=days_ago)
     return SecurityAdvisory(
         cve_id=cve_id,
         description="Test CVE",
@@ -502,7 +502,7 @@ class TestCVEAggregator:
             MagicMock(use_data_store=False),
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         today_str = now.strftime("%Y-%m-%d")
 
         # Use model_construct to keep SeverityLevel as enum (avoids

@@ -284,7 +284,8 @@ async def availability_badge(request: Request):
     <path fill="#{color}" d="M50 0h90v20H50z"/>
     <path fill="url(#b)" d="M0 0h140v20H0z"/>
   </g>
-  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">  # noqa: E501
+  <g fill="#fff" text-anchor="middle"
+     font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
     <text x="25" y="15" fill="#010101" fill-opacity=".3">status</text>
     <text x="25" y="14">status</text>
     <text x="95" y="15" fill="#010101" fill-opacity=".3">{status_text}</text>
@@ -332,7 +333,8 @@ async def uptime_badge(request: Request):
     <path fill="#{color}" d="M60 0h90v20H60z"/>
     <path fill="url(#b)" d="M0 0h150v20H0z"/>
   </g>
-  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">  # noqa: E501
+  <g fill="#fff" text-anchor="middle"
+     font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
     <text x="30" y="15" fill="#010101" fill-opacity=".3">uptime</text>
     <text x="30" y="14">uptime</text>
     <text x="105" y="15" fill="#010101" fill-opacity=".3">{uptime:.2f}%</text>

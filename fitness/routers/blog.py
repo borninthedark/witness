@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -21,7 +21,7 @@ from fitness.utils.assets import asset_url
 
 router = APIRouter(prefix="/log", tags=["blog"])
 templates = Jinja2Templates(directory="fitness/templates")
-templates.env.globals["current_year"] = datetime.now(timezone.utc).year
+templates.env.globals["current_year"] = datetime.now(UTC).year
 templates.env.globals["asset_url"] = asset_url
 
 
@@ -189,8 +189,8 @@ async def log_by_category(
     """HTMX endpoint - filter entries by category."""
     try:
         category_enum = Category(category.lower())
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid category")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid category") from exc
 
     entries = (
         db.query(BlogEntry)

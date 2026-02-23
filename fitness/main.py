@@ -174,8 +174,8 @@ async def create_admin_user_on_startup():
             if existing:
                 print(f"✅ Admin user '{settings.admin_username}' exists")
                 return
-        except Exception:
-            pass
+        except Exception:  # noqa: S110
+            pass  # user doesn't exist yet — fall through to create
 
         # Create admin user
         try:
@@ -471,10 +471,10 @@ async def health_check(db: Session = Depends(get_db)) -> dict:
         if IS_PROD:
             return {"status": "healthy"}
         return {"status": "healthy", "database": "connected", "version": app.version}
-    except Exception:
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="unhealthy"
-        )
+        ) from exc
 
 
 @app.get("/readyz", tags=["system"], summary="Readiness check", response_model=dict)
@@ -490,7 +490,7 @@ async def readiness_check(db: Session = Depends(get_db)) -> dict:
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        )
+        ) from exc
 
 
 # ==========================================

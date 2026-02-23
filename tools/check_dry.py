@@ -232,10 +232,7 @@ def main():
 
     args = parser.parse_args()
 
-    if args.path:
-        root = Path(args.path).resolve()
-    else:
-        root = get_project_root()
+    root = Path(args.path).resolve() if args.path else get_project_root()
 
     print_colored("DRY (Don't Repeat Yourself) Enforcement Tool", Colors.CYAN)
     print_colored("=" * 50, Colors.CYAN)

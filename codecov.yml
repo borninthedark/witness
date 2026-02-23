@@ -9,7 +9,7 @@ codecov:
 coverage:
   precision: 2
   round: down
-  range: "70...100"
+  range: "71...100"
 
   status:
     project:
@@ -19,23 +19,32 @@ coverage:
         base: auto
     patch:
       default:
-        target: auto
+        target: 71%
         threshold: 1%
 
-# Automated Test Selection (ATS) Configuration
-# See: https://docs.codecov.com/docs/automated-test-selection-quick-start
-flag_management:
-  default_rules:
-    carryforward_mode: labels
-
 flags:
-  tools:
-    carryforward_mode: labels
+  app:
     paths:
-      - tools/
+      - fitness/
+    carryforward: true
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: routers
+      name: Routers
+      paths:
+        - fitness/routers/**
+    - component_id: services
+      name: Services
+      paths:
+        - fitness/services/**
 
 comment:
-  layout: "diff, flags, files"
+  layout: "reach, diff, flags, components, files"
   behavior: default
   require_changes: false
   require_base: no
@@ -44,5 +53,8 @@ comment:
 ignore:
   - "**/__pycache__"
   - "**/.pytest_cache"
-  - "**/tests"
-  - "**/.venv"
+  - "**/tests/**"
+  - "**/.venv/**"
+  - "tools/**"
+  - "lambda/**"
+  - "terraform/**"

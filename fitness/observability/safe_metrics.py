@@ -15,7 +15,7 @@ and development environments.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 @dataclass
@@ -60,7 +60,7 @@ def get_safe_observability_snapshot() -> ObservabilitySnapshot:
     Returns:
         ObservabilitySnapshot with time series and status code distribution
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Generate 12 time-series points (last hour, 5-min intervals)
     series: list[TimeSeriesPoint] = []

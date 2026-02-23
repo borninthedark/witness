@@ -226,12 +226,14 @@ class TestAstrometricsService:
         )
         svc = AstrometricsService()
 
-        with patch.object(
-            svc, "_read_cache", return_value=cached_briefing
-        ) as mock_cache:
-            with patch.object(svc, "_fetch_apod") as mock_apod:
-                with patch.object(svc, "_fetch_neo") as mock_neo:
-                    result = await svc.get_briefing()
+        with (
+            patch.object(
+                svc, "_read_cache", return_value=cached_briefing
+            ) as mock_cache,
+            patch.object(svc, "_fetch_apod") as mock_apod,
+            patch.object(svc, "_fetch_neo") as mock_neo,
+        ):
+            result = await svc.get_briefing()
 
         mock_cache.assert_called_once()
         mock_apod.assert_not_called()
@@ -255,13 +257,15 @@ class TestAstrometricsService:
         }
         svc = AstrometricsService()
 
-        with patch.object(
-            svc, "_fetch_apod", new_callable=AsyncMock, return_value=apod_response
-        ) as mock_apod:
-            with patch.object(
+        with (
+            patch.object(
+                svc, "_fetch_apod", new_callable=AsyncMock, return_value=apod_response
+            ) as mock_apod,
+            patch.object(
                 svc, "_fetch_neo", new_callable=AsyncMock, return_value=SAMPLE_NEO_DATA
-            ) as mock_neo:
-                result = await svc.get_briefing()
+            ) as mock_neo,
+        ):
+            result = await svc.get_briefing()
 
         mock_apod.assert_awaited_once()
         mock_neo.assert_awaited_once()
@@ -281,16 +285,18 @@ class TestAstrometricsService:
         )
         svc = AstrometricsService()
 
-        with patch.object(
-            svc,
-            "_fetch_apod",
-            new_callable=AsyncMock,
-            side_effect=Exception("APOD down"),
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                svc,
+                "_fetch_apod",
+                new_callable=AsyncMock,
+                side_effect=Exception("APOD down"),
+            ),
+            patch.object(
                 svc, "_fetch_neo", new_callable=AsyncMock, return_value=SAMPLE_NEO_DATA
-            ):
-                result = await svc.get_briefing()
+            ),
+        ):
+            result = await svc.get_briefing()
 
         # APOD should fall back gracefully
         assert result.apod_title == "Unavailable"
@@ -316,16 +322,18 @@ class TestAstrometricsService:
         }
         svc = AstrometricsService()
 
-        with patch.object(
-            svc, "_fetch_apod", new_callable=AsyncMock, return_value=apod_response
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                svc, "_fetch_apod", new_callable=AsyncMock, return_value=apod_response
+            ),
+            patch.object(
                 svc,
                 "_fetch_neo",
                 new_callable=AsyncMock,
                 side_effect=Exception("NEO down"),
-            ):
-                result = await svc.get_briefing()
+            ),
+        ):
+            result = await svc.get_briefing()
 
         # APOD should still work
         assert result.apod_title == "Working APOD"
@@ -359,13 +367,15 @@ class TestAstrometricsService:
         }
         svc = AstrometricsService()
 
-        with patch.object(
-            svc, "_fetch_apod", new_callable=AsyncMock, return_value=apod_response
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                svc, "_fetch_apod", new_callable=AsyncMock, return_value=apod_response
+            ),
+            patch.object(
                 svc, "_fetch_neo", new_callable=AsyncMock, return_value=SAMPLE_NEO_DATA
-            ):
-                result = await svc.get_briefing(force_refresh=True)
+            ),
+        ):
+            result = await svc.get_briefing(force_refresh=True)
 
         # Cache should be skipped; fresh API data used
         assert result.apod_title == "Fresh From API"

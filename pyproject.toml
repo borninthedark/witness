@@ -152,11 +152,15 @@ select = [
   "SIM",
 ]
 ignore = [
-  "S101", # allow assert statements outside tests
+  "S101",  # allow assert statements outside tests
+  "B008",  # FastAPI Depends() in argument defaults is standard practice
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+"tests/*" = ["S101", "S105", "S106"]  # test constants are not real secrets
+"fitness/config.py" = ["S105"]  # pydantic-settings defaults, overridden by env vars
+"tools/*" = ["S603", "S607", "E501"]  # subprocess with trusted inputs; README has long markdown
+"tools/update_readme.py" = ["E501"]  # generated README content with long table/link lines
 
 [tool.isort]
 profile = "black"

@@ -53,8 +53,8 @@ def sanitize(value: Any) -> Any:
         "−": "-",
         """: '"',
         """: '"',
-        "'": "'",
-        "'": "'",
+        "\u2018": "'",  # left single quote
+        "\u2019": "'",  # right single quote
         "…": "...",
         "\u00a0": " ",
         "\u202f": " ",

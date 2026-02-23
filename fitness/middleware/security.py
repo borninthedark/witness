@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Callable
-from typing import Iterable
+from collections.abc import Callable, Iterable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -78,7 +77,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if self.use_nonce:
             nonce = secrets.token_urlsafe(16)
             # Templates can set <script nonce="..."> / inline <style nonce="...">
-            setattr(request.state, "csp_nonce", nonce)
+            request.state.csp_nonce = nonce
 
         # Build CSP string (append nonce to script/style if present)
         csp_parts: list[str] = []
@@ -103,9 +102,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(csp_header, csp_value)
 
         # HSTS: only on HTTPS and non-dev hosts unless explicitly enabled
-        if _is_secure_request(request) or self.enable_hsts_on_http:
-            if request.url.hostname not in self.skip_hsts_hosts:
-                response.headers.setdefault("Strict-Transport-Security", self.hsts)
+        if (
+            _is_secure_request(request) or self.enable_hsts_on_http
+        ) and request.url.hostname not in self.skip_hsts_hosts:
+            response.headers.setdefault("Strict-Transport-Security", self.hsts)
 
         # Modern, practical defaults
         response.headers.setdefault("Referrer-Policy", self.referrer_policy)

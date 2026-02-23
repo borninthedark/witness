@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fitness.config import settings
 from fitness.models.security import (
@@ -37,7 +37,7 @@ class CVEAggregator:
         try:
             from fitness.services.data_store import data_store_service
 
-            start = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            start = (datetime.now(UTC) - timedelta(days=days)).isoformat()
             items = data_store_service.query_by_type("cve", start=start, limit=200)
             if not items:
                 return None
@@ -62,9 +62,7 @@ class CVEAggregator:
                         severity=sev,
                         cvss_score=float(p.get("cvss_score", 0)),
                         published_date=datetime.fromisoformat(
-                            p.get(
-                                "published_date", datetime.now(timezone.utc).isoformat()
-                            )
+                            p.get("published_date", datetime.now(UTC).isoformat())
                         ),
                         source=AdvisorySource.NIST,
                         url=p.get("references", [""])[0] if p.get("references") else "",
@@ -239,7 +237,7 @@ class CVEAggregator:
 
         for severity, date_counts in data_by_severity.items():
             # Create a complete date range
-            end_date = datetime.now(timezone.utc)
+            end_date = datetime.now(UTC)
             start_date = end_date - timedelta(days=days)
 
             # Fill in all dates (including zeros)

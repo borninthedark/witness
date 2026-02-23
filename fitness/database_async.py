@@ -16,7 +16,7 @@ async_engine = create_async_engine(_async_url, **engine_kwargs)
 AsyncSessionLocal = async_sessionmaker(bind=async_engine, expire_on_commit=False)
 
 
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_session() -> AsyncGenerator[AsyncSession]:
     """Yield an async session for FastAPI dependencies."""
     async with AsyncSessionLocal() as session:
         yield session

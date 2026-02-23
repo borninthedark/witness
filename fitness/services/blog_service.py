@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -114,7 +114,7 @@ class BlogService:
 
         # Set published_at if status is published
         if status == LogStatus.PUBLISHED:
-            entry.published_at = datetime.now(timezone.utc)
+            entry.published_at = datetime.now(UTC)
 
         db.add(entry)
         db.commit()

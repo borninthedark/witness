@@ -184,11 +184,14 @@ class TestFetchJson:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "fitness.services.open_badges.httpx.AsyncClient", return_value=mock_client
+        with (
+            patch(
+                "fitness.services.open_badges.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            pytest.raises(OpenBadgesError, match="returned 404"),
         ):
-            with pytest.raises(OpenBadgesError, match="returned 404"):
-                await _fetch_json("https://example.com/missing.json")
+            await _fetch_json("https://example.com/missing.json")
 
     @pytest.mark.asyncio
     async def test_http_error(self):
@@ -198,11 +201,14 @@ class TestFetchJson:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "fitness.services.open_badges.httpx.AsyncClient", return_value=mock_client
+        with (
+            patch(
+                "fitness.services.open_badges.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            pytest.raises(OpenBadgesError, match="Unable to reach"),
         ):
-            with pytest.raises(OpenBadgesError, match="Unable to reach"):
-                await _fetch_json("https://down.example.com/badge.json")
+            await _fetch_json("https://down.example.com/badge.json")
 
     @pytest.mark.asyncio
     async def test_non_dict_response(self):
@@ -216,11 +222,14 @@ class TestFetchJson:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "fitness.services.open_badges.httpx.AsyncClient", return_value=mock_client
+        with (
+            patch(
+                "fitness.services.open_badges.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            pytest.raises(OpenBadgesError, match="Unexpected payload"),
         ):
-            with pytest.raises(OpenBadgesError, match="Unexpected payload"):
-                await _fetch_json("https://example.com/list.json")
+            await _fetch_json("https://example.com/list.json")
 
 
 # ── _maybe_follow (async) ───────────────────────────────────────

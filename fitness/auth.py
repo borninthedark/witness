@@ -32,13 +32,13 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
 async def get_user_db(
     session: AsyncSession = Depends(get_async_session),
-) -> AsyncGenerator[SQLAlchemyUserDatabase[User, uuid.UUID], None]:
+) -> AsyncGenerator[SQLAlchemyUserDatabase[User, uuid.UUID]]:
     yield SQLAlchemyUserDatabase(session, User)
 
 
 async def get_user_manager(
     user_db: SQLAlchemyUserDatabase[User, uuid.UUID] = Depends(get_user_db),
-) -> AsyncGenerator[UserManager, None]:
+) -> AsyncGenerator[UserManager]:
     yield UserManager(user_db)
 
 

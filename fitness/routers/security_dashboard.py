@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -68,17 +70,13 @@ async def get_advisories(
     # Convert string filters to enums
     severity_filter = None
     if severity:
-        try:
+        with contextlib.suppress(ValueError):
             severity_filter = SeverityLevel(severity.upper())
-        except ValueError:
-            pass
 
     source_filter = None
     if source:
-        try:
+        with contextlib.suppress(ValueError):
             source_filter = AdvisorySource(source.upper())
-        except ValueError:
-            pass
 
     # Fetch advisories
     advisories = await aggregator.fetch_all_advisories(
@@ -154,8 +152,8 @@ async def get_top_advisories(
     # Convert string to enum
     try:
         severity_level = SeverityLevel(severity.upper())
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid severity level")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid severity level") from exc
 
     # Fetch top advisories
     advisories = await aggregator.get_top_advisories(
@@ -177,7 +175,5 @@ async def get_top_advisories(
 @router.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
-    try:
+    with contextlib.suppress(RuntimeError):
         await aggregator.close()
-    except RuntimeError:
-        pass

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -9,7 +9,7 @@ from fitness.utils.assets import asset_url
 
 # Shared Jinja2 templates instance
 templates = Jinja2Templates(directory="fitness/templates")
-templates.env.globals["current_year"] = datetime.now(timezone.utc).year
+templates.env.globals["current_year"] = datetime.now(UTC).year
 templates.env.globals["asset_url"] = asset_url
 
 

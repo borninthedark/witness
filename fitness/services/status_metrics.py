@@ -7,7 +7,7 @@ without exposing sensitive infrastructure details.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +32,7 @@ class StatusMetrics:
                 return float(timestamp_file.read_text().strip())
             except (ValueError, FileNotFoundError):
                 pass
-        return datetime.now(timezone.utc).timestamp()
+        return datetime.now(UTC).timestamp()
 
     def get_public_metrics(self) -> dict[str, Any]:
         """Get sanitized public metrics from Prometheus registry.
@@ -52,7 +52,7 @@ class StatusMetrics:
 
         return {
             "status": overall_status,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "metrics": {
                 "latency": {
                     "p95_ms": round(latency_p95, 2) if latency_p95 else None,
@@ -73,20 +73,19 @@ class StatusMetrics:
                 },
                 "deployment": {
                     "hours_since_deploy": round(
-                        (datetime.now(timezone.utc).timestamp() - self.deploy_timestamp)
-                        / 3600,
+                        (datetime.now(UTC).timestamp() - self.deploy_timestamp) / 3600,
                         1,
                     ),
                     "version": self.git_sha[:8],
                 },
             },
-            "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
     def _collect_prometheus_metrics(self) -> dict[str, Any]:
         """Collect metrics from Prometheus registry."""
         metrics = {}
-        for collector in REGISTRY._collector_to_names.keys():
+        for collector in REGISTRY._collector_to_names:
             for metric in collector.collect():
                 metrics[metric.name] = metric
         return metrics
@@ -175,7 +174,7 @@ class StatusMetrics:
         )
 
         # Estimate: divide by uptime in seconds (very rough approximation)
-        uptime_seconds = datetime.now(timezone.utc).timestamp() - self.deploy_timestamp
+        uptime_seconds = datetime.now(UTC).timestamp() - self.deploy_timestamp
         if uptime_seconds > 0:
             return total / uptime_seconds
 
@@ -185,9 +184,7 @@ class StatusMetrics:
         """Determine overall system status."""
         if error_rate >= 5.0:
             return "outage"
-        elif error_rate >= 1.0:
-            return "degraded"
-        elif latency_p95 and latency_p95 > 5000:  # 5 seconds
+        elif error_rate >= 1.0 or latency_p95 and latency_p95 > 5000:
             return "degraded"
         elif error_rate < 0.1:
             return "operational"

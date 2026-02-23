@@ -1,6 +1,6 @@
 import json
 import smtplib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -48,7 +48,7 @@ CERT_STORAGE_DIR = Path("fitness/static/certs")
 
 router = APIRouter()
 templates = Jinja2Templates(directory="fitness/templates")
-templates.env.globals["current_year"] = datetime.now(timezone.utc).year
+templates.env.globals["current_year"] = datetime.now(UTC).year
 templates.env.globals["asset_url"] = asset_url
 
 
@@ -409,7 +409,7 @@ async def submit_contact(
         "email": str(form_obj.email),
         "subject": form_obj.subject,
         "message": form_obj.message,
-        "received_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "received_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "ip": request.client.host if request.client else "",
     }
     _persist_contact_submission(payload)

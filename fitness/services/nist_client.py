@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -43,9 +43,8 @@ class NISTClient:
         Returns:
             List of SecurityAdvisory objects
         """
-        from datetime import timezone
 
-        end_date = datetime.now(timezone.utc)
+        end_date = datetime.now(UTC)
         start_date = end_date - timedelta(days=days)
 
         params = {

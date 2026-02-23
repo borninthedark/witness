@@ -178,13 +178,19 @@ class TestRateLimitDecorators:
 
             for dec in node.decorator_list:
                 # Match @router.get(...), @router.post(...), etc.
-                if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute):
-                    if dec.func.attr in http_methods:
-                        is_route = True
+                if (
+                    isinstance(dec, ast.Call)
+                    and isinstance(dec.func, ast.Attribute)
+                    and dec.func.attr in http_methods
+                ):
+                    is_route = True
                 # Match @limiter.limit(...)
-                if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute):
-                    if dec.func.attr == "limit":
-                        has_limiter = True
+                if (
+                    isinstance(dec, ast.Call)
+                    and isinstance(dec.func, ast.Attribute)
+                    and dec.func.attr == "limit"
+                ):
+                    has_limiter = True
 
             if is_route and not has_limiter:
                 missing.append(node.name)
