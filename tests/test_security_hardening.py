@@ -268,3 +268,88 @@ class TestLoginRateLimiting:
         )
         assert resp.status_code == 429
         assert "Too many login attempts" in resp.json()["detail"]
+
+
+# ── Cert expired status sync ──────────────────────────────────
+
+
+class TestSyncExpiredCertStatus:
+    """Tests for sync_expired_cert_status covering edge cases."""
+
+    def test_cert_not_found_continues(self, db_session):
+        """Missing cert slug hits continue (line 166)."""
+        from fitness.main import sync_expired_cert_status
+
+        with patch("fitness.main.EXPIRED_CERT_SLUGS", {"nonexistent-slug"}):
+            result = sync_expired_cert_status(db_session)
+        assert result == 0
+
+    def test_cert_already_expired_and_visible(self, db_session):
+        """Cert already expired+visible should not be counted as updated."""
+        from fitness.models.certification import Certification
+
+        cert = Certification(
+            slug="terraform-associate",
+            title="Terraform Associate",
+            issuer="HashiCorp",
+            pdf_url="/static/certs/terraform-associate.pdf",
+            sha256="a" * 64,
+            status="expired",
+            is_visible=True,
+        )
+        db_session.add(cert)
+        db_session.commit()
+
+        from fitness.main import sync_expired_cert_status
+
+        with patch("fitness.main.EXPIRED_CERT_SLUGS", {"terraform-associate"}):
+            result = sync_expired_cert_status(db_session)
+        assert result == 0
+
+    def test_cert_needs_visibility_update(self, db_session):
+        """Cert with status=expired but is_visible=False gets updated (line 172-173)."""
+        from fitness.models.certification import Certification
+
+        cert = Certification(
+            slug="terraform-associate",
+            title="Terraform Associate",
+            issuer="HashiCorp",
+            pdf_url="/static/certs/terraform-associate.pdf",
+            sha256="a" * 64,
+            status="expired",
+            is_visible=False,
+        )
+        db_session.add(cert)
+        db_session.commit()
+
+        from fitness.main import sync_expired_cert_status
+
+        with patch("fitness.main.EXPIRED_CERT_SLUGS", {"terraform-associate"}):
+            result = sync_expired_cert_status(db_session)
+        assert result == 1
+        db_session.refresh(cert)
+        assert cert.is_visible is True
+
+    def test_cert_needs_status_update(self, db_session):
+        """Cert with status=active gets updated to expired (line 168-170)."""
+        from fitness.models.certification import Certification
+
+        cert = Certification(
+            slug="cka",
+            title="CKA",
+            issuer="CNCF",
+            pdf_url="/static/certs/cka.pdf",
+            sha256="b" * 64,
+            status="active",
+            is_visible=True,
+        )
+        db_session.add(cert)
+        db_session.commit()
+
+        from fitness.main import sync_expired_cert_status
+
+        with patch("fitness.main.EXPIRED_CERT_SLUGS", {"cka"}):
+            result = sync_expired_cert_status(db_session)
+        assert result == 1
+        db_session.refresh(cert)
+        assert cert.status == "expired"

@@ -246,3 +246,204 @@ class TestEmbedSyncHandler:
             result = mod.lambda_handler({"Records": []}, None)
             assert result["statusCode"] == 200
             assert result["body"] == "skipped"
+
+
+# ── Secrets rotation ────────────────────────────────────────────
+
+
+def _make_rotation_event(step: str = "createSecret") -> dict:
+    return {
+        "SecretId": "arn:aws:secretsmanager:us-east-1:123:secret:test",
+        "ClientRequestToken": "token-123",
+        "Step": step,
+    }
+
+
+def _make_sm_client(
+    *,
+    rotation_enabled: bool = True,
+    versions: dict | None = None,
+) -> MagicMock:
+    """Build a mock Secrets Manager client with describe_secret pre-set."""
+    client = MagicMock()
+    if versions is None:
+        versions = {"token-123": ["AWSPENDING"]}
+    client.describe_secret.return_value = {
+        "RotationEnabled": rotation_enabled,
+        "VersionIdsToStages": versions,
+    }
+    # ResourceNotFoundException as a nested exception class
+    exc_cls = type("ResourceNotFoundException", (Exception,), {})
+    client.exceptions = MagicMock()
+    client.exceptions.ResourceNotFoundException = exc_cls
+    return client
+
+
+class TestRotateSecretHandler:
+    """Tests for the secrets rotation Lambda handler."""
+
+    def _load(self):
+        return _load_handler("functions/rotate_secret/handler.py", "_lh_rotate_secret")
+
+    def test_rotation_not_enabled_raises(self):
+        mod = self._load()
+        client = _make_sm_client(rotation_enabled=False)
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            import pytest
+
+            with pytest.raises(ValueError, match="not enabled for rotation"):
+                mod.lambda_handler(_make_rotation_event(), None)
+
+    def test_unknown_token_raises(self):
+        mod = self._load()
+        client = _make_sm_client(versions={"other-token": ["AWSCURRENT"]})
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            import pytest
+
+            with pytest.raises(ValueError, match="has no stage"):
+                mod.lambda_handler(_make_rotation_event(), None)
+
+    def test_already_current_returns_early(self):
+        mod = self._load()
+        client = _make_sm_client(versions={"token-123": ["AWSCURRENT", "AWSPENDING"]})
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(), None)
+        # No step function should be called
+        client.get_secret_value.assert_not_called()
+
+    def test_not_awspending_raises(self):
+        mod = self._load()
+        client = _make_sm_client(versions={"token-123": ["AWSPREVIOUS"]})
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            import pytest
+
+            with pytest.raises(ValueError, match="not set as AWSPENDING"):
+                mod.lambda_handler(_make_rotation_event(), None)
+
+    def test_invalid_step_raises(self):
+        mod = self._load()
+        client = _make_sm_client()
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            import pytest
+
+            with pytest.raises(ValueError, match="Invalid step"):
+                mod.lambda_handler(_make_rotation_event(step="badStep"), None)
+
+    def test_set_secret_is_noop(self):
+        mod = self._load()
+        client = _make_sm_client()
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(step="setSecret"), None)
+        client.put_secret_value.assert_not_called()
+
+    def test_create_secret_generates_new_key(self):
+        mod = self._load()
+        client = _make_sm_client()
+        exc_cls = client.exceptions.ResourceNotFoundException
+        client.get_secret_value.side_effect = [
+            exc_cls("not found"),
+            {
+                "SecretString": json.dumps(
+                    {
+                        "SECRET_KEY": "old-key",
+                        "DATABASE_URL": "sqlite:///test.db",
+                    }
+                )
+            },
+        ]
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(step="createSecret"), None)
+        client.put_secret_value.assert_called_once()
+        put_args = client.put_secret_value.call_args
+        new_secret = json.loads(put_args.kwargs["SecretString"])
+        assert "SECRET_KEY" in new_secret
+        assert new_secret["SECRET_KEY"] != "old-key"
+        assert new_secret["DATABASE_URL"] == "sqlite:///test.db"
+
+    def test_create_secret_skips_if_already_exists(self):
+        mod = self._load()
+        client = _make_sm_client()
+        client.get_secret_value.return_value = {
+            "SecretString": json.dumps({"SECRET_KEY": "pending"})
+        }
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(step="createSecret"), None)
+        client.put_secret_value.assert_not_called()
+
+    def test_test_secret_validates_keys(self):
+        mod = self._load()
+        client = _make_sm_client()
+        client.get_secret_value.return_value = {
+            "SecretString": json.dumps(
+                {"SECRET_KEY": "k", "DATABASE_URL": "sqlite:///x.db"}
+            )
+        }
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(step="testSecret"), None)
+
+    def test_test_secret_missing_key_raises(self):
+        mod = self._load()
+        client = _make_sm_client()
+        client.get_secret_value.return_value = {
+            "SecretString": json.dumps({"DATABASE_URL": "x"})
+        }
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            import pytest
+
+            with pytest.raises(ValueError, match="missing SECRET_KEY"):
+                mod.lambda_handler(_make_rotation_event(step="testSecret"), None)
+
+    def test_test_secret_missing_db_url_raises(self):
+        mod = self._load()
+        client = _make_sm_client()
+        client.get_secret_value.return_value = {
+            "SecretString": json.dumps({"SECRET_KEY": "k"})
+        }
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            import pytest
+
+            with pytest.raises(ValueError, match="missing DATABASE_URL"):
+                mod.lambda_handler(_make_rotation_event(step="testSecret"), None)
+
+    def test_finish_secret_promotes_pending(self):
+        mod = self._load()
+        versions = {
+            "old-token": ["AWSCURRENT"],
+            "token-123": ["AWSPENDING"],
+        }
+        client = _make_sm_client(versions=versions)
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(step="finishSecret"), None)
+        assert client.update_secret_version_stage.call_count == 2
+
+    def test_finish_secret_already_current_noop(self):
+        mod = self._load()
+        versions = {
+            "token-123": ["AWSCURRENT", "AWSPENDING"],
+        }
+        client = _make_sm_client(versions=versions)
+        # Already-current exits at the top of lambda_handler
+        with patch.object(mod, "boto3") as mock_boto:
+            mock_boto.client.return_value = client
+            mod.lambda_handler(_make_rotation_event(step="finishSecret"), None)
+        client.update_secret_version_stage.assert_not_called()
+
+    def test_finish_secret_internal_already_current_returns(self):
+        """Cover the early return inside _finish_secret when token is AWSCURRENT."""
+        mod = self._load()
+        client = MagicMock()
+        versions = {"token-123": ["AWSCURRENT"]}
+        mod._finish_secret(client, "arn:test", "token-123", versions)
+        client.update_secret_version_stage.assert_not_called()

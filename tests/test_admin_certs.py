@@ -138,6 +138,59 @@ class TestCertDelete:
 # ── Add cert test ────────────────────────────────────────────────
 
 
+class TestCertStatusCycle:
+    """Verify button cycles through all valid statuses."""
+
+    def test_active_to_expired_to_active(self, auth_client, db_session):
+        cert = _seed_cert(db_session, slug="cycle-cert")
+        assert cert.status == "active"
+
+        # active → expired
+        resp = auth_client.post(
+            f"/admin/certs/{cert.id}/status",
+            data={"status": "expired", "csrf_token": CSRF_TOKEN},
+        )
+        assert resp.status_code == 200
+        db_session.refresh(cert)
+        assert cert.status == "expired"
+        assert cert.is_active is False
+
+        # expired → active
+        resp = auth_client.post(
+            f"/admin/certs/{cert.id}/status",
+            data={"status": "active", "csrf_token": CSRF_TOKEN},
+        )
+        assert resp.status_code == 200
+        db_session.refresh(cert)
+        assert cert.status == "active"
+        assert cert.is_active is True
+
+
+class TestCertVisibilityRoundtrip:
+    """Verify visibility button toggles back and forth."""
+
+    def test_visible_to_hidden_and_back(self, auth_client, db_session):
+        cert = _seed_cert(db_session, slug="vis-cert", is_visible=True)
+
+        # visible → hidden
+        resp = auth_client.post(
+            f"/admin/certs/{cert.id}/visibility",
+            data={"csrf_token": CSRF_TOKEN},
+        )
+        assert resp.status_code == 200
+        db_session.refresh(cert)
+        assert cert.is_visible is False
+
+        # hidden → visible
+        resp = auth_client.post(
+            f"/admin/certs/{cert.id}/visibility",
+            data={"csrf_token": CSRF_TOKEN},
+        )
+        assert resp.status_code == 200
+        db_session.refresh(cert)
+        assert cert.is_visible is True
+
+
 class TestCertAdd:
     def test_add_cert(self, auth_client, db_session):
         pdf_content = b"%PDF-1.4 fake content"

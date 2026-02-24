@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi.responses import HTMLResponse
 from httpx import ASGITransport, AsyncClient
 
 from fitness.main import app
@@ -123,3 +124,126 @@ class TestSeverityFilterParsing:
         with contextlib.suppress(ValueError):
             source_filter = AdvisorySource("NIST")
         assert source_filter == AdvisorySource.NIST
+
+
+class TestGetAdvisoriesDirect:
+    """Call get_advisories directly to cover filter parsing in the router."""
+
+    @pytest.mark.asyncio
+    async def test_advisories_with_severity_filter(self):
+        """Exercises contextlib.suppress path for severity parsing."""
+        from unittest.mock import MagicMock
+
+        from fitness.routers.security_dashboard import get_advisories
+
+        mock_request = MagicMock()
+        mock_request.url.path = "/admin/tactical/advisories"
+        mock_request.app = MagicMock()
+        mock_request.state = MagicMock()
+
+        with (
+            patch("fitness.routers.security_dashboard.aggregator") as mock_agg,
+            patch("fitness.routers.security_dashboard.templates") as mock_tpl,
+        ):
+            mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+            mock_tpl.TemplateResponse.return_value = HTMLResponse("")
+            await get_advisories(request=mock_request, severity="CRITICAL", source=None)
+            mock_agg.fetch_all_advisories.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_advisories_with_invalid_severity(self):
+        """Invalid severity is suppressed via contextlib.suppress."""
+        from unittest.mock import MagicMock
+
+        from fitness.routers.security_dashboard import get_advisories
+
+        mock_request = MagicMock()
+        mock_request.state = MagicMock()
+
+        with (
+            patch("fitness.routers.security_dashboard.aggregator") as mock_agg,
+            patch("fitness.routers.security_dashboard.templates") as mock_tpl,
+        ):
+            mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+            mock_tpl.TemplateResponse.return_value = HTMLResponse("")
+            await get_advisories(request=mock_request, severity="BOGUS", source=None)
+            call_kwargs = mock_agg.fetch_all_advisories.call_args
+            assert call_kwargs.kwargs.get("severity") is None
+
+    @pytest.mark.asyncio
+    async def test_advisories_with_source_filter(self):
+        """Exercises contextlib.suppress path for source parsing."""
+        from unittest.mock import MagicMock
+
+        from fitness.routers.security_dashboard import get_advisories
+
+        mock_request = MagicMock()
+        mock_request.state = MagicMock()
+
+        with (
+            patch("fitness.routers.security_dashboard.aggregator") as mock_agg,
+            patch("fitness.routers.security_dashboard.templates") as mock_tpl,
+        ):
+            mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+            mock_tpl.TemplateResponse.return_value = HTMLResponse("")
+            await get_advisories(request=mock_request, severity=None, source="NIST")
+            mock_agg.fetch_all_advisories.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_advisories_with_invalid_source(self):
+        """Invalid source is suppressed via contextlib.suppress."""
+        from unittest.mock import MagicMock
+
+        from fitness.routers.security_dashboard import get_advisories
+
+        mock_request = MagicMock()
+        mock_request.state = MagicMock()
+
+        with (
+            patch("fitness.routers.security_dashboard.aggregator") as mock_agg,
+            patch("fitness.routers.security_dashboard.templates") as mock_tpl,
+        ):
+            mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+            mock_tpl.TemplateResponse.return_value = HTMLResponse("")
+            await get_advisories(request=mock_request, severity=None, source="INVALID")
+            call_kwargs = mock_agg.fetch_all_advisories.call_args
+            assert call_kwargs.kwargs.get("source") is None
+
+
+class TestGetTopAdvisoriesDirect:
+    """Call get_top_advisories directly to cover ValueError path."""
+
+    @pytest.mark.asyncio
+    async def test_top_advisories_invalid_severity_raises(self):
+        """Invalid severity raises HTTPException (lines 155-156)."""
+        from unittest.mock import MagicMock
+
+        from fastapi import HTTPException
+
+        from fitness.routers.security_dashboard import get_top_advisories
+
+        mock_request = MagicMock()
+        mock_request.state = MagicMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_top_advisories(request=mock_request, severity="BOGUS")
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_top_advisories_valid_severity(self):
+        """Valid severity calls aggregator (covers lines 153-163)."""
+        from unittest.mock import MagicMock
+
+        from fitness.routers.security_dashboard import get_top_advisories
+
+        mock_request = MagicMock()
+        mock_request.state = MagicMock()
+
+        with (
+            patch("fitness.routers.security_dashboard.aggregator") as mock_agg,
+            patch("fitness.routers.security_dashboard.templates") as mock_tpl,
+        ):
+            mock_agg.get_top_advisories = AsyncMock(return_value=[])
+            mock_tpl.TemplateResponse.return_value = HTMLResponse("")
+            await get_top_advisories(request=mock_request, severity="CRITICAL")
+            mock_agg.get_top_advisories.assert_called_once()

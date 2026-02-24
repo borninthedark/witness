@@ -226,6 +226,37 @@ class TestMediaUploadRoute:
         assert "media.princetonstrong.com" in resp.text
         assert "Upload saved" in resp.text
 
+    def test_upload_response_has_result_structure(self, auth_client):
+        """Upload response HTML contains structured result div for HTMX swap."""
+        with (
+            patch("fitness.routers.admin.settings") as mock_settings,
+            patch("fitness.routers.admin.S3MediaStorage") as MockStorage,
+        ):
+            mock_settings.media_bucket_name = "test-bucket"
+            mock_settings.media_cdn_domain = "media.princetonstrong.com"
+            mock_settings.media_upload_max_mb = 200
+            mock_settings.aws_region = "us-east-1"
+
+            mock_instance = MagicMock()
+            mock_instance.save = AsyncMock(
+                return_value="https://media.princetonstrong.com/media/demo.mp4"
+            )
+            MockStorage.return_value = mock_instance
+
+            resp = auth_client.post(
+                "/admin/media",
+                data={"slug": "demo", "csrf_token": CSRF_TOKEN},
+                files={"file": ("demo.mp4", BytesIO(b"data"), "video/mp4")},
+            )
+
+        assert resp.status_code == 200
+        # Verify HTMX-swappable structure
+        assert "upload-result" in resp.text
+        assert "upload-success" in resp.text
+        assert "demo.mp4" in resp.text
+        # Link target opens in new tab
+        assert "target='_blank'" in resp.text
+
     def test_media_dashboard_requires_auth(self, client):
         """Media dashboard requires authentication."""
         resp = client.get("/admin/media", follow_redirects=False)
