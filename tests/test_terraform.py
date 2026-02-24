@@ -414,3 +414,215 @@ def test_bootstrap_kms_has_viaservice_condition():
         "Bootstrap KMS encryption policy missing 'kms:ViaService' condition — "
         "data-plane operations must be scoped to specific AWS services"
     )
+
+
+# ================================================================
+# Bootstrap IAM — Resource-to-Action Coverage Tests
+# ================================================================
+#
+# These tests verify the bootstrap IAM policies contain the IAM
+# actions required to manage every AWS resource type used in the
+# project's Terraform modules.
+#
+# When a new resource type is added to a module, the corresponding
+# IAM action must be added here AND to the bootstrap policy. This
+# catches "AccessDenied" errors before they hit CI/CD.
+# ================================================================
+
+MODULES_DIR = PROJECT_ROOT / "terraform" / "aws" / "modules"
+
+# Map of AWS resource types (used in modules) to the IAM actions
+# required to create/manage them. Each entry lists the critical
+# write action(s) that must exist in bootstrap.
+#
+# To add a new resource:
+#   1. Add the resource type + required action(s) here
+#   2. Add the IAM action to the appropriate bootstrap policy
+#   3. Run `pytest tests/test_terraform.py -k iam` to verify
+_RESOURCE_IAM_ACTIONS: dict[str, list[str]] = {
+    # ── App Runner ──
+    "aws_apprunner_auto_scaling_configuration_version": ["apprunner:Create*"],
+    "aws_apprunner_observability_configuration": ["apprunner:Create*"],
+    "aws_apprunner_vpc_connector": ["apprunner:Create*"],
+    "aws_apprunner_custom_domain_association": ["apprunner:AssociateCustomDomain"],
+    # ── WAFv2 ──
+    "aws_wafv2_web_acl": ["wafv2:CreateWebACL"],
+    "aws_wafv2_web_acl_association": ["wafv2:AssociateWebACL"],
+    "aws_wafv2_web_acl_logging_configuration": ["wafv2:PutLoggingConfiguration"],
+    # ── CloudFront ──
+    "aws_cloudfront_distribution": ["cloudfront:CreateDistribution"],
+    "aws_cloudfront_origin_access_control": ["cloudfront:CreateOriginAccessControl"],
+    "aws_cloudfront_response_headers_policy": [
+        "cloudfront:CreateResponseHeadersPolicy"
+    ],
+    # ── ACM ──
+    "aws_acm_certificate": ["acm:RequestCertificate"],
+    # ── SQS ──
+    "aws_sqs_queue": ["sqs:CreateQueue"],
+    # ── S3 (non-module resources) ──
+    "aws_s3_bucket_cors_configuration": ["s3:PutBucketCors"],
+    "aws_s3_bucket_logging": ["s3:PutBucketLogging"],
+    "aws_s3_bucket_ownership_controls": ["s3:PutBucketOwnershipControls"],
+    # ── Lambda ──
+    "aws_lambda_function": ["lambda:CreateFunction"],
+    # ── DynamoDB ──
+    "aws_dynamodb_table": ["dynamodb:CreateTable"],
+    # ── Scheduler ──
+    "aws_scheduler_schedule": ["scheduler:CreateSchedule"],
+    "aws_scheduler_schedule_group": ["scheduler:CreateScheduleGroup"],
+    # ── SNS ──
+    "aws_sns_topic": ["sns:CreateTopic"],
+    # ── GuardDuty ──
+    "aws_guardduty_detector": ["guardduty:CreateDetector"],
+    # ── CloudTrail ──
+    "aws_cloudtrail": ["cloudtrail:CreateTrail"],
+    # ── Security Hub ──
+    "aws_securityhub_account": ["securityhub:EnableSecurityHub"],
+    # ── Budgets ──
+    "aws_budgets_budget": ["budgets:CreateBudgetAction"],
+}
+
+
+def _extract_all_iam_actions(content: str) -> set[str]:
+    """Extract all IAM action strings from bootstrap policy HCL."""
+    return set(re.findall(r'"([a-z][a-z0-9-]*:[A-Za-z*]+)"', content))
+
+
+def _action_matches(required: str, granted: set[str]) -> bool:
+    """Check if a required action is satisfied by the granted set.
+
+    Supports wildcard matching: 'apprunner:Create*' in the granted
+    set matches a required action of 'apprunner:CreateService'.
+    Also handles the reverse: if the required action has a wildcard.
+    """
+    if required in granted:
+        return True
+    # Check if any granted wildcard covers the required action
+    req_service, req_action = required.split(":", 1)
+    for action in granted:
+        if ":" not in action:
+            continue
+        svc, act = action.split(":", 1)
+        if svc != req_service:
+            continue
+        if act.endswith("*") and req_action.startswith(act[:-1]):
+            return True
+        if req_action.endswith("*") and act.startswith(
+            req_service + ":" + req_action[:-1]
+        ):
+            return True
+    return False
+
+
+def _find_resource_types_in_modules() -> set[str]:
+    """Scan our module .tf files for AWS resource type declarations.
+
+    Excludes .terraform/ directories which contain downloaded third-party
+    module code (e.g. terraform-aws-modules/*) — those resources are
+    managed internally by the upstream modules, not by our IAM policies.
+    """
+    types = set()
+    for tf_file in MODULES_DIR.rglob("*.tf"):
+        if ".terraform" in tf_file.parts:
+            continue
+        for m in re.finditer(r'resource\s+"(aws_\w+)"', tf_file.read_text()):
+            types.add(m.group(1))
+    return types
+
+
+def test_bootstrap_iam_covers_all_resource_actions():
+    """Bootstrap IAM policies must grant actions for every mapped resource.
+
+    Verifies that each resource type in _RESOURCE_IAM_ACTIONS has
+    its required IAM action(s) present in the bootstrap policy file.
+    Fails with a clear message listing missing actions and which
+    bootstrap policy to update.
+    """
+    content = BOOTSTRAP_MODULE.read_text()
+    granted = _extract_all_iam_actions(content)
+
+    missing = []
+    for resource_type, actions in _RESOURCE_IAM_ACTIONS.items():
+        for action in actions:
+            if not _action_matches(action, granted):
+                missing.append(f"  {resource_type} → {action}")
+
+    assert not missing, (
+        "Bootstrap IAM policies are missing actions required "
+        "by module resources:\n"
+        + "\n".join(missing)
+        + "\n\nAdd the missing actions to the appropriate "
+        "bootstrap policy in terraform/aws/bootstrap/main.tf"
+    )
+
+
+def test_all_module_resources_have_iam_mapping():
+    """Every AWS resource type in modules must be mapped in the test.
+
+    When a new `resource "aws_*"` is added to any module, a
+    corresponding entry must be added to _RESOURCE_IAM_ACTIONS
+    so the IAM coverage test can verify bootstrap permissions.
+
+    Resources from third-party modules (e.g. terraform-aws-modules/*)
+    are managed internally by those modules and excluded.
+    """
+    module_types = _find_resource_types_in_modules()
+
+    # Resource types that don't need explicit IAM mapping:
+    # - Generic resources managed by broader IAM statements
+    # - Resources whose IAM actions are covered by wildcard grants
+    exempted = {
+        # EC2/VPC — covered by ec2:* wildcard block in tfc_core
+        "aws_security_group",
+        "aws_vpc_endpoint",
+        # IAM — covered by iam:Create*/Delete* in tfc_governance
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_iam_role_policy_attachment",
+        "aws_iam_policy",
+        # CloudWatch — covered by logs:* block in tfc_core
+        "aws_cloudwatch_log_group",
+        "aws_cloudwatch_dashboard",
+        # Route 53 — covered by route53:* block in tfc_core
+        "aws_route53_record",
+        # Config — covered by config:Put* in tfc_governance
+        "aws_config_config_rule",
+        "aws_config_configuration_recorder",
+        "aws_config_configuration_recorder_status",
+        "aws_config_delivery_channel",
+        # GuardDuty features — covered by guardduty:* grant
+        "aws_guardduty_detector_feature",
+        # Secrets Manager — covered by sm:Create* in tfc_core
+        "aws_secretsmanager_secret",
+        "aws_secretsmanager_secret_version",
+        "aws_secretsmanager_secret_rotation",
+        # Lambda permission — covered by lambda:AddPermission
+        "aws_lambda_permission",
+        "aws_lambda_event_source_mapping",
+        "aws_lambda_layer_version",
+        # ACM validation — read-only, no extra action needed
+        "aws_acm_certificate_validation",
+        # SNS policy/subscription — covered by sns:* grant
+        "aws_sns_topic_policy",
+        "aws_sns_topic_subscription",
+        # S3 sub-resources covered by s3:Put* grants
+        "aws_s3_bucket",
+        "aws_s3_bucket_acl",
+        "aws_s3_bucket_lifecycle_configuration",
+        "aws_s3_bucket_policy",
+        "aws_s3_bucket_public_access_block",
+        "aws_s3_bucket_server_side_encryption_configuration",
+        "aws_s3_bucket_versioning",
+        # CodeStar/CodeBuild/CodePipeline covered by existing
+        "aws_codebuild_project",
+        "aws_codepipeline",
+    }
+
+    unmapped = module_types - set(_RESOURCE_IAM_ACTIONS) - exempted
+    assert not unmapped, (
+        "Module resource types missing from _RESOURCE_IAM_ACTIONS "
+        "and not exempted:\n"
+        + "\n".join(f"  - {t}" for t in sorted(unmapped))
+        + "\n\nAdd each to _RESOURCE_IAM_ACTIONS with required "
+        "IAM actions, or add to the exempted set with a comment."
+    )

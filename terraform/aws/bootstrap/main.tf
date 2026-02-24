@@ -230,6 +230,8 @@ resource "aws_iam_policy" "tfc_core" {
               "s3.${var.aws_region}.amazonaws.com",
               "logs.${var.aws_region}.amazonaws.com",
               "dynamodb.${var.aws_region}.amazonaws.com",
+              "sns.${var.aws_region}.amazonaws.com",
+              "sqs.${var.aws_region}.amazonaws.com",
             ]
           }
         }
@@ -644,6 +646,9 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
           "wafv2:ListTagsForResource",
           "wafv2:TagResource",
           "wafv2:UntagResource",
+          "wafv2:PutLoggingConfiguration",
+          "wafv2:DeleteLoggingConfiguration",
+          "wafv2:GetLoggingConfiguration",
         ]
         Resource = "*"
       },
@@ -741,6 +746,9 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
           "cloudfront:ListCachePolicies",
           "cloudfront:GetResponseHeadersPolicy",
           "cloudfront:ListResponseHeadersPolicies",
+          "cloudfront:CreateResponseHeadersPolicy",
+          "cloudfront:DeleteResponseHeadersPolicy",
+          "cloudfront:UpdateResponseHeadersPolicy",
           "cloudfront:TagResource",
           "cloudfront:UntagResource",
           "cloudfront:ListTagsForResource",
@@ -793,6 +801,33 @@ resource "aws_iam_policy" "tfc_serverless" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # ----------------------------------------------------------
+      # SQS (scoped to project-prefixed queues)
+      # ----------------------------------------------------------
+      {
+        Sid    = "SQSRead"
+        Effect = "Allow"
+        Action = [
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+          "sqs:ListQueues",
+          "sqs:ListQueueTags",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "SQSWrite"
+        Effect = "Allow"
+        Action = [
+          "sqs:CreateQueue",
+          "sqs:DeleteQueue",
+          "sqs:SetQueueAttributes",
+          "sqs:TagQueue",
+          "sqs:UntagQueue",
+        ]
+        Resource = "arn:aws:sqs:${var.aws_region}:*:${var.project}-*"
+      },
+
       # ----------------------------------------------------------
       # Lambda — read-only (list/describe/get)
       # ----------------------------------------------------------

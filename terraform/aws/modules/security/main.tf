@@ -46,6 +46,25 @@ module "kms" {
       ]
     },
     {
+      sid    = "AllowSNSEncrypt"
+      effect = "Allow"
+      principals = [
+        {
+          type        = "Service"
+          identifiers = ["cloudtrail.amazonaws.com", "sns.amazonaws.com"]
+        }
+      ]
+      actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
+      resources = ["*"]
+      conditions = [
+        {
+          test     = "StringEquals"
+          variable = "aws:SourceAccount"
+          values   = [data.aws_caller_identity.current.account_id]
+        }
+      ]
+    },
+    {
       sid    = "AllowCloudWatchLogsEncrypt"
       effect = "Allow"
       principals = [
