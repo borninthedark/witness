@@ -386,6 +386,47 @@ class TestGenerateBokehCharts:
         assert "<div" in div
 
 
+# ── get_safe_observability_snapshot unit tests ────────────────────
+
+
+class TestSafeObservabilitySnapshot:
+    """Direct unit tests for get_safe_observability_snapshot()."""
+
+    def test_returns_12_time_series_points(self):
+        from fitness.observability.safe_metrics import get_safe_observability_snapshot
+
+        snapshot = get_safe_observability_snapshot()
+        assert len(snapshot.series) == 12
+
+    def test_time_series_rps_increases(self):
+        from fitness.observability.safe_metrics import get_safe_observability_snapshot
+
+        snapshot = get_safe_observability_snapshot()
+        rps_values = [p.rps for p in snapshot.series]
+        assert rps_values == sorted(rps_values)
+
+    def test_status_codes_has_three_buckets(self):
+        from fitness.observability.safe_metrics import get_safe_observability_snapshot
+
+        snapshot = get_safe_observability_snapshot()
+        assert snapshot.status_codes.labels == ["2xx", "4xx", "5xx"]
+        assert len(snapshot.status_codes.counts) == 3
+
+    def test_timestamps_are_chronological(self):
+        from fitness.observability.safe_metrics import get_safe_observability_snapshot
+
+        snapshot = get_safe_observability_snapshot()
+        timestamps = [p.timestamp for p in snapshot.series]
+        assert timestamps == sorted(timestamps)
+
+    def test_error_rates_are_positive(self):
+        from fitness.observability.safe_metrics import get_safe_observability_snapshot
+
+        snapshot = get_safe_observability_snapshot()
+        for p in snapshot.series:
+            assert p.error_rate > 0
+
+
 # ── StatusMetrics service unit tests ────────────────────────────
 
 

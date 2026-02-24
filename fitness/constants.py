@@ -219,7 +219,10 @@ CERT_METADATA: dict[str, CertMetadata] = {
     },
 }
 
-INACTIVE_CERT_SLUGS: set[str] = {"terraform-associate"}
+INACTIVE_CERT_SLUGS: set[str] = {"terraform-associate", "cka"}
+
+# Certs that should be visible with expired status on startup sync
+EXPIRED_CERT_SLUGS: set[str] = {"terraform-associate", "cka"}
 
 VERIFICATION_LABELS: dict[str, str] = {
     "The Linux Foundation": "The Linux Foundation Certification Verification Tool",

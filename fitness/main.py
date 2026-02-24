@@ -27,7 +27,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from fitness.auth import auth_backend, fastapi_users
 from fitness.config import settings
-from fitness.constants import CERT_METADATA, get_cert_metadata
+from fitness.constants import CERT_METADATA, EXPIRED_CERT_SLUGS, get_cert_metadata
 from fitness.database import Base, engine, get_db
 
 # Collision-free imports
@@ -152,6 +152,32 @@ def sync_certification_metadata(db: Session) -> dict[str, int]:
     }
 
 
+def sync_expired_cert_status(db: Session) -> int:
+    """Ensure expired certs have status='expired' and is_visible=True."""
+    updated = 0
+    for slug in EXPIRED_CERT_SLUGS:
+        slug_candidates = list(_slug_variants(slug))
+        cert = (
+            db.query(Certification)
+            .filter(Certification.slug.in_(slug_candidates))
+            .first()
+        )
+        if not cert:
+            continue
+        changed = False
+        if cert.status != "expired":
+            cert.status = "expired"
+            changed = True
+        if not cert.is_visible:
+            cert.is_visible = True
+            changed = True
+        if changed:
+            updated += 1
+    if updated:
+        db.commit()
+    return updated
+
+
 # ==========================================
 # Application Lifespan
 # ==========================================
@@ -203,6 +229,9 @@ async def lifespan(app: FastAPI):
         updates = sync_certification_metadata(db)
         if sum(updates.values()) > 0:
             print(f"✅ Synced certification metadata: {updates}")
+        expired = sync_expired_cert_status(db)
+        if expired > 0:
+            print(f"✅ Marked {expired} cert(s) as expired")
 
     # Create admin user if it doesn't exist
     await create_admin_user_on_startup()

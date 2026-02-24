@@ -276,6 +276,159 @@ class TestNISTClient:
 # ── TestCVEAggregator ─────────────────────────────────────────────
 
 
+class TestCVEAggregatorDynamo:
+    """Unit tests for CVEAggregator DynamoDB-first path."""
+
+    def test_fetch_from_dynamo_returns_advisories(self, monkeypatch):
+        """DynamoDB items are parsed into SecurityAdvisory objects."""
+        now = datetime.now(UTC)
+        fake_items = [
+            {
+                "payload": {
+                    "cve_id": "CVE-2026-1001",
+                    "description": "Test vuln from DynamoDB",
+                    "severity": "CRITICAL",
+                    "cvss_score": 9.8,
+                    "published_date": now.isoformat(),
+                    "references": ["https://example.com/cve-1001"],
+                }
+            },
+            {
+                "payload": {
+                    "cve_id": "CVE-2026-1002",
+                    "description": "Another vuln",
+                    "severity": "HIGH",
+                    "cvss_score": 7.5,
+                    "published_date": now.isoformat(),
+                    "references": [],
+                }
+            },
+        ]
+
+        mock_ds = MagicMock()
+        mock_ds.query_by_type.return_value = fake_items
+
+        agg = CVEAggregator(nist_api_key="k")
+        with patch("fitness.services.data_store.data_store_service", mock_ds):
+            result = agg._fetch_from_dynamo(days=30)
+
+        assert result is not None
+        assert len(result) == 2
+        assert result[0].cve_id == "CVE-2026-1001"
+        assert result[0].severity == SeverityLevel.CRITICAL
+        assert result[1].cve_id == "CVE-2026-1002"
+
+    def test_fetch_from_dynamo_filters_by_severity(self, monkeypatch):
+        """Severity filter excludes non-matching advisories."""
+        now = datetime.now(UTC)
+        fake_items = [
+            {
+                "payload": {
+                    "cve_id": "CVE-2026-2001",
+                    "description": "Critical",
+                    "severity": "CRITICAL",
+                    "cvss_score": 9.0,
+                    "published_date": now.isoformat(),
+                }
+            },
+            {
+                "payload": {
+                    "cve_id": "CVE-2026-2002",
+                    "description": "Low",
+                    "severity": "LOW",
+                    "cvss_score": 2.0,
+                    "published_date": now.isoformat(),
+                }
+            },
+        ]
+
+        mock_ds = MagicMock()
+        mock_ds.query_by_type.return_value = fake_items
+
+        agg = CVEAggregator(nist_api_key="k")
+        with patch("fitness.services.data_store.data_store_service", mock_ds):
+            result = agg._fetch_from_dynamo(days=30, severity=SeverityLevel.CRITICAL)
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].cve_id == "CVE-2026-2001"
+
+    def test_fetch_from_dynamo_returns_none_on_empty(self, monkeypatch):
+        """Empty DynamoDB result returns None (triggers API fallback)."""
+        mock_ds = MagicMock()
+        mock_ds.query_by_type.return_value = []
+
+        agg = CVEAggregator(nist_api_key="k")
+        with patch("fitness.services.data_store.data_store_service", mock_ds):
+            result = agg._fetch_from_dynamo(days=30)
+
+        assert result is None
+
+    def test_fetch_from_dynamo_returns_none_on_exception(self, monkeypatch):
+        """Exception in DynamoDB read returns None (triggers API fallback)."""
+        mock_ds = MagicMock()
+        mock_ds.query_by_type.side_effect = RuntimeError("DynamoDB down")
+
+        agg = CVEAggregator(nist_api_key="k")
+        with patch("fitness.services.data_store.data_store_service", mock_ds):
+            result = agg._fetch_from_dynamo(days=30)
+
+        assert result is None
+
+    def test_fetch_from_dynamo_handles_unknown_severity(self, monkeypatch):
+        """Unknown severity string maps to LOW."""
+        now = datetime.now(UTC)
+        fake_items = [
+            {
+                "payload": {
+                    "cve_id": "CVE-2026-3001",
+                    "description": "Weird severity",
+                    "severity": "BOGUS",
+                    "cvss_score": 1.0,
+                    "published_date": now.isoformat(),
+                }
+            },
+        ]
+
+        mock_ds = MagicMock()
+        mock_ds.query_by_type.return_value = fake_items
+
+        agg = CVEAggregator(nist_api_key="k")
+        with patch("fitness.services.data_store.data_store_service", mock_ds):
+            result = agg._fetch_from_dynamo(days=30)
+
+        assert result is not None
+        assert result[0].severity == SeverityLevel.LOW
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_uses_dynamo_first(self, monkeypatch):
+        """When use_data_store is True and DynamoDB returns data, API is not called."""
+        monkeypatch.setattr("asyncio.sleep", AsyncMock())
+        monkeypatch.setattr(
+            "fitness.services.cve_aggregator.settings",
+            MagicMock(use_data_store=True),
+        )
+
+        now = datetime.now(UTC)
+        dynamo_advisory = SecurityAdvisory(
+            cve_id="CVE-2026-4001",
+            description="From DynamoDB",
+            severity=SeverityLevel.HIGH,
+            cvss_score=7.5,
+            published_date=now,
+            source=AdvisorySource.NIST,
+        )
+
+        agg = CVEAggregator(nist_api_key="k")
+        agg._fetch_from_dynamo = MagicMock(return_value=[dynamo_advisory])
+        agg.nist_client.fetch_recent_cves = AsyncMock(return_value=[])
+
+        result = await agg.fetch_all_advisories(days=7)
+        assert len(result) == 1
+        assert result[0].cve_id == "CVE-2026-4001"
+        agg.nist_client.fetch_recent_cves.assert_not_called()
+
+
 class TestCVEAggregator:
     """Unit tests for CVEAggregator."""
 
