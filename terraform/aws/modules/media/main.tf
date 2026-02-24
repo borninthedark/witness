@@ -175,6 +175,7 @@ resource "aws_s3_bucket_logging" "cdn_logs" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "cdn_logs" {
+  #checkov:skip=CKV2_AWS_65:CloudFront standard logging requires log-delivery-write ACL
   bucket = aws_s3_bucket.cdn_logs.id
 
   rule {
