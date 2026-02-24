@@ -92,6 +92,7 @@ fitness/data/*.pdf
 .pylintrc
 .trivyignore
 .terraform
+.external_modules/
 terraform/bootstrap/*.tfstate*
 terraform/aws/bootstrap/*.tfstate*
 terraform/aws/bootstrap/bootstrap.tfvars

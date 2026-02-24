@@ -480,7 +480,8 @@ async def upload_media(
 
     return HTMLResponse(
         f"<div class='upload-result'>"
-        f"<p>Uploaded: <a href='{html.escape(url)}' target='_blank'>"
+        f"<p class='upload-success'>&#10003; Upload saved</p>"
+        f"<p>File: <a href='{html.escape(url)}' target='_blank'>"
         f"{html.escape(media_filename)}</a></p>"
         f"<code>{html.escape(url)}</code>"
         f"</div>"

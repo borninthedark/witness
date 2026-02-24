@@ -4,10 +4,10 @@
 # ================================================================
 
 # ──────────────────────────────────────────────────────────────────
-# Test: enable_media defaults to false
+# Test: enable_media defaults to true
 # ──────────────────────────────────────────────────────────────────
 
-run "media_disabled_by_default" {
+run "media_enabled_by_default" {
   command = plan
 
   variables {
@@ -17,8 +17,8 @@ run "media_disabled_by_default" {
   }
 
   assert {
-    condition     = var.enable_media == false
-    error_message = "enable_media should default to false"
+    condition     = var.enable_media == true
+    error_message = "enable_media should default to true"
   }
 }
 

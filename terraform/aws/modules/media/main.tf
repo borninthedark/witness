@@ -162,14 +162,19 @@ resource "aws_cloudfront_origin_access_control" "s3" {
 # ================================================================
 
 resource "aws_s3_bucket" "cdn_logs" {
-  #checkov:skip=CKV_AWS_18:This IS the log destination bucket — logging it creates circular dependency
   bucket = "${var.project}-${var.environment}-cdn-logs"
 
   tags = var.tags
 }
 
+resource "aws_s3_bucket_logging" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  target_bucket = aws_s3_bucket.cdn_logs.id
+  target_prefix = "self-access-logs/"
+}
+
 resource "aws_s3_bucket_ownership_controls" "cdn_logs" {
-  #checkov:skip=CKV2_AWS_65:ACL required for CloudFront standard logging (log-delivery-write)
   bucket = aws_s3_bucket.cdn_logs.id
 
   rule {

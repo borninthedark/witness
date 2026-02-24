@@ -224,6 +224,7 @@ class TestMediaUploadRoute:
 
         assert resp.status_code == 200
         assert "media.princetonstrong.com" in resp.text
+        assert "Upload saved" in resp.text
 
     def test_media_dashboard_requires_auth(self, client):
         """Media dashboard requires authentication."""

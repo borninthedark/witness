@@ -1,6 +1,7 @@
 {% extends "admin_base.html" %}
 
 {% block admin_content %}
+<div id="save-toast" class="save-toast" aria-live="polite"></div>
 <div class="admin-panel">
     <h2>Media Management</h2>
 
@@ -70,6 +71,13 @@
     border-radius: 6px;
 }
 
+.upload-result .upload-success {
+    font-weight: 700;
+    color: #00cc66;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
 .upload-result code {
     word-break: break-all;
 }
@@ -81,5 +89,47 @@
     border-radius: 6px;
     color: #ff9900;
 }
+
+.save-toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 4px;
+    background-color: #00cc66;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(-0.5rem);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+}
+
+.save-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
 </style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var toast = document.getElementById('save-toast');
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('visible');
+    setTimeout(function () { toast.classList.remove('visible'); }, 2000);
+  }
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target && e.detail.target.id === 'upload-result') {
+      showToast('Upload saved');
+    }
+  });
+})();
+</script>
 {% endblock %}

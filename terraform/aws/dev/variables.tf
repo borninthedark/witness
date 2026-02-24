@@ -210,7 +210,7 @@ variable "nist_api_key" {
 variable "enable_media" {
   description = "Enable media CDN (S3 + CloudFront)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # ================================================================

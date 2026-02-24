@@ -31,6 +31,7 @@ skip-check:
   # ── CloudFront ────────────────────────────────────────────────────────────
   - CKV_AWS_174  # Origin failover — no redundant origin available
   - CKV_AWS_310  # Origin failover (duplicate of CKV_AWS_174)
+  - CKV2_AWS_65  # S3 ACL — CloudFront standard logging requires log-delivery-write ACL on cdn-logs bucket
 
   # ── CloudWatch ────────────────────────────────────────────────────────────
   - CKV_AWS_338  # Log retention — modules default to 365d; Checkov can't resolve variable chains
