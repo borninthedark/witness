@@ -102,9 +102,11 @@ module "app_runner" {
   vpc_id             = module.networking.vpc_id
   private_subnet_ids = module.networking.private_subnet_ids
 
+  enable_data_ingest  = var.enable_data_ingest
   dynamodb_table_name = var.enable_data_ingest ? module.data_ingest[0].dynamodb_table_name : ""
   dynamodb_table_arn  = var.enable_data_ingest ? module.data_ingest[0].dynamodb_table_arn : ""
 
+  enable_media      = var.enable_media
   media_bucket_name = var.enable_media ? module.media[0].media_bucket_name : ""
   media_bucket_arn  = var.enable_media ? module.media[0].media_bucket_arn : ""
   media_cdn_domain  = var.enable_media ? module.media[0].media_cdn_domain : ""

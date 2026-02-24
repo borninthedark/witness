@@ -313,7 +313,7 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
 # ================================================================
 
 resource "aws_iam_role_policy" "apprunner_dynamodb" {
-  count = var.dynamodb_table_arn != "" ? 1 : 0
+  count = var.enable_data_ingest ? 1 : 0
 
   name = "dynamodb-read"
   role = aws_iam_role.apprunner_instance.id
@@ -347,7 +347,7 @@ resource "aws_iam_role_policy" "apprunner_dynamodb" {
 # - No DeleteObject — media deletion handled via lifecycle/admin console only
 # - No wildcard resources — prevents lateral access to other S3 buckets
 resource "aws_iam_role_policy" "apprunner_media_s3" {
-  count = var.media_bucket_arn != "" ? 1 : 0
+  count = var.enable_media ? 1 : 0
 
   name = "media-s3-upload"
   role = aws_iam_role.apprunner_instance.id

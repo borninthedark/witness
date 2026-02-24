@@ -133,6 +133,12 @@ variable "private_subnet_ids" {
 # Data Store (DynamoDB)
 # ================================================================
 
+variable "enable_data_ingest" {
+  description = "Enable DynamoDB policy (avoids count depending on computed ARN)"
+  type        = bool
+  default     = false
+}
+
 variable "dynamodb_table_name" {
   description = "DynamoDB data store table name (empty = disabled)"
   type        = string
@@ -148,6 +154,12 @@ variable "dynamodb_table_arn" {
 # ================================================================
 # Media CDN (S3 upload)
 # ================================================================
+
+variable "enable_media" {
+  description = "Enable media S3 policy (avoids count depending on computed ARN)"
+  type        = bool
+  default     = false
+}
 
 variable "media_bucket_name" {
   description = "S3 media bucket name (empty = disabled)"

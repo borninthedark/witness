@@ -255,6 +255,103 @@ def test_apprunner_media_s3_policy_no_delete():
 
 
 # ================================================================
+# App Runner Module — Boolean Count Pattern Tests
+# ================================================================
+#
+# Pattern: Conditional resources must use boolean variables for count,
+# NOT computed string checks like `var.some_arn != ""`.
+#
+# Why: Terraform evaluates `count` during the plan phase. If the
+# expression depends on a resource attribute that won't be known until
+# apply (e.g. an ARN from a counted module), the plan fails with:
+#
+#   Error: Invalid count argument
+#   The "count" value depends on resource attributes that cannot be
+#   determined until apply.
+#
+# Fix: Pass a plan-time-known `bool` variable (e.g. `enable_media`)
+# from the root module alongside the computed ARN, and use the bool
+# for the count expression:
+#
+#   count = var.enable_media ? 1 : 0      # ✓ plan-time known
+#   count = var.media_bucket_arn != "" ? 1 : 0  # ✗ computed at apply
+#
+
+
+def _extract_count_expression(
+    content: str, resource_type: str, resource_name: str
+) -> str | None:
+    """Extract the count expression from a Terraform resource block.
+
+    Returns the RHS of `count = <expr>` or None if the resource is not found.
+    """
+    pattern = rf'resource\s+"{resource_type}"\s+"{resource_name}"\s*\{{'
+    match = re.search(pattern, content)
+    if not match:
+        return None
+
+    # Find the block body
+    start = match.end()
+    depth = 1
+    pos = start
+    while pos < len(content) and depth > 0:
+        if content[pos] == "{":
+            depth += 1
+        elif content[pos] == "}":
+            depth -= 1
+        pos += 1
+    block = content[start:pos]
+
+    # Extract count = ...
+    count_match = re.search(r"count\s*=\s*(.+)", block)
+    return count_match.group(1).strip() if count_match else None
+
+
+def test_apprunner_media_s3_uses_boolean_count():
+    """App Runner media S3 policy must use a boolean variable for count.
+
+    Using `var.media_bucket_arn != ""` fails at plan time because the ARN
+    is computed from a counted module. The count must use `var.enable_media`.
+    """
+    content = APP_RUNNER_MODULE.read_text()
+    expr = _extract_count_expression(
+        content, "aws_iam_role_policy", "apprunner_media_s3"
+    )
+
+    assert expr is not None, "apprunner_media_s3 resource not found"
+    assert "var.enable_media" in expr, (
+        f"apprunner_media_s3 count uses '{expr}' — "
+        f"must use 'var.enable_media ? 1 : 0' (plan-time boolean)"
+    )
+    assert "media_bucket_arn" not in expr, (
+        f"apprunner_media_s3 count depends on computed ARN: '{expr}' — "
+        f"use 'var.enable_media' boolean instead"
+    )
+
+
+def test_apprunner_dynamodb_uses_boolean_count():
+    """App Runner DynamoDB policy must use a boolean variable for count.
+
+    Using `var.dynamodb_table_arn != ""` fails at plan time because the ARN
+    is computed from a counted module. The count must use `var.enable_data_ingest`.
+    """
+    content = APP_RUNNER_MODULE.read_text()
+    expr = _extract_count_expression(
+        content, "aws_iam_role_policy", "apprunner_dynamodb"
+    )
+
+    assert expr is not None, "apprunner_dynamodb resource not found"
+    assert "var.enable_data_ingest" in expr, (
+        f"apprunner_dynamodb count uses '{expr}' — "
+        f"must use 'var.enable_data_ingest ? 1 : 0' (plan-time boolean)"
+    )
+    assert "dynamodb_table_arn" not in expr, (
+        f"apprunner_dynamodb count depends on computed ARN: '{expr}' — "
+        f"use 'var.enable_data_ingest' boolean instead"
+    )
+
+
+# ================================================================
 # Bootstrap Module — KMS + S3 Scoping Tests
 # ================================================================
 
