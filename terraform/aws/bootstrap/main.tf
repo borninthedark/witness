@@ -232,6 +232,7 @@ resource "aws_iam_policy" "tfc_core" {
               "dynamodb.${var.aws_region}.amazonaws.com",
               "sns.${var.aws_region}.amazonaws.com",
               "sqs.${var.aws_region}.amazonaws.com",
+              "lambda.${var.aws_region}.amazonaws.com",
             ]
           }
         }
@@ -655,6 +656,18 @@ resource "aws_iam_policy" "tfc_wellarchitected" {
           "wafv2:PutLoggingConfiguration",
           "wafv2:DeleteLoggingConfiguration",
           "wafv2:GetLoggingConfiguration",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "WAFv2LogDelivery"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups",
         ]
         Resource = "*"
       },
