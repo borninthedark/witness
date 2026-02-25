@@ -856,6 +856,7 @@ resource "aws_iam_policy" "tfc_serverless" {
         Action = [
           "lambda:GetFunction",
           "lambda:GetFunctionConfiguration",
+          "lambda:GetFunctionConcurrency",
           "lambda:GetLayerVersion",
           "lambda:GetPolicy",
           "lambda:GetEventSourceMapping",
@@ -879,6 +880,8 @@ resource "aws_iam_policy" "tfc_serverless" {
           "lambda:DeleteFunction",
           "lambda:UpdateFunctionCode",
           "lambda:UpdateFunctionConfiguration",
+          "lambda:PutFunctionConcurrency",
+          "lambda:DeleteFunctionConcurrency",
           "lambda:PublishLayerVersion",
           "lambda:DeleteLayerVersion",
           "lambda:AddPermission",
