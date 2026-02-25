@@ -271,6 +271,8 @@ resource "aws_iam_policy" "tfc_core" {
           "secretsmanager:TagResource",
           "secretsmanager:UntagResource",
           "secretsmanager:RestoreSecret",
+          "secretsmanager:RotateSecret",
+          "secretsmanager:CancelRotateSecret",
           "secretsmanager:PutResourcePolicy",
           "secretsmanager:DeleteResourcePolicy",
         ]
