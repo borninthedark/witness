@@ -854,12 +854,7 @@ resource "aws_iam_policy" "tfc_serverless" {
         Sid    = "LambdaRead"
         Effect = "Allow"
         Action = [
-          "lambda:GetFunction",
-          "lambda:GetFunctionConfiguration",
-          "lambda:GetFunctionConcurrency",
-          "lambda:GetLayerVersion",
-          "lambda:GetPolicy",
-          "lambda:GetEventSourceMapping",
+          "lambda:Get*",
           "lambda:ListFunctions",
           "lambda:ListVersionsByFunction",
           "lambda:ListLayers",
