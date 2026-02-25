@@ -25,6 +25,7 @@ skip-check:
   - CKV_TF_1  # Commit hash pinning — version tags used (CKV_TF_2 passes)
 
   # ── Lambda ────────────────────────────────────────────────────────────────
+  - CKV_AWS_115  # Reserved concurrency — account quota too low (10); rotation Lambda runs on 45-day schedule
   - CKV_AWS_117  # VPC — functions access only public APIs (NASA, NIST, NOAA)
   - CKV_AWS_272  # Code signing — requires CI/CD pipeline changes (planned)
 

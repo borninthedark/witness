@@ -188,8 +188,7 @@ resource "aws_lambda_function" "rotate_secret" {
   architectures    = ["arm64"]
   timeout          = 60
 
-  kms_key_arn                    = var.kms_key_arn
-  reserved_concurrent_executions = 1
+  kms_key_arn = var.kms_key_arn
 
   tracing_config {
     mode = "Active"

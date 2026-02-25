@@ -875,8 +875,6 @@ resource "aws_iam_policy" "tfc_serverless" {
           "lambda:DeleteFunction",
           "lambda:UpdateFunctionCode",
           "lambda:UpdateFunctionConfiguration",
-          "lambda:PutFunctionConcurrency",
-          "lambda:DeleteFunctionConcurrency",
           "lambda:PublishLayerVersion",
           "lambda:DeleteLayerVersion",
           "lambda:AddPermission",
