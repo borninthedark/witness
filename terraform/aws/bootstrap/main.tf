@@ -254,7 +254,10 @@ resource "aws_iam_policy" "tfc_core" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:GetResourcePolicy",
         ]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}-*"
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}-*",
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}/*",
+        ]
       },
       {
         Sid    = "SecretsManagerWrite"
@@ -270,7 +273,10 @@ resource "aws_iam_policy" "tfc_core" {
           "secretsmanager:PutResourcePolicy",
           "secretsmanager:DeleteResourcePolicy",
         ]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}-*"
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}-*",
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project}/*",
+        ]
       },
 
       # ----------------------------------------------------------
