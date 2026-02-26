@@ -879,6 +879,7 @@ resource "aws_iam_policy" "tfc_serverless" {
           "lambda:UpdateFunctionConfiguration",
           "lambda:PublishLayerVersion",
           "lambda:DeleteLayerVersion",
+          "lambda:InvokeFunction",
           "lambda:AddPermission",
           "lambda:RemovePermission",
           "lambda:TagResource",
