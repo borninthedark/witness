@@ -35,7 +35,7 @@ The following are in scope:
 - Application code (`fitness/`)
 - Terraform infrastructure (`terraform/`)
 - CI/CD workflows (`.github/workflows/`)
-- Container configuration (`container/Containerfile`)
+- Container configuration (`container/Dockerfile`)
 - Dependencies listed in `pyproject.toml`
 
 ### Out of scope

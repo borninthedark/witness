@@ -1698,6 +1698,14 @@ object {
   background-color: var(--lcars-cyan);
 }
 
+.block {
+  display: block;
+}
+
+.resize-none {
+  resize: none;
+}
+
 .outline-none {
   outline: none;
 }

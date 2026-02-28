@@ -5,7 +5,7 @@ services:
     container_name: fitness-app
     build:
       context: ..
-      dockerfile: container/Containerfile
+      dockerfile: container/Dockerfile
     image: ${ECR_REGISTRY:-witness-dev}/witness:${TAG:-latest}
     security_opt:
       - no-new-privileges:true

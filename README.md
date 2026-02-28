@@ -308,7 +308,7 @@ Open `http://localhost:8000`
 
 ```bash
 # Podman (preserves health checks)
-podman build --format docker -t witness:latest -f container/Containerfile .
+podman build --format docker -t witness:latest -f container/Dockerfile .
 podman run -p 8000:8000 --env-file .env witness:latest
 ```
 

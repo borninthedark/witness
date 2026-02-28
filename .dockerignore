@@ -7,10 +7,21 @@ tests/
 .ruff_cache/
 dist/
 build/
+.build/
 .precommit_logs/
+
+# Infrastructure & CI
+terraform/
+container/
+.github/
+.pre-commit-config.yaml
+.checkov.yml
 
 # Documentation
 docs/
+README.md
+SECURITY.md
+LICENSE
 
 # Deployment scripts
 setup-env.sh

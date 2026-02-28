@@ -290,7 +290,7 @@ CSP_DIRECTIVES_TRANSITIONAL = [
         "script-src 'self' 'unsafe-inline' "
         "https://www.google.com/recaptcha/ "
         "https://www.gstatic.com/recaptcha/ "
-        "https://cdn.tailwindcss.com https://cdn.credly.com "
+        "https://cdn.credly.com "
         "https://cdn.bokeh.org "
         "https://formspree.io"
     ),

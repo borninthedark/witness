@@ -33,10 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lint Containerfile
+      - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: container/Containerfile
+          dockerfile: container/Dockerfile
           ignore: DL3008,DL3059
 
       - name: Semgrep

@@ -4,7 +4,7 @@ FROM python:3.13-slim
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install uv for fast, deterministic dependency resolution
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.7 /uv /uvx /bin/
 
 # hadolint ignore=DL3008
 RUN apt-get update \
@@ -15,7 +15,6 @@ RUN apt-get update \
     tzdata \
     netcat-openbsd \
     sqlite3 \
-    libsqlite3-dev \
  && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
