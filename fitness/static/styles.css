@@ -2,14 +2,14 @@
   --lcars-bg: #03070f;
   --lcars-panel-bg: rgba(6, 12, 22, 0.95);
   --lcars-border: rgba(192, 198, 211, 0.18);
-  --lcars-amber: #d8dde7;
-  --lcars-peach: #d14b5a;
-  --lcars-cyan: #4a6f9d;
-  --lcars-lilac: #8a96b3;
-  --pip-gold: #d1d5dd;
+  --lcars-amber: #f90;
+  --lcars-peach: #f86;
+  --lcars-cyan: #9cf;
+  --lcars-lilac: #c9f;
+  --pip-gold: #fc9;
   --pip-hi: #f6f8fb;
-  --pip-mid: #b1b9c6;
-  --pip-lo: #818999;
+  --pip-mid: #ca8;
+  --pip-lo: #996;
   --pip-deep: #2a2f38;
 }
 
