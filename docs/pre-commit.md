@@ -38,6 +38,8 @@ The Terraform hooks intentionally distinguish between reusable modules and envir
   directories require backend/module context that is validated in CI.
 - `terraform_tflint` excludes the same environment roots so the hook can lint reusable modules
   without failing on relative module-path resolution in containerized pre-commit runs.
+- `terraform_validate` and `terraform_tflint` both pass `-lockfile=readonly` to `terraform init`
+  so local validation does not rewrite tracked `.terraform.lock.hcl` files.
 - `terraform_checkov` loads `.checkov.yml` via a repo-relative path so the config resolves
   correctly inside the hook container.
 
@@ -85,8 +87,8 @@ The Terraform hooks intentionally distinguish between reusable modules and envir
 | Hook | Notes |
 |------|-------|
 | `terraform_fmt` | Canonical formatting for all `.tf` files |
-| `terraform_validate` | Syntax validation (excludes `dev/`, `prod/`, `bootstrap/` roots) |
-| `terraform_tflint` | Naming conventions, deprecated interpolation, unused declarations; scoped away from environment roots that reference sibling modules |
+| `terraform_validate` | Syntax validation (excludes `dev/`, `prod/`, `bootstrap/` roots) and uses lockfile-readonly init |
+| `terraform_tflint` | Naming conventions, deprecated interpolation, unused declarations; scoped away from environment roots that reference sibling modules and uses lockfile-readonly init |
 | `terraform_checkov` | Checkov security scan; config in repo-root `.checkov.yml` (shared with CI) |
 
 ### Custom Local Hooks
@@ -112,6 +114,9 @@ The Terraform hooks intentionally distinguish between reusable modules and envir
 - **Terraform env roots excluded in local hooks:** Environment roots (`dev/`, `prod/`, `bootstrap/`)
   depend on backend and sibling-module context that is validated in CI. Local hooks focus on
   reusable modules and repo-wide formatting/security checks.
+- **Lockfiles are read-only during local Terraform hooks:** `terraform_validate` and
+  `terraform_tflint` pass `-lockfile=readonly` so validation surfaces tool/version drift
+  instead of silently rewriting provider lockfiles.
 
 ## Related Config Files
 
