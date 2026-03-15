@@ -132,7 +132,8 @@ repos:
         exclude: '^terraform/(aws|azure)/(dev|prod|bootstrap)/'
       - id: terraform_checkov
         args:
-          - --args=--config-file=__GIT_WORKING_DIR__/.checkov.yml
+          - --args=--config-file=/workspace/.checkov.yml
+
 
 default_language_version:
   python: python3.13

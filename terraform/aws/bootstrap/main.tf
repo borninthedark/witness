@@ -422,6 +422,8 @@ resource "aws_iam_policy" "tfc_governance" {
           "s3:GetBucketOwnershipControls",
           "s3:PutBucketCors",
           "s3:GetBucketCors",
+          "s3:PutBucketWebsite",
+          "s3:GetBucketWebsite",
         ]
         Resource = [
           "arn:aws:s3:::${var.project}-*",

@@ -272,39 +272,30 @@ class TestMediaUploadRoute:
 
 
 class TestAssetUrlCdn:
-    """asset_url transparently routes through CDN when configured."""
+    """asset_url always serves from local /static/ mount."""
 
-    def test_asset_url_local_when_no_cdn(self, tmp_path):
-        """Without CDN, returns local /static/ path."""
+    def test_asset_url_local_path(self, tmp_path):
+        """Returns local /static/ path with cache-bust hash."""
         from fitness.utils.assets import asset_url
 
         css = tmp_path / "blog.css"
         css.write_text("body {}")
 
-        with (
-            patch("fitness.utils.assets.STATIC_ROOT", tmp_path),
-            patch("fitness.utils.assets._cdn_domain", ""),
-        ):
+        with patch("fitness.utils.assets.STATIC_ROOT", tmp_path):
             asset_url.cache_clear()
             result = asset_url("blog.css")
 
         assert result.startswith("/static/blog.css?v=")
 
-    def test_asset_url_cdn_when_configured(self, tmp_path):
-        """With CDN configured, returns CDN URL."""
+    def test_asset_url_missing_file(self, tmp_path):
+        """Returns plain /static/ path when file doesn't exist."""
         from fitness.utils.assets import asset_url
 
-        css = tmp_path / "blog.css"
-        css.write_text("body {}")
-
-        with (
-            patch("fitness.utils.assets.STATIC_ROOT", tmp_path),
-            patch("fitness.utils.assets._cdn_domain", "media.princetonstrong.com"),
-        ):
+        with patch("fitness.utils.assets.STATIC_ROOT", tmp_path):
             asset_url.cache_clear()
-            result = asset_url("blog.css")
+            result = asset_url("missing.css")
 
-        assert result.startswith("https://media.princetonstrong.com/static/blog.css?v=")
+        assert result == "/static/missing.css"
 
 
 # ── CSP media directives ──────────────────────────────────────────

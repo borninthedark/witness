@@ -20,6 +20,9 @@ skip-check:
   - CKV_AWS_144  # Cross-region replication — single-region deployment
   - CKV_AWS_145  # KMS encryption — SSE-S3 for CloudFront OAC (KMS incompatible)
   - CKV2_AWS_62  # Event notifications — not applicable for artifact/media buckets
+  - CKV_AWS_18   # S3 access logging — redirect bucket stores no data
+  - CKV_AWS_21   # S3 versioning — redirect bucket stores no data
+  - CKV2_AWS_61  # S3 lifecycle — redirect bucket stores no data
 
   # ── Module sources ────────────────────────────────────────────────────────
   - CKV_TF_1  # Commit hash pinning — version tags used (CKV_TF_2 passes)
@@ -33,6 +36,11 @@ skip-check:
   - CKV_AWS_174  # Origin failover — no redundant origin available
   - CKV_AWS_310  # Origin failover (duplicate of CKV_AWS_174)
   - CKV2_AWS_65  # S3 ACL — CloudFront standard logging requires log-delivery-write ACL on cdn-logs bucket
+  - CKV_AWS_374  # Geo restriction — redirect distribution has no content to restrict
+  - CKV_AWS_305  # Default root object — redirect distribution forwards all paths
+  - CKV_AWS_86   # CloudFront logging — redirect-only distribution, no data to audit
+  - CKV_AWS_68   # WAF — redirect-only distribution serves 301s, no attack surface
+  - CKV2_AWS_32  # Response headers policy — redirect-only distribution, no content served
 
   # ── CloudWatch ────────────────────────────────────────────────────────────
   - CKV_AWS_338  # Log retention — modules default to 365d; Checkov can't resolve variable chains
