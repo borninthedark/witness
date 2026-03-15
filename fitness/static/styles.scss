@@ -125,6 +125,18 @@ $colors: (
     }
 }
 
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);
@@ -327,6 +339,16 @@ a {
 .card {
     padding: 1.25rem;
     margin-bottom: 1rem;
+}
+
+.section-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--lcars-border);
+}
+
+.cert-table {
+    // inherits .table styles
 }
 
 // Table
@@ -1195,14 +1217,18 @@ object {
 // ==========================================
 // Site Header
 // ==========================================
+// ==========================================
+// Site Header - Stable desktop-first nav
+// ==========================================
+
 .site-header {
-    background: linear-gradient(130deg, rgba(3, 6, 14, 0.96) 0%, rgba(12, 20, 35, 0.94) 65%, rgba(40, 8, 18, 0.92) 100%);
+    background: linear-gradient(135deg, rgba(10, 16, 29, 0.95), rgba(17, 26, 44, 0.95));
+    border-bottom: 2px solid rgba(209, 75, 90, 0.35);
     box-shadow: 0 18px 36px rgba(0, 0, 0, 0.75);
     position: relative;
     overflow: hidden;
     padding: 0.6rem 0;
     margin-bottom: 1.25rem;
-    border-bottom: 2px solid rgba(209, 75, 90, 0.35);
 
     &::before {
         content: '';
@@ -1231,23 +1257,54 @@ object {
 
     .container {
         animation: none;
+        max-width: 100%;
+        padding-left: 2rem;
+        padding-right: 2rem;
     }
+}
 
-    .header-content {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.4rem 0;
-        gap: 1rem;
-    }
+.header-shell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+}
 
-    .nav-links {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-    }
+.header-left {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 1.25rem;
+}
 
-    .nav-links a {
+.brand-block {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+}
+
+.brand-label {
+    color: #d8dde7;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+}
+
+.nav-links {
+    display: flex !important;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+
+    a {
         color: #0b0d11;
         font-weight: 600;
         padding: 0.35rem 1rem;
@@ -1264,7 +1321,7 @@ object {
         transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
 
-    .nav-links a:hover {
+    a:hover {
         transform: translateY(-1px);
         border-color: rgba(255, 255, 255, 0.95);
         box-shadow:
@@ -1272,50 +1329,21 @@ object {
             inset 0 -2px 4px rgba(4, 6, 10, 0.65),
             0 14px 28px rgba(136, 146, 166, 0.55);
     }
-
-    .brand-mark {
-        color: #d8dde7;
-        font-weight: 700;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        font-size: 0.8rem;
-    }
-
-    // Always hide hamburger menu
-    .hamburger-menu {
-        display: none !important;
-    }
 }
 
-// Always hide hamburger
-.site-header .hamburger-menu {
-    display: none !important;
-}
-
-// Same nav on all screens - no mobile changes
-.site-header .nav-links {
-    display: flex !important;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-// Extra small screens - stack everything
 @media (max-width: 640px) {
-    .site-header .header-content {
+    .header-shell {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .site-header .nav-links {
-        order: 2;
+    .nav-links {
         justify-content: center;
         width: 100%;
     }
 
-    .site-header .brand-mark {
-        order: 1;
-        text-align: center;
-        margin: 0;
+    .brand-block {
+        justify-content: center;
     }
 }
 
@@ -1748,234 +1776,3 @@ object {
     border-color: var(--lcars-amber);
     box-shadow: 0 0 0 1px var(--lcars-amber);
 }
-
-/* ===============================================================
-   Mobile nav fix (stack pip-buttons vertically on small screens)
-   Applied: 2025-11-12 15:21:20
-   =============================================================== */
-
-// Always hide hamburger
-.site-header .hamburger-menu {
-    display: none !important;
-}
-
-// Same nav on all screens - visible
-.site-header .nav-links {
-    display: flex !important;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-// Extra small screens - stack everything
-@media (max-width: 640px) {
-    .site-header .header-content {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .site-header .nav-links {
-        order: 2;
-        flex-direction: column;  // Stack buttons vertically
-        width: 100%;
-        gap: 0.5rem;
-    }
-
-    .site-header .nav-links a {
-        text-align: center;      // Center text
-        width: 100%;             // Full-width tap targets
-    }
-
-    .site-header .brand-mark {
-        order: 1;
-        text-align: center;
-        margin: 0;
-    }
-}
-
-/* ===============================================================
-   LCARS nav visibility + pill styling (mobile + all sizes)
-   Applied: 2025-11-12 15:35:02
-   =============================================================== */
-
-/* Ensure header stays above hero/video and remains clickable */
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-.site-header .header-content {
-  position: relative;
-  z-index: 2;
-}
-.lcars-pill-row {
-  position: relative;
-  z-index: 1;
-  pointer-events: none; /* decorative */
-}
-
-/* Force nav to be visible regardless of earlier mobile rules */
-.site-header .nav-links {
-  display: flex !important;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-/* LCARS pill look for nav anchors without changing markup */
-.site-header .nav-links a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  text-decoration: none;
-  font-weight: 600;
-  line-height: 1.2;
-  /* Use available LCARS variables if defined; fall back gracefully */
-  color: var(--lcars-pill-fg, #0b0e14);
-  background: var(--lcars-pill-bg, linear-gradient(180deg, rgba(255,255,255,0.95), rgba(230,230,235,0.9)));
-  box-shadow: 0 4px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.65);
-  border: 1px solid rgba(0,0,0,0.25);
-  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
-}
-.site-header .nav-links a:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.7);
-}
-.site-header .nav-links a:active {
-  transform: translateY(0);
-  filter: brightness(0.98);
-}
-
-/* Extra small screens: stack vertically, full-width tap targets */
-@media (max-width: 640px) {
-  .site-header .header-content {
-    display: flex;
-    gap: 0.75rem;
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .site-header .nav-links {
-    order: 2;
-    flex-direction: column;
-    width: 100%;
-    gap: 0.5rem;
-  }
-  .site-header .nav-links a {
-    width: 100%;
-    text-align: center;
-  }
-  .site-header .brand-mark {
-    order: 1;
-    text-align: center;
-    margin: 0;
-  }
-}
-
-/* ==================================================================
-   Mobile nav override (SCSS) — keep LCARS pills visible & tappable
-   Applied: 2025-11-12 15:48:09
-   ================================================================== */
-
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-// We’re not using the hamburger right now
-.site-header .hamburger-menu {
-  display: none !important;
-}
-
-// Ensure nav is visible on all widths (cancels earlier display:none)
-@media (max-width: 1200px) {
-  .site-header .nav-links {
-    display: flex !important;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-}
-
-// Small screens: stack full-width pill buttons
-@media (max-width: 640px) {
-  .site-header .header-content {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-
-  .site-header .nav-links {
-    order: 2;
-    flex-direction: column;
-    width: 100%;
-    gap: 0.5rem;
-  }
-
-  .site-header .nav-links a {
-    width: 100%;
-    text-align: center;
-  }
-
-  .site-header .brand-mark {
-    order: 1;
-    text-align: center;
-    margin: 0;
-  }
-}
-
-// Decorative pill row should never block taps
-.lcars-pill-row {
-  pointer-events: none;
-}
-
-/* ==================================================================
-   Mobile nav override (SCSS) — keep LCARS pills visible & tappable
-   Applied: 2025-11-12T15:48:09
-   ================================================================== */
-
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-.site-header .hamburger-menu {
-  display: none !important;
-}
-
-@media (max-width: 1200px) {
-  .site-header .nav-links {
-    display: flex !important;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 640px) {
-  .site-header .header-content {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-  .site-header .nav-links {
-    order: 2;
-    flex-direction: column;
-    width: 100%;
-    gap: 0.5rem;
-  }
-  .site-header .nav-links a {
-    width: 100%;
-    text-align: center;
-  }
-  .site-header .brand-mark {
-    order: 1;
-    text-align: center;
-    margin: 0;
-  }
-}
-
-/* Ensure decorative pill row never blocks taps */
-.lcars-pill-row { pointer-events: none; }

@@ -8,9 +8,38 @@ and deployment.
 ## Setup
 
 ```bash
-uv run pre-commit install              # enable hooks
-uv run pre-commit run --all-files      # run everything once
+# one-time hook wiring
+git config core.hooksPath .githooks
+
+# run the full suite in the containerized pre-commit environment
+podman-compose -f container/docker-compose.yml run --rm pre-commit run --all-files
 ```
+
+The repository uses a committed hook wrapper at `.githooks/pre-commit` instead of
+an environment-specific launcher in `.git/hooks/`. That avoids absolute paths from
+the container leaking onto the host.
+
+## Config Setup
+
+The pre-commit stack is split across a small set of committed config files:
+
+| File | Purpose |
+|------|---------|
+| `.githooks/pre-commit` | Stable Git hook entrypoint checked into the repo |
+| `.pre-commit-config.yaml` | Hook definitions, versions, args, and path filters |
+| `.pylintrc` | Pylint project config used by the `pylint` hook |
+| `.checkov.yml` | Shared Checkov policy config for pre-commit and CI |
+| `pyproject.toml` | Ruff, Bandit, pytest, coverage, mypy, and package metadata |
+
+The Terraform hooks intentionally distinguish between reusable modules and environment roots:
+
+- `terraform_fmt` runs on all Terraform files.
+- `terraform_validate` excludes `terraform/(aws|azure)/(dev|prod|bootstrap)/` roots because those
+  directories require backend/module context that is validated in CI.
+- `terraform_tflint` excludes the same environment roots so the hook can lint reusable modules
+  without failing on relative module-path resolution in containerized pre-commit runs.
+- `terraform_checkov` loads `.checkov.yml` via a repo-relative path so the config resolves
+  correctly inside the hook container.
 
 ## Hook Reference
 
@@ -57,8 +86,8 @@ uv run pre-commit run --all-files      # run everything once
 |------|-------|
 | `terraform_fmt` | Canonical formatting for all `.tf` files |
 | `terraform_validate` | Syntax validation (excludes `dev/`, `prod/`, `bootstrap/` roots) |
-| `terraform_tflint` | Naming conventions, deprecated interpolation, unused declarations |
-| `terraform_checkov` | Checkov security scan; config in `.checkov.yml` (shared with CI) |
+| `terraform_tflint` | Naming conventions, deprecated interpolation, unused declarations; scoped away from environment roots that reference sibling modules |
+| `terraform_checkov` | Checkov security scan; config in repo-root `.checkov.yml` (shared with CI) |
 
 ### Custom Local Hooks
 
@@ -80,13 +109,16 @@ uv run pre-commit run --all-files      # run everything once
   that would trigger false positives. The `--path fitness` flag excludes tests.
 - **`unset VIRTUAL_ENV`:** Local hooks that invoke `uv run` unset this variable to
   suppress environment mismatch warnings when pre-commit runs in its own venv.
-- **Terraform validate excludes roots:** Environment roots (`dev/`, `prod/`, `bootstrap/`)
-  require backend init and are validated in CI instead.
+- **Terraform env roots excluded in local hooks:** Environment roots (`dev/`, `prod/`, `bootstrap/`)
+  depend on backend and sibling-module context that is validated in CI. Local hooks focus on
+  reusable modules and repo-wide formatting/security checks.
 
 ## Related Config Files
 
 | File | Purpose |
 |------|---------|
+| `.githooks/pre-commit` | Repo-committed hook wrapper used instead of `.git/hooks/pre-commit` |
+| `.pre-commit-config.yaml` | Hook versions, args, excludes, and local hook commands |
 | `.checkov.yml` | Checkov skip list and framework config (shared with CI) |
 | `.pylintrc` | Pylint config |
 | `.markdownlint.yml` | Markdownlint rules |

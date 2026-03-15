@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 # Ensure pipefail is set for any RUN using pipes (fixes DL4006)
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

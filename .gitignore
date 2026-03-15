@@ -11,6 +11,7 @@ __pycache__/
 .env
 *.env
 .env.*
+!.env.example
 .precommit_logs/
 .pre-commit-cache/
 .pre-commit-trivy-cache/

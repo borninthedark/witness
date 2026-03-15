@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -eu
+
+repo_root=$(
+  cd "$(dirname "$0")/.." && pwd
+)
+
+cd "$repo_root"
+
+exec podman-compose -f container/docker-compose.yml run --rm -T pre-commit run --hook-stage pre-commit

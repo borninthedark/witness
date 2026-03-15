@@ -1,6 +1,15 @@
 version: "3.9"
 
 services:
+  pre-commit:
+    build:
+      context: ..
+      dockerfile: container/Dockerfile.pre-commit
+    image: ${ECR_REGISTRY:-witness-dev}/witness-pre-commit:${TAG:-latest}
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:Z
+
   app:
     container_name: fitness-app
     build:
@@ -40,7 +49,7 @@ services:
 
   caddy:
     container_name: fitness-caddy
-    image: caddy:2-alpine
+    image: docker.io/library/caddy:2-alpine
     security_opt:
       - no-new-privileges:true
     entrypoint:
@@ -55,8 +64,8 @@ services:
       - "${HTTPS_PORT:-8443}:443"
     volumes:
       # SELinux-labeled bind mounts (Fedora)
-      - ./container/Caddyfile:/etc/caddy/Caddyfile:Z,ro
-      - ./fitness/static:/srv:Z,ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:Z,ro
+      - ../fitness/static:/srv:Z,ro
 
       # named volumes (no SELinux suffix needed)
       - caddy_data:/data

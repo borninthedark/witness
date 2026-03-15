@@ -341,12 +341,21 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency management:
 ### Pre-commit Hooks
 
 ```bash
-uv run pre-commit install
-uv run pre-commit run --all-files
+# one-time hook wiring
+git config core.hooksPath .githooks
+
+# run the full suite in the containerized pre-commit environment
+podman-compose -f container/docker-compose.yml run --rm pre-commit run --all-files
 ```
 
-Hooks include: black, isort, flake8, pylint, mypy, bandit, yamllint, shellcheck,
-markdownlint, terraform_fmt, terraform_validate, tflint, DRY enforcement, and README generation.
+Config lives in `.githooks/pre-commit`, `.pre-commit-config.yaml`, `.pylintrc`,
+`.checkov.yml`, and `pyproject.toml`. Terraform env roots are excluded from local
+`terraform_validate` / `terraform_tflint` runs; reusable modules and security checks
+still run in pre-commit, while full environment validation remains in CI.
+
+Hooks include: ruff, pylint, mypy, bandit, yamllint, shellcheck, markdownlint,
+terraform_fmt, terraform_validate, terraform_tflint, terraform_checkov,
+DRY enforcement, and README generation.
 
 ### Testing
 

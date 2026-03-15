@@ -75,7 +75,7 @@ repos:
         name: Generate security reports
         language: system
         entry: tools/precommit_log.sh
-        args: ['security-reports', '.venv/bin/python', 'tools/generate-security-reports.py']
+        args: ['security-reports', 'python3', 'tools/generate-security-reports.py']
         pass_filenames: false
 
   - repo: local
@@ -87,13 +87,14 @@ repos:
         pass_filenames: false
         types: [python]
 
-  - repo: https://github.com/pycqa/pylint
-    rev: v3.2.6
+  - repo: local
     hooks:
       - id: pylint
-        args:
-          - --errors-only
-          - --rcfile=.pylintrc
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args: ["--errors-only", "--rcfile=.pylintrc"]
 
   - repo: local
     hooks:
@@ -120,15 +121,16 @@ repos:
       - id: terraform_validate
         args:
           - --hook-config=--retry-once-with-cleanup=true
-        exclude: '^terraform/(dev|prod|bootstrap)/'
+        exclude: '^terraform/(aws|azure)/(dev|prod|bootstrap)/'
       - id: terraform_tflint
         args:
           - --args=--only=terraform_naming_convention
           - --args=--only=terraform_deprecated_interpolation
           - --args=--only=terraform_unused_declarations
+        exclude: '^terraform/(aws|azure)/(dev|prod|bootstrap)/'
       - id: terraform_checkov
         args:
-          - --args=--config-file=__GIT_WORKING_DIR__/.checkov.yml
+          - --args=--config-file=.checkov.yml
 
 default_language_version:
   python: python3.13
