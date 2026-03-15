@@ -40,8 +40,8 @@ The Terraform hooks intentionally distinguish between reusable modules and envir
   without failing on relative module-path resolution in containerized pre-commit runs.
 - `terraform_validate` and `terraform_tflint` both pass `-lockfile=readonly` to `terraform init`
   so local validation does not rewrite tracked `.terraform.lock.hcl` files.
-- `terraform_checkov` loads `.checkov.yml` via a repo-relative path so the config resolves
-  correctly inside the hook container.
+- `terraform_checkov` loads `__GIT_WORKING_DIR__/.checkov.yml` so nested Terraform directories
+  can share the single repo-root config file inside the hook container.
 
 ## Hook Reference
 
@@ -89,7 +89,7 @@ The Terraform hooks intentionally distinguish between reusable modules and envir
 | `terraform_fmt` | Canonical formatting for all `.tf` files |
 | `terraform_validate` | Syntax validation (excludes `dev/`, `prod/`, `bootstrap/` roots) and uses lockfile-readonly init |
 | `terraform_tflint` | Naming conventions, deprecated interpolation, unused declarations; scoped away from environment roots that reference sibling modules and uses lockfile-readonly init |
-| `terraform_checkov` | Checkov security scan; config in repo-root `.checkov.yml` (shared with CI) |
+| `terraform_checkov` | Checkov security scan; config loaded from repo-root `.checkov.yml` via `__GIT_WORKING_DIR__` (shared with CI) |
 
 ### Custom Local Hooks
 
