@@ -121,12 +121,14 @@ repos:
       - id: terraform_validate
         args:
           - --hook-config=--retry-once-with-cleanup=true
+          - --tf-init-args=-lockfile=readonly
         exclude: '^terraform/(aws|azure)/(dev|prod|bootstrap)/'
       - id: terraform_tflint
         args:
           - --args=--only=terraform_naming_convention
           - --args=--only=terraform_deprecated_interpolation
           - --args=--only=terraform_unused_declarations
+          - --tf-init-args=-lockfile=readonly
         exclude: '^terraform/(aws|azure)/(dev|prod|bootstrap)/'
       - id: terraform_checkov
         args:
