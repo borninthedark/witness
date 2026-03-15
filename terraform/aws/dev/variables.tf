@@ -234,3 +234,25 @@ variable "codestar_connection_arn" {
   type        = string
   default     = ""
 }
+
+# ================================================================
+# Domain Redirect (.online → .com)
+# ================================================================
+
+variable "enable_redirect" {
+  description = "Enable HTTPS redirect from .online to .com"
+  type        = bool
+  default     = false
+}
+
+variable "redirect_source_domain" {
+  description = "Domain to redirect from (e.g. engage.princetonstrong.online)"
+  type        = string
+  default     = "engage.princetonstrong.online"
+}
+
+variable "redirect_hosted_zone_id" {
+  description = "Route 53 hosted zone ID for the .online domain"
+  type        = string
+  default     = ""
+}

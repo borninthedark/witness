@@ -87,7 +87,7 @@ fitness/static/lcars/assets/*
 fitness/data/*.db
 fitness/data/*.pdf
 # MyPy
-.mypy_cache
+.mypy_cache/
 # Tools
 .flake8
 .pylintrc
@@ -97,7 +97,5 @@ fitness/data/*.pdf
 terraform/bootstrap/*.tfstate*
 terraform/aws/bootstrap/*.tfstate*
 terraform/aws/bootstrap/bootstrap.tfvars
-terraform/modules/codepipeline/
-terraform/aws/modules/codepipeline/
 .build/
 docs/private/

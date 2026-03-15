@@ -202,6 +202,25 @@ module "data_ingest" {
 # CodePipeline (optional)
 # ================================================================
 
+# ================================================================
+# Domain Redirect (.online → .com)
+# ================================================================
+
+module "redirect" {
+  source = "../modules/redirect"
+  count  = var.enable_redirect ? 1 : 0
+
+  source_domain  = var.redirect_source_domain
+  target_url     = "https://engage.${var.domain_name}"
+  hosted_zone_id = var.redirect_hosted_zone_id
+
+  tags = var.tags
+}
+
+# ================================================================
+# CodePipeline (optional)
+# ================================================================
+
 module "codepipeline" {
   source = "../modules/codepipeline"
   count  = var.enable_codepipeline ? 1 : 0

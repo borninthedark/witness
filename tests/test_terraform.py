@@ -463,6 +463,7 @@ _RESOURCE_IAM_ACTIONS: dict[str, list[str]] = {
     "aws_s3_bucket_cors_configuration": ["s3:PutBucketCors"],
     "aws_s3_bucket_logging": ["s3:PutBucketLogging"],
     "aws_s3_bucket_ownership_controls": ["s3:PutBucketOwnershipControls"],
+    "aws_s3_bucket_website_configuration": ["s3:PutBucketWebsite"],
     # ── Lambda ──
     "aws_lambda_function": ["lambda:CreateFunction"],
     # ── DynamoDB ──
