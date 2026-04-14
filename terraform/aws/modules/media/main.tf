@@ -426,6 +426,30 @@ resource "aws_cloudfront_distribution" "main" {
     max_ttl     = 31536000 # 1 year
   }
 
+  # /tactical/* → App Runner (cached public dashboard + HTMX fragments)
+  ordered_cache_behavior {
+    path_pattern               = "/tactical/*"
+    target_origin_id           = "app-runner"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
+
+    forwarded_values {
+      query_string = true # severity/days/limit are part of cache key
+      headers      = ["Accept"]
+
+      cookies {
+        forward = "none" # no auth = no cookies = better cache hit ratio
+      }
+    }
+
+    min_ttl     = 0    # respect origin no-cache if sent
+    default_ttl = 900  # 15 min fallback if origin omits Cache-Control
+    max_ttl     = 3600 # 1 hour cap
+  }
+
   # /static/* → App Runner (cache-busted assets)
   ordered_cache_behavior {
     path_pattern               = "/static/*"

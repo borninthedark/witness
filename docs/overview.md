@@ -13,9 +13,10 @@
 
 1. `fitness/main.py` boots the FastAPI app, mounts static assets, seeds certification metadata from `fitness/static/certs`, and exposes UI/API/admin routers.
 2. Public routes live in `fitness/routers/ui.py`, which render Jinja templates via `fitness/templates`.
-3. Certification metadata lives in `fitness/constants.py`, which also handles provider-specific verification labels.
-4. PDF résumé generation uses `fitness/services/pdf_resume.py`, reporting defaults taken from `fitness/config.py`.
-5. Database access is centralized through `fitness/database.py` with SQLAlchemy models defined under `fitness/models/`.
+3. The NIST CVE tactical dashboard is publicly accessible at `/tactical/dashboard` via `fitness/routers/security_dashboard.py` (no auth, CloudFront-cached).
+4. Certification metadata lives in `fitness/constants.py`, which also handles provider-specific verification labels.
+5. PDF résumé generation uses `fitness/services/pdf_resume.py`, reporting defaults taken from `fitness/config.py`.
+6. Database access is centralized through `fitness/database.py` with SQLAlchemy models defined under `fitness/models/`.
 
 ## Data Sources
 

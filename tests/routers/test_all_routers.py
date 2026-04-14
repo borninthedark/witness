@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -85,22 +87,45 @@ class TestReportsRouter:
 
 
 class TestSecurityDashboardRouter:
-    """Tests for security dashboard router endpoints (behind /admin/tactical)."""
+    """Tests for public security dashboard router endpoints (/tactical)."""
 
-    def test_tactical_dashboard_requires_auth(self, client: TestClient):
-        """Test tactical dashboard requires authentication."""
-        response = client.get("/admin/tactical/dashboard", follow_redirects=False)
-        assert response.status_code in [302, 401]
+    def test_tactical_dashboard_is_public(self, client: TestClient):
+        """Test tactical dashboard is publicly accessible."""
+        with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+            mock_agg.get_stats = AsyncMock(
+                return_value=AsyncMock(
+                    total_advisories=0,
+                    critical_count=0,
+                    high_count=0,
+                    medium_count=0,
+                    low_count=0,
+                )
+            )
+            response = client.get("/tactical/dashboard", follow_redirects=False)
+        assert response.status_code == 200
 
-    def test_tactical_advisories_requires_auth(self, client: TestClient):
-        """Test tactical advisories endpoint requires authentication."""
-        response = client.get("/admin/tactical/advisories", follow_redirects=False)
-        assert response.status_code in [302, 401]
+    def test_tactical_advisories_is_public(self, client: TestClient):
+        """Test tactical advisories endpoint is publicly accessible."""
+        with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+            mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+            response = client.get("/tactical/advisories", follow_redirects=False)
+        assert response.status_code == 200
 
-    def test_tactical_stats_requires_auth(self, client: TestClient):
-        """Test tactical stats endpoint requires authentication."""
-        response = client.get("/admin/tactical/stats", follow_redirects=False)
-        assert response.status_code in [302, 401]
+    def test_tactical_stats_is_public(self, client: TestClient):
+        """Test tactical stats endpoint is publicly accessible."""
+        with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+            mock_agg.get_stats = AsyncMock(
+                return_value=AsyncMock(
+                    total_advisories=0,
+                    critical_count=0,
+                    high_count=0,
+                    medium_count=0,
+                    low_count=0,
+                    latest_critical=None,
+                )
+            )
+            response = client.get("/tactical/stats", follow_redirects=False)
+        assert response.status_code == 200
 
 
 class TestStatusRouter:

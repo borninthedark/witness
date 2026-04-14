@@ -24,6 +24,7 @@ graph TD
     USER(("Internet")):::external --> R53["Route 53<br/>*.princetonstrong.com"]:::edge
     R53 --> CF["CloudFront<br/>media.princetonstrong.com"]:::edge
     CF -->|"/media/*"| S3M["S3 Media<br/>Bucket"]:::storage
+    CF -->|"/tactical/*<br/>(cached)"| AR
     CF -->|"default + /static/*"| WAF["WAFv2<br/>3 rule groups"]:::security --> AR["App Runner"]:::compute
     GH["GitHub Actions<br/>La Forge"]:::external -->|push| ECR["ECR"]:::compute -->|deploy| AR
 
@@ -142,6 +143,8 @@ The media module provides CDN-served storage for tutorial videos and images:
   - Default behavior: App Runner (dynamic HTML, no cache)
 - **Cache Behaviors**:
   - `/media/*` → S3, 1-day default TTL, 1-year max, no cookies/headers forwarded
+  - `/tactical/*` → App Runner, 15-min default TTL, 1-hour max, query strings forwarded
+    (severity/days/limit as cache key), `Accept` header only, no cookies
   - `/static/*` → App Runner, 1-hour default, query strings forwarded for cache-busting
 - **ACM Certificate** — `media.princetonstrong.com`, DNS-validated via Route 53
 - **Route 53 A Record** — alias to CloudFront distribution

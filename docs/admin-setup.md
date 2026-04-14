@@ -162,9 +162,9 @@ The following routes require admin authentication:
 | `/admin/` | Admin dashboard with navigation cards |
 | `/admin/status/` | Operational status with Bokeh charts |
 | `/admin/certs` | Certification management interface |
-| `/admin/tactical/dashboard` | CVE advisories and security intelligence |
-| `/admin/tactical/advisories` | Advisory data API (JSON) |
-| `/admin/tactical/stats` | Advisory statistics API (JSON) |
+| `/tactical/dashboard` | CVE advisories and security intelligence (public) |
+| `/tactical/advisories` | Advisory list (HTMX fragment, public) |
+| `/tactical/stats` | Advisory statistics (HTMX fragment, public) |
 | `/admin/log` | Captain's Log dashboard (entry list) |
 | `/admin/log/entry/{slug}` | Individual Captain's Log entry view |
 | `/admin/media` | Media management dashboard (GET) |
