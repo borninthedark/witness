@@ -1,4 +1,4 @@
-"""Tests for security advisory dashboard (behind admin auth)."""
+"""Tests for public security advisory dashboard."""
 
 from __future__ import annotations
 
@@ -12,44 +12,69 @@ from fitness.main import app
 
 
 @pytest.mark.asyncio
-async def test_security_dashboard():
-    """Test tactical dashboard requires auth."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get("/admin/tactical/dashboard", follow_redirects=False)
-    assert response.status_code in [302, 401]
-
-
-@pytest.mark.asyncio
-async def test_get_advisories():
-    """Test advisories endpoint requires auth."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get(
-            "/admin/tactical/advisories?days=7", follow_redirects=False
+async def test_security_dashboard_is_public():
+    """Tactical dashboard is publicly accessible (no auth)."""
+    with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+        mock_agg.get_stats = AsyncMock(
+            return_value=AsyncMock(
+                total_advisories=0,
+                critical_count=0,
+                high_count=0,
+                medium_count=0,
+                low_count=0,
+            )
         )
-    assert response.status_code in [302, 401]
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.get("/tactical/dashboard", follow_redirects=False)
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_get_advisories_with_filters():
-    """Test advisories endpoint with filters requires auth."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get(
-            "/admin/tactical/advisories?days=30&severity=CRITICAL&source=NIST",
-            follow_redirects=False,
+async def test_get_advisories_is_public():
+    """Advisories endpoint is publicly accessible."""
+    with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+        mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.get(
+                "/tactical/advisories?days=7", follow_redirects=False
+            )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_get_advisories_with_filters_is_public():
+    """Advisories endpoint with filters is publicly accessible."""
+    with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+        mock_agg.fetch_all_advisories = AsyncMock(return_value=[])
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.get(
+                "/tactical/advisories?days=30&severity=CRITICAL&source=NIST",
+                follow_redirects=False,
+            )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_get_stats_is_public():
+    """Stats endpoint is publicly accessible."""
+    with patch("fitness.routers.security_dashboard.aggregator") as mock_agg:
+        mock_agg.get_stats = AsyncMock(
+            return_value=AsyncMock(
+                total_advisories=0,
+                critical_count=0,
+                high_count=0,
+                medium_count=0,
+                low_count=0,
+                latest_critical=None,
+            )
         )
-    assert response.status_code in [302, 401]
-
-
-@pytest.mark.asyncio
-async def test_get_stats():
-    """Test stats endpoint requires auth."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get("/admin/tactical/stats?days=30", follow_redirects=False)
-    assert response.status_code in [302, 401]
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.get("/tactical/stats?days=30", follow_redirects=False)
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -79,7 +104,6 @@ class TestSeverityFilterParsing:
     @pytest.mark.asyncio
     async def test_invalid_severity_ignored(self):
         """Invalid severity string is suppressed, not raised."""
-        # Verify the contextlib.suppress path
         import contextlib
 
         from fitness.models.security import SeverityLevel
@@ -137,7 +161,7 @@ class TestGetAdvisoriesDirect:
         from fitness.routers.security_dashboard import get_advisories
 
         mock_request = MagicMock()
-        mock_request.url.path = "/admin/tactical/advisories"
+        mock_request.url.path = "/tactical/advisories"
         mock_request.app = MagicMock()
         mock_request.state = MagicMock()
 
@@ -215,7 +239,7 @@ class TestGetTopAdvisoriesDirect:
 
     @pytest.mark.asyncio
     async def test_top_advisories_invalid_severity_raises(self):
-        """Invalid severity raises HTTPException (lines 155-156)."""
+        """Invalid severity raises HTTPException."""
         from unittest.mock import MagicMock
 
         from fastapi import HTTPException
@@ -231,7 +255,7 @@ class TestGetTopAdvisoriesDirect:
 
     @pytest.mark.asyncio
     async def test_top_advisories_valid_severity(self):
-        """Valid severity calls aggregator (covers lines 153-163)."""
+        """Valid severity calls aggregator."""
         from unittest.mock import MagicMock
 
         from fitness.routers.security_dashboard import get_top_advisories

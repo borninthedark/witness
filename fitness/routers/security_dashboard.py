@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import contextlib
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from fitness.auth import current_active_user
 from fitness.config import settings
 from fitness.models.security import AdvisorySource, SeverityLevel
 from fitness.security import limiter
@@ -16,9 +15,8 @@ from fitness.services.cve_aggregator import CVEAggregator
 from fitness.utils.assets import asset_url
 
 router = APIRouter(
-    prefix="/admin/tactical",
+    prefix="/tactical",
     tags=["tactical"],
-    dependencies=[Depends(current_active_user)],
 )
 templates = Jinja2Templates(directory="fitness/templates")
 templates.env.globals["asset_url"] = asset_url
@@ -29,7 +27,7 @@ aggregator = CVEAggregator(nist_api_key=settings.nist_api_key)
 
 @router.get("/dashboard", response_class=HTMLResponse)
 @limiter.limit("30/minute")
-async def security_dashboard(request: Request, user=Depends(current_active_user)):
+async def security_dashboard(request: Request):
     """Main security dashboard page.
 
     Returns:
@@ -43,8 +41,6 @@ async def security_dashboard(request: Request, user=Depends(current_active_user)
         {
             "request": request,
             "stats": stats,
-            "user": user,
-            "admin_page": "tactical",
         },
     )
 
